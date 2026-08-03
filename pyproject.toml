@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "multi-model-transit-search"
+version = "0.1.0"
+description = "Reproducible Kepler transit-search benchmarking with TPS, ARIMA/TCF, transformed-template filtering, ML, CNN, and adaptive ensembles."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "Adaptive Transit Search Contributors" },
+]
+dependencies = [
+  "astropy>=6.0",
+  "joblib>=1.4",
+  "lightkurve>=2.5",
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pyarrow>=15.0",
+  "pydantic>=2.7",
+  "pywavelets>=1.6",
+  "pyyaml>=6.0",
+  "scikit-learn>=1.5",
+  "scipy>=1.13",
+  "statsmodels>=0.14",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+ml = [
+  "lightgbm>=4.3",
+  "shap>=0.45",
+  "xgboost>=2.0",
+]
+dl = [
+  "torch>=2.3",
+]
+parallel = [
+  "dask[complete]>=2024.5",
+  "ray>=2.20",
+]
+tracking = [
+  "mlflow>=2.12",
+]
+notebooks = [
+  "ipykernel>=6.29",
+  "jupyterlab>=4.2",
+  "seaborn>=0.13",
+]
+dev = [
+  "mypy>=1.10",
+  "pre-commit>=3.7",
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+]
+all = [
+  "multi-model-transit-search[dev,dl,ml,notebooks,parallel,tracking]",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/adaptive_transit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+warn_return_any = true
+warn_unused_ignores = true

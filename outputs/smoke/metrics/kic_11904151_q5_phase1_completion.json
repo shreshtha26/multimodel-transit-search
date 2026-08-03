@@ -1,0 +1,40 @@
+{
+  "phase": "multi-model-transit-search Phase 1: single-target ARIMA transformed-template prototype",
+  "phase1_engineering_complete": true,
+  "phase1_scientific_ready_for_phase2": true,
+  "selected_quality_policy": "default",
+  "selected_mode": "full_gap",
+  "selected_order": "(1, 0, 1)",
+  "required_criteria": {
+    "preprocessing_is_explicit_and_reproducible": true,
+    "missing_cadences_remain_explicit": true,
+    "normalization_is_leakage_free": true,
+    "variance_behavior_is_characterized": true,
+    "order_selection_runs_across_folds_and_segments": true,
+    "full_quarter_nan_gap_model_is_evaluated": true,
+    "simple_baselines_are_compared": true,
+    "coefficient_boundary_diagnostics_are_recorded": true,
+    "residual_failure_modes_are_documented": true,
+    "standardized_innovations_are_saved": true,
+    "injected_transit_preservation_is_measured": true,
+    "arima_transformed_template_match_is_measured": true,
+    "blind_single_event_scan_is_measured": true,
+    "multi_injection_recovery_is_measured": true
+  },
+  "scientific_findings": {
+    "selected_model_has_candidate_failure_reason": false,
+    "residual_autocorrelation_remaining": true,
+    "variance_instability": true,
+    "transit_preservation_failure": true,
+    "transformed_template_improves_unchanged_box": true,
+    "blind_scan_recovers_injected_center_as_best": true,
+    "multi_injection_rank1_recovery_rate": 1.0,
+    "multi_injection_rank3_recovery_rate": 1.0,
+    "multi_injection_transit_preservation_failure_rate": 1.0
+  },
+  "interpretation": [
+    "Phase 1 is complete as a single-target prototype when all required criteria are true.",
+    "Residual autocorrelation, variance instability, or transit-preservation failure remain documented scientific limitations.",
+    "These are baseline ARIMA model limitations, not missing implementation."
+  ]
+}

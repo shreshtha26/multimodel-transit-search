@@ -1,0 +1,53 @@
+description: >
+  Initial robust multi-model-transit-search target sample for batch ARIMA/transformed-template
+  experiments. This is intentionally a curated sample, not the full Kepler
+  archive.
+
+runner_args:
+  - --quality-policy
+  - default
+  - --quality-policy
+  - permissive
+  - --scan-stride
+  - "25"
+  - --scan-max-centers
+  - "80"
+  - --injection-depth-grid
+  - "0.0005,0.001,0.002"
+  - --injection-duration-grid
+  - "3,6,12"
+  - --injection-centers-per-duration
+  - "2"
+  - --injection-max-segments
+  - "2"
+
+targets:
+  - target_id: 11904151
+    name: Kepler-10
+    quarter: 5
+    role: known compact transiting system; current Phase 1 reference target
+
+  - target_id: 11086270
+    name: Kepler-110
+    quarter: 5
+    role: known multi-planet transiting system requested for follow-up
+
+  - target_id: 6541920
+    name: Kepler-11
+    quarter: 5
+    role: known multi-planet transiting system
+
+  - target_id: 3323887
+    name: Kepler-9
+    quarter: 5
+    role: known multi-planet transiting system
+
+  - target_id: 6850504
+    name: Kepler-20
+    quarter: 5
+    role: known multi-planet transiting system
+
+  - target_id: 10593626
+    name: Kepler-22
+    quarter: 5
+    role: known transiting system with longer-period signal

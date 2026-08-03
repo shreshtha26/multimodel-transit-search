@@ -1,0 +1,313 @@
+"""Cadence-aware quality masking and normalization for Kepler PDCSAP flux."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+REQUIRED_PDCSAP_COLUMNS = ("time", "flux", "flux_error", "quality", "cadenceno")
+PERMISSIVE_QUALITY_BITMASK = 2 | 4 | 8 | 256 | 16384 | 32768 | 65536
+
+
+@dataclass(frozen=True)
+class PreprocessingSummary:
+    """Small audit record for the choices made before ARIMA fitting."""
+
+    quality_policy: str
+    quality_rejection_bitmask: int
+    n_raw: int
+    n_cadence_grid: int
+    n_row_absent: int
+    n_usable: int
+    n_unusable_observed: int
+    median_flux: float
+    normalization_fit_fraction: float
+    normalization_fit_count: int
+    quality_zero_fraction_raw: float
+    quality_ok_fraction_raw: float
+    flux_error_finite_fraction_observed: float
+    median_cadence_days: float
+    gap_count: int
+    max_gap_cadences: int
+    max_gap_days: float
+    segment_count: int
+    longest_segment_length: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def validate_pdcsap_frame(frame: pd.DataFrame) -> None:
+    """Fail loudly if the expected Stage 1 columns are missing."""
+
+    missing = [column for column in REQUIRED_PDCSAP_COLUMNS if column not in frame.columns]
+    if missing:
+        raise ValueError(f"Missing required PDCSAP columns: {missing}")
+
+
+def obvious_valid_mask(
+    frame: pd.DataFrame,
+    *,
+    require_quality_zero: bool = True,
+    require_finite_flux_error: bool = False,
+) -> np.ndarray:
+    """Return the conservative Stage 1 validity mask.
+
+    `flux_error` is not required by default because the first ARIMA model uses
+    only time and normalized flux. Keeping otherwise valid flux samples avoids
+    creating extra gaps before we understand the cadence structure.
+    """
+
+    validate_pdcsap_frame(frame)
+
+    mask = np.isfinite(frame["time"].to_numpy()) & np.isfinite(frame["flux"].to_numpy())
+    if require_quality_zero:
+        mask &= frame["quality"].to_numpy() == 0
+    if require_finite_flux_error:
+        mask &= np.isfinite(frame["flux_error"].to_numpy())
+    return mask
+
+
+def quality_rejection_bitmask(quality_policy: str) -> int:
+    """Return the integer bitmask rejected by a named quality policy."""
+
+    policy = quality_policy.lower()
+    if policy == "strict":
+        return -1
+    if policy == "none":
+        return 0
+    if policy == "permissive":
+        return PERMISSIVE_QUALITY_BITMASK
+    if policy in {"default", "hard", "hardest"}:
+        from lightkurve.utils import KeplerQualityFlags
+
+        return int(KeplerQualityFlags.OPTIONS[policy])
+    raise ValueError("quality_policy must be one of: strict, permissive, default, hard, hardest, none.")
+
+
+def quality_ok_mask(quality: pd.Series | np.ndarray, quality_policy: str) -> np.ndarray:
+    """Return True where Kepler quality flags pass the selected policy."""
+
+    policy = quality_policy.lower()
+    quality_values = pd.to_numeric(pd.Series(quality), errors="coerce").to_numpy()
+
+    if policy == "none":
+        return np.ones(quality_values.shape, dtype=bool)
+    if policy == "strict":
+        return np.isfinite(quality_values) & (quality_values == 0)
+
+    bitmask = quality_rejection_bitmask(policy)
+    finite = np.isfinite(quality_values)
+    ok = np.zeros(quality_values.shape, dtype=bool)
+    quality_int = quality_values[finite].astype(np.int64)
+    ok[finite] = (quality_int & bitmask) == 0
+    return ok
+
+
+def regularize_cadence_grid(frame: pd.DataFrame) -> pd.DataFrame:
+    """Reindex onto the complete cadence-number grid.
+
+    Missing rows are not filled with flux. They remain explicit rows with NaN
+    scientific values and `row_present == False`.
+    """
+
+    validate_pdcsap_frame(frame)
+    raw = frame.copy()
+    if raw["cadenceno"].isna().any():
+        raise ValueError("cadenceno contains missing values; cannot build cadence grid.")
+    if raw["cadenceno"].duplicated().any():
+        duplicated = raw.loc[raw["cadenceno"].duplicated(), "cadenceno"].head().tolist()
+        raise ValueError(f"Duplicate cadenceno values are not supported: {duplicated}")
+
+    raw["cadenceno"] = raw["cadenceno"].astype(np.int64)
+    raw["row_present"] = True
+
+    start = int(raw["cadenceno"].min())
+    stop = int(raw["cadenceno"].max())
+    full_index = pd.Index(np.arange(start, stop + 1, dtype=np.int64), name="cadenceno")
+
+    regular = raw.set_index("cadenceno").sort_index().reindex(full_index).reset_index()
+    regular["row_present"] = regular["row_present"].where(
+        regular["row_present"].notna(),
+        False,
+    )
+    regular["row_present"] = regular["row_present"].astype(bool)
+    return regular
+
+
+def summarize_cadence_gaps(regular: pd.DataFrame) -> tuple[float, int, int, float]:
+    """Summarize missing or unusable cadence runs without filling them."""
+
+    usable = regular["usable"].to_numpy(dtype=bool)
+    missing_or_unusable = ~usable
+    if len(usable) == 0:
+        return float("nan"), 0, 0, float("nan")
+
+    finite_times = regular.loc[regular["usable"], "time"].to_numpy(dtype=float)
+    if len(finite_times) < 2:
+        median_cadence = float("nan")
+    else:
+        time_deltas = np.diff(np.sort(finite_times))
+        finite_deltas = time_deltas[np.isfinite(time_deltas) & (time_deltas > 0)]
+        median_cadence = float(np.median(finite_deltas)) if len(finite_deltas) else float("nan")
+
+    gap_count = 0
+    max_gap_cadences = 0
+    current_gap = 0
+    for is_gap in missing_or_unusable:
+        if is_gap:
+            current_gap += 1
+            max_gap_cadences = max(max_gap_cadences, current_gap)
+        elif current_gap:
+            gap_count += 1
+            current_gap = 0
+    if current_gap:
+        gap_count += 1
+
+    max_gap_days = float(max_gap_cadences * median_cadence) if np.isfinite(median_cadence) else float("nan")
+    return median_cadence, gap_count, max_gap_cadences, max_gap_days
+
+
+def assign_segment_ids(regular: pd.DataFrame) -> pd.Series:
+    """Label contiguous usable cadence runs; unusable rows get segment id -1."""
+
+    usable = regular["usable"].to_numpy(dtype=bool)
+    starts = usable & np.r_[True, ~usable[:-1]]
+    segment_ids = np.cumsum(starts) - 1
+    segment_ids[~usable] = -1
+    return pd.Series(segment_ids.astype(np.int64), index=regular.index)
+
+
+def segment_lengths(regular: pd.DataFrame) -> pd.Series:
+    """Return usable-cadence counts by contiguous segment id."""
+
+    usable = regular.loc[regular["segment_id"] >= 0]
+    if usable.empty:
+        return pd.Series(dtype=np.int64)
+    return usable.groupby("segment_id").size().sort_values(ascending=False)
+
+
+def longest_contiguous_segment(regular: pd.DataFrame) -> pd.DataFrame:
+    """Extract the longest finite, usable segment for gap-free ARIMA baselines."""
+
+    lengths = segment_lengths(regular)
+    if lengths.empty:
+        raise ValueError("No usable contiguous segment is available.")
+    segment_id = int(lengths.index[0])
+    return regular.loc[regular["segment_id"] == segment_id].copy().reset_index(drop=True)
+
+
+def summarize_gaps(time: np.ndarray) -> tuple[float, int, float]:
+    """Estimate gaps in an already-filtered time vector.
+
+    This remains for compatibility with older notebook-style code. The Stage 1.5
+    pipeline uses `summarize_cadence_gaps` on the full cadence grid instead.
+    """
+
+    if len(time) < 2:
+        return float("nan"), 0, float("nan")
+
+    deltas = np.diff(np.sort(time))
+    finite_deltas = deltas[np.isfinite(deltas) & (deltas > 0)]
+    if len(finite_deltas) == 0:
+        return float("nan"), 0, float("nan")
+
+    median_cadence = float(np.median(finite_deltas))
+    gap_threshold = 1.5 * median_cadence
+    large_gaps = finite_deltas[finite_deltas > gap_threshold]
+    max_gap = float(np.max(large_gaps)) if len(large_gaps) else 0.0
+    return median_cadence, int(len(large_gaps)), max_gap
+
+
+def preprocess_pdcsap_light_curve(
+    frame: pd.DataFrame,
+    *,
+    quality_policy: str = "strict",
+    require_quality_zero: bool | None = None,
+    require_finite_flux_error: bool = False,
+    normalization_fit_fraction: float = 1.00,
+) -> tuple[pd.DataFrame, PreprocessingSummary]:
+    """Build a full cadence grid and normalize flux without holdout leakage."""
+
+    validate_pdcsap_frame(frame)
+    if not 0.0 < normalization_fit_fraction <= 1.0:
+        raise ValueError("normalization_fit_fraction must be in (0, 1].")
+    if require_quality_zero is not None:
+        quality_policy = "strict" if require_quality_zero else "none"
+    bitmask = quality_rejection_bitmask(quality_policy)
+
+    raw = frame.copy()
+    regular = regularize_cadence_grid(raw)
+
+    regular["finite_time"] = np.isfinite(regular["time"].to_numpy(dtype=float))
+    regular["finite_flux"] = np.isfinite(regular["flux"].to_numpy(dtype=float))
+    regular["finite_flux_error"] = np.isfinite(regular["flux_error"].to_numpy(dtype=float))
+    regular["quality_ok"] = quality_ok_mask(regular["quality"], quality_policy)
+    regular["usable"] = regular["row_present"] & regular["finite_time"] & regular["finite_flux"] & regular["quality_ok"]
+    if require_finite_flux_error:
+        regular["usable"] &= regular["finite_flux_error"]
+    regular["observed_mask"] = regular["usable"]
+
+    regular["gap_reason"] = "usable"
+    regular.loc[~regular["row_present"], "gap_reason"] = "cadence_absent_from_file"
+    regular.loc[regular["row_present"] & ~regular["finite_time"], "gap_reason"] = "nonfinite_time"
+    regular.loc[regular["row_present"] & ~regular["finite_flux"], "gap_reason"] = "nonfinite_flux"
+    regular.loc[
+        regular["row_present"] & regular["finite_flux"] & ~regular["quality_ok"],
+        "gap_reason",
+    ] = "quality_flagged"
+    if require_finite_flux_error:
+        regular.loc[
+            regular["row_present"] & regular["finite_flux"] & regular["quality_ok"] & ~regular["finite_flux_error"],
+            "gap_reason",
+        ] = "nonfinite_flux_error"
+
+    usable_indices = regular.index[regular["usable"]].to_numpy()
+    if len(usable_indices) == 0:
+        raise ValueError("No valid cadences remain after preprocessing.")
+
+    normalization_count = max(1, int(round(len(usable_indices) * normalization_fit_fraction)))
+    normalization_indices = usable_indices[:normalization_count]
+    median_flux = float(np.nanmedian(regular.loc[normalization_indices, "flux"].to_numpy()))
+    if not np.isfinite(median_flux) or median_flux == 0.0:
+        raise ValueError(f"Cannot normalize with median_flux={median_flux!r}.")
+
+    regular["normalization_fit"] = False
+    regular.loc[normalization_indices, "normalization_fit"] = True
+    regular["normalized_flux"] = regular["flux"] / median_flux - 1.0
+    regular.loc[~regular["usable"], "normalized_flux"] = np.nan
+    regular["segment_id"] = assign_segment_ids(regular)
+
+    lengths = segment_lengths(regular)
+    median_cadence, gap_count, max_gap_cadences, max_gap_days = summarize_cadence_gaps(regular)
+    raw_quality = raw["quality"].to_numpy()
+    quality_zero_fraction = float(np.mean(raw_quality == 0))
+    quality_ok_fraction = float(np.mean(quality_ok_mask(raw["quality"], quality_policy)))
+    row_present = regular["row_present"].to_numpy(dtype=bool)
+    flux_error_valid_fraction = float(regular.loc[row_present, "finite_flux_error"].mean()) if row_present.any() else float("nan")
+
+    summary = PreprocessingSummary(
+        quality_policy=quality_policy,
+        quality_rejection_bitmask=int(bitmask),
+        n_raw=int(len(raw)),
+        n_cadence_grid=int(len(regular)),
+        n_row_absent=int((~regular["row_present"]).sum()),
+        n_usable=int(regular["usable"].sum()),
+        n_unusable_observed=int((regular["row_present"] & ~regular["usable"]).sum()),
+        median_flux=median_flux,
+        normalization_fit_fraction=float(normalization_fit_fraction),
+        normalization_fit_count=int(normalization_count),
+        quality_zero_fraction_raw=quality_zero_fraction,
+        quality_ok_fraction_raw=quality_ok_fraction,
+        flux_error_finite_fraction_observed=flux_error_valid_fraction,
+        median_cadence_days=median_cadence,
+        gap_count=gap_count,
+        max_gap_cadences=int(max_gap_cadences),
+        max_gap_days=max_gap_days,
+        segment_count=int(len(lengths)),
+        longest_segment_length=int(lengths.iloc[0]) if not lengths.empty else 0,
+    )
+    return regular, summary

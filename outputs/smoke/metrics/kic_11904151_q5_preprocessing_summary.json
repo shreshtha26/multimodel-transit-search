@@ -1,0 +1,26 @@
+{
+  "selected_quality_policy": "default",
+  "policies": {
+    "default": {
+      "quality_policy": "default",
+      "quality_rejection_bitmask": 1130799,
+      "n_raw": 4492,
+      "n_cadence_grid": 4634,
+      "n_row_absent": 142,
+      "n_usable": 4486,
+      "n_unusable_observed": 6,
+      "median_flux": 551632.875,
+      "normalization_fit_fraction": 0.8,
+      "normalization_fit_count": 3589,
+      "quality_zero_fraction_raw": 0.903606411398041,
+      "quality_ok_fraction_raw": 1.0,
+      "flux_error_finite_fraction_observed": 0.9986642920747997,
+      "median_cadence_days": 0.020434164922335185,
+      "gap_count": 54,
+      "max_gap_cadences": 62,
+      "max_gap_days": 1.2669182251847815,
+      "segment_count": 54,
+      "longest_segment_length": 146
+    }
+  }
+}

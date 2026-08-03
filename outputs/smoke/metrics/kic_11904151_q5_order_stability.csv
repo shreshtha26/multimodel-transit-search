@@ -1,0 +1,3 @@
+stability_kind,mode,fold,observed_fraction,n_total,n_observed,selected_order,adequacy_score,failure_reason,segment_id
+chronological_prefix,full_gap,1,0.55,2560,2467,"(1, 0, 1)",126.175,,
+segment,segment,1,,146,146,"(1, 0, 0)",26.447916666666668,,18.0
