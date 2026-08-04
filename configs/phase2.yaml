@@ -64,3 +64,14 @@ stages:
       min_duration_hours: 1.5
       max_duration_hours: 10.0
       n_durations: 8
+      objective: snr
+      top_k: 10
+      period_match_tolerance_fraction: 0.02
+      n_null_trials: 1000
+      null_block_size_cadences: 24
+      fap_levels:
+        - 0.01
+        - 0.001
+      random_seed: 123
+      show_fap_progress: true
+

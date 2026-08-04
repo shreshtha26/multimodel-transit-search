@@ -21,11 +21,11 @@
   "n_observations": 4486,
   "n_periods": 1000,
   "n_durations": 8,
-  "empirical_fap": 0.000999000999000999,
+  "empirical_fap": 0.004975124378109453,
   "fap_1_percent_threshold": 59.886436655977455,
-  "fap_0_1_percent_threshold": 74.3910856153261,
+  "fap_0_1_percent_threshold": 63.48337049112368,
   "passes_fap_1_percent": true,
   "passes_fap_0_1_percent": true,
-  "n_null_trials": 1000,
+  "n_null_trials": 200,
   "null_block_size_cadences": 24
 }

@@ -1,0 +1,16 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "quality_policy": "default",
+  "injection_count": 81,
+  "period_match_rate": 0.8888888888888888,
+  "detection_rate_fap_1_percent": 0.8271604938271605,
+  "recovery_rate_fap_1_percent": 0.8271604938271605,
+  "detection_rate_fap_0_1_percent": 0.7407407407407407,
+  "recovery_rate_fap_0_1_percent": 0.7407407407407407,
+  "median_period_error_fraction": 0.0012012012012011298,
+  "median_depth_retention_fraction": 0.8845467142760692,
+  "median_duration_recovery_fraction": 1.1062500000000002,
+  "fap_1_percent_threshold": 59.886436655977455,
+  "fap_0_1_percent_threshold": 74.3910856153261
+}
