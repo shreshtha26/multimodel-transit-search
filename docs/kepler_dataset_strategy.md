@@ -24,12 +24,12 @@ It includes known Kepler transiting systems such as Kepler-10, Kepler-110,
 Kepler-11, Kepler-9, Kepler-20, and Kepler-22. This is deliberately larger than
 the original single-target experiment but still small enough to iterate on.
 
-Run it with:
+Run it from Python with:
 
-```bash
-.venv/bin/python scripts/run_target_sample.py \
-  --config configs/kepler_target_sample.yaml \
-  --continue-on-error
+```python
+from scripts.run_target_sample import run_target_sample
+
+run_target_sample(continue_on_error=True)
 ```
 
 The batch summary is written to:

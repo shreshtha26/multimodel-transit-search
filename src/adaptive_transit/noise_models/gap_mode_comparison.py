@@ -1,7 +1,5 @@
 """Gap-mode comparison helpers for Phase 1 ARIMA diagnostics."""
 
-from __future__ import annotations
-
 from dataclasses import asdict
 from typing import Any
 

@@ -1,7 +1,5 @@
 """Single-event synthetic transit injection and preservation metrics."""
 
-from __future__ import annotations
-
 from dataclasses import asdict, dataclass
 
 import numpy as np

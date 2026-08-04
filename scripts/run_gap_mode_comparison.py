@@ -1,7 +1,5 @@
 """Compare explicit gap-handling modes for the ARIMA noise-model branch."""
 
-from __future__ import annotations
-
 import argparse
 import json
 from pathlib import Path
@@ -399,6 +397,17 @@ def best_available_row(summary: pd.DataFrame) -> dict[str, Any]:
 def human_report(summary: pd.DataFrame, questions: dict[str, Any], best_available: dict[str, Any]) -> str:
     """Build a concise Markdown report for manual review."""
 
+    selected_columns = [
+        "quality_policy",
+        "gap_mode",
+        "selected_order",
+        "stationarity_conclusion",
+        "recommended_d",
+        "selected_differencing_alignment",
+        "residual_autocorrelation_remaining",
+        "variance_instability",
+        "scientifically_acceptable",
+    ]
     lines = [
         "# Gap-Mode ARIMA Comparison",
         "",
@@ -406,19 +415,9 @@ def human_report(summary: pd.DataFrame, questions: dict[str, Any], best_availabl
         "",
         "## Selected Models",
         "",
-        summary[
-            [
-                "quality_policy",
-                "gap_mode",
-                "selected_order",
-                "stationarity_conclusion",
-                "recommended_d",
-                "selected_differencing_alignment",
-                "residual_autocorrelation_remaining",
-                "variance_instability",
-                "scientifically_acceptable",
-            ]
-        ].to_markdown(index=False),
+        "```text",
+        summary[selected_columns].to_string(index=False),
+        "```",
         "",
         "## Questions",
         "",
@@ -591,8 +590,8 @@ def run_gap_mode_comparison(
     return detailed, summary, plots, metadata_table, stationarity_table, candidate_family, full_report
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(args=None):
+    args = args or build_parser().parse_args()
     if args.max_interpolated_gap_cadences < 0:
         raise ValueError("--max-interpolated-gap-cadences must be non-negative.")
     if args.fit_maxiter is not None and args.fit_maxiter <= 0:

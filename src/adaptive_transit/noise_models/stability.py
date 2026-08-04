@@ -1,43 +1,26 @@
 """Order-selection stability checks across folds and contiguous segments."""
 
-from __future__ import annotations
-
-from collections.abc import Iterable, Sequence
-from dataclasses import asdict, dataclass
-
 import numpy as np
 import pandas as pd
-
-from adaptive_transit.noise_models.arima import ArimaOrder, evaluate_arima_candidates
+from adaptive_transit.noise_models.arima import evaluate_arima_candidates
 from adaptive_transit.noise_models.selection import score_arima_candidates, select_noise_model
 
 
-@dataclass(frozen=True)
 class StabilitySummary:
-    """Compact summary of how stable order selection was."""
+    def __init__(self, stability_kind, n_runs, n_successful_runs, modal_order, modal_order_fraction, unique_selected_orders, stable):
+        self.stability_kind = stability_kind
+        self.n_runs = n_runs
+        self.n_successful_runs = n_successful_runs
+        self.modal_order = modal_order
+        self.modal_order_fraction = modal_order_fraction
+        self.unique_selected_orders = unique_selected_orders
+        self.stable = stable
 
-    stability_kind: str
-    n_runs: int
-    n_successful_runs: int
-    modal_order: str
-    modal_order_fraction: float
-    unique_selected_orders: int
-    stable: bool
-
-    def to_dict(self) -> dict[str, str | int | float | bool]:
-        return asdict(self)
+    def to_dict(self):
+        return self.__dict__.copy()
 
 
-def _safe_select(
-    values: np.ndarray,
-    orders: Iterable[ArimaOrder],
-    *,
-    mode: str,
-    allow_missing: bool,
-    test_fraction: float,
-    acf_lags: int,
-    fit_maxiter: int | None = None,
-) -> tuple[str, float, str]:
+def _safe_select(values, orders, mode, allow_missing, test_fraction, acf_lags, fit_maxiter=None):
     results = evaluate_arima_candidates(
         values,
         orders,
@@ -56,22 +39,10 @@ def _safe_select(
     )
 
 
-def chronological_prefix_stability(
-    values: np.ndarray,
-    orders: Sequence[ArimaOrder],
-    *,
-    mode: str,
-    allow_missing: bool,
-    test_fraction: float = 0.20,
-    acf_lags: int = 80,
-    prefix_fractions: Sequence[float] = (0.55, 0.70, 0.85, 1.0),
-    fit_maxiter: int | None = None,
-) -> pd.DataFrame:
-    """Check whether selected order changes across growing chronological prefixes."""
-
+def chronological_prefix_stability(values, orders, mode, allow_missing, test_fraction=0.20, acf_lags=80, prefix_fractions=(0.55, 0.70, 0.85, 1.0), fit_maxiter=None):
     series = np.asarray(values, dtype=float).reshape(-1)
     observed_positions = np.flatnonzero(np.isfinite(series))
-    rows: list[dict[str, str | int | float]] = []
+    rows = []
 
     for fold_index, fraction in enumerate(prefix_fractions, start=1):
         observed_count = max(10, int(round(len(observed_positions) * fraction)))
@@ -89,7 +60,7 @@ def chronological_prefix_stability(
                 acf_lags=acf_lags,
                 fit_maxiter=fit_maxiter,
             )
-        except Exception as exc:  # noqa: BLE001 - stability should report failures.
+        except Exception as exc:
             selected_order = ""
             score = float("nan")
             failure_reason = f"{type(exc).__name__}: {exc}"
@@ -111,18 +82,8 @@ def chronological_prefix_stability(
     return pd.DataFrame(rows)
 
 
-def segment_stability(
-    segments: Sequence[tuple[int, np.ndarray]],
-    orders: Sequence[ArimaOrder],
-    *,
-    test_fraction: float = 0.20,
-    acf_lags: int = 80,
-    max_segments: int = 3,
-    fit_maxiter: int | None = None,
-) -> pd.DataFrame:
-    """Check selected orders on the longest contiguous usable segments."""
-
-    rows: list[dict[str, str | int | float]] = []
+def segment_stability(segments, orders, test_fraction=0.20, acf_lags=80, max_segments=3, fit_maxiter=None):
+    rows = []
     for run_index, (segment_id, values) in enumerate(segments[:max_segments], start=1):
         try:
             selected_order, score, failure_reason = _safe_select(
@@ -134,7 +95,7 @@ def segment_stability(
                 acf_lags=acf_lags,
                 fit_maxiter=fit_maxiter,
             )
-        except Exception as exc:  # noqa: BLE001 - stability should report failures.
+        except Exception as exc:
             selected_order = ""
             score = float("nan")
             failure_reason = f"{type(exc).__name__}: {exc}"
@@ -156,13 +117,7 @@ def segment_stability(
     return pd.DataFrame(rows)
 
 
-def summarize_stability(
-    stability: pd.DataFrame,
-    *,
-    stable_fraction_threshold: float = 0.60,
-) -> StabilitySummary:
-    """Summarize whether the same order is selected often enough."""
-
+def summarize_stability(stability, stable_fraction_threshold=0.60):
     if stability.empty:
         return StabilitySummary(
             stability_kind="unknown",

@@ -1,53 +1,33 @@
 """Simple ARIMA fitting for the first multi-model-transit-search noise-model milestone."""
 
-from __future__ import annotations
 import json
 import time
 import warnings
-from collections.abc import Iterable
-from dataclasses import dataclass
-from typing import Any
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 from adaptive_transit.noise_models.baselines import baseline_forecast_scores, score_forecast
 from adaptive_transit.noise_models.diagnostics import residual_diagnostics, residual_failure_flags
-ArimaOrder = tuple[int, int, int]
 
 
-@dataclass
 class FittedArimaModel:
-    """Selected ARIMA fit plus one-step-ahead innovations."""
+    def __init__(self, order, result, one_step_prediction, innovations, usable_mask, mode="contiguous"):
+        self.order = order
+        self.result = result
+        self.one_step_prediction = one_step_prediction
+        self.innovations = innovations
+        self.usable_mask = usable_mask
+        self.mode = mode
 
-    order: ArimaOrder
-    result: Any
-    one_step_prediction: np.ndarray
-    innovations: np.ndarray
-    usable_mask: np.ndarray
-    mode: str = "contiguous"
 
-
-def generate_arima_orders(
-    *,
-    max_p: int,
-    max_d: int,
-    max_q: int,
-    max_total_order: int | None = None,
-    include_zero_order: bool = False,
-) -> tuple[ArimaOrder, ...]:
-    """Generate a bounded ARIMA hyperparameter grid.
-
-    The zero order `(0, 0, 0)` is excluded by default because it is just a
-    white-noise mean model; multi-model-transit-search compares simpler mean/median/persistence
-    baselines separately.
-    """
-
+def generate_arima_orders(max_p, max_d, max_q, max_total_order=None, include_zero_order=False):
+    """Generate a bounded ARIMA grid."""
     if max_p < 0 or max_d < 0 or max_q < 0:
         raise ValueError("max_p, max_d, and max_q must be non-negative.")
     if max_total_order is not None and max_total_order < 0:
         raise ValueError("max_total_order must be non-negative when provided.")
 
-    orders: list[ArimaOrder] = []
+    orders = []
     for p in range(max_p + 1):
         for d in range(max_d + 1):
             for q in range(max_q + 1):
@@ -60,18 +40,14 @@ def generate_arima_orders(
     return tuple(orders)
 
 
-def _innovation_burn_in(result: Any, order: ArimaOrder) -> int:
-    """Return the initial residual count excluded from downstream diagnostics."""
-
+def _innovation_burn_in(result, order):
     return max(
         int(getattr(result, "loglikelihood_burn", 0)),
         order[1] + max(order[0], order[2], 1),
     )
 
 
-def validate_series(values: np.ndarray, *, allow_missing: bool = False) -> np.ndarray:
-    """Convert input to a one-dimensional series for statsmodels."""
-
+def validate_series(values, allow_missing=False):
     series = np.asarray(values, dtype=float).reshape(-1)
     finite = np.isfinite(series)
     if finite.sum() < 10:
@@ -84,21 +60,13 @@ def validate_series(values: np.ndarray, *, allow_missing: bool = False) -> np.nd
     return series
 
 
-def _fit_statsmodels_arima(model: ARIMA, *, fit_maxiter: int | None = None) -> Any:
-    """Fit statsmodels ARIMA with an optional optimizer iteration cap."""
-
+def _fit_statsmodels_arima(model, fit_maxiter=None):
     if fit_maxiter is None:
         return model.fit()
     return model.fit(method_kwargs={"maxiter": int(fit_maxiter)})
 
 
-def chronological_train_test_split(
-    values: np.ndarray,
-    *,
-    test_fraction: float = 0.20,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Split a time series without shuffling future observations backward."""
-
+def chronological_train_test_split(values, test_fraction=0.20):
     series = validate_series(values, allow_missing=False)
     if not 0.0 < test_fraction < 0.5:
         raise ValueError("test_fraction must be between 0 and 0.5.")
@@ -108,14 +76,7 @@ def chronological_train_test_split(
     return series[:split_index], series[split_index:]
 
 
-def chronological_observed_split_masks(
-    values: np.ndarray,
-    *,
-    test_fraction: float = 0.20,
-    allow_missing: bool = False,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Build train/test masks using only finite observations in time order."""
-
+def chronological_observed_split_masks(values, test_fraction=0.20, allow_missing=False):
     series = validate_series(values, allow_missing=allow_missing)
     if not 0.0 < test_fraction < 0.5:
         raise ValueError("test_fraction must be between 0 and 0.5.")
@@ -131,22 +92,11 @@ def chronological_observed_split_masks(
     return train_mask, test_mask
 
 
-def fit_arima_model(
-    values: np.ndarray,
-    order: ArimaOrder,
-    *,
-    allow_missing: bool = False,
-    mode: str = "contiguous",
-    fit_maxiter: int | None = None,
-) -> FittedArimaModel:
-    """Fit ARIMA and return one-step-ahead predictions and innovations."""
-
+def fit_arima_model(values, order, allow_missing=False, mode="contiguous", fit_maxiter=None):
     series = validate_series(values, allow_missing=allow_missing)
     model = ARIMA(
         series,
         order=order,
-        # Stage 1 prefers stable, scalable noise models over unconstrained
-        # maximum-likelihood fits that may look good but behave badly.
         enforce_stationarity=True,
         enforce_invertibility=True,
     )
@@ -156,9 +106,7 @@ def fit_arima_model(
     one_step_prediction = np.asarray(prediction.predicted_mean, dtype=float)
     innovations = series - one_step_prediction
 
-    # The first few Kalman-filter residuals depend on initialization. Excluding
-    # them makes diagnostics and matched-filter inputs less dominated by startup
-    # artifacts, especially for differenced models.
+    # Drop startup residuals that mostly reflect Kalman initialization.
     burn_in = _innovation_burn_in(result, order)
     usable_mask = np.isfinite(innovations)
     usable_mask[:burn_in] = False
@@ -173,20 +121,7 @@ def fit_arima_model(
     )
 
 
-def apply_fitted_arima_filter(
-    values: np.ndarray,
-    fitted_model: FittedArimaModel,
-    *,
-    allow_missing: bool = False,
-) -> FittedArimaModel:
-    """Apply an already fitted ARIMA model to a new series without refitting.
-
-    This is the key operation for transformed-template matched filtering: the
-    light curve and the synthetic transit template must pass through the same
-    fixed ARIMA prediction operator. Re-estimating coefficients after injection
-    would let the noise model partially learn the transit itself.
-    """
-
+def apply_fitted_arima_filter(values, fitted_model, allow_missing=False):
     series = validate_series(values, allow_missing=allow_missing)
     if series.size != fitted_model.one_step_prediction.size:
         raise ValueError("New series must have the same length as the fitted ARIMA series.")
@@ -215,17 +150,7 @@ def apply_fitted_arima_filter(
     )
 
 
-def forecast_metrics(
-    values: np.ndarray,
-    train_mask: np.ndarray,
-    test_mask: np.ndarray,
-    order: ArimaOrder,
-    *,
-    allow_missing: bool = False,
-    fit_maxiter: int | None = None,
-) -> dict[str, float | bool]:
-    """Fit on the past and score forecasts on the held-out future segment."""
-
+def forecast_metrics(values, train_mask, test_mask, order, allow_missing=False, fit_maxiter=None):
     series = validate_series(values, allow_missing=allow_missing)
     training_series = series.copy()
     training_series[test_mask] = np.nan
@@ -254,9 +179,7 @@ def forecast_metrics(
     }
 
 
-def coefficient_diagnostics(result: Any) -> dict[str, Any]:
-    """Summarize coefficient estimates and simple boundary proximity checks."""
-
+def coefficient_diagnostics(result):
     names = list(getattr(result, "param_names", []))
     params = np.asarray(getattr(result, "params", []), dtype=float)
     bse = np.asarray(getattr(result, "bse", np.full(params.shape, np.nan)), dtype=float)
@@ -266,9 +189,9 @@ def coefficient_diagnostics(result: Any) -> dict[str, Any]:
     except (AttributeError, ValueError, np.linalg.LinAlgError):
         conf_int = np.full((len(params), 2), np.nan)
 
-    rows: list[dict[str, float | str | bool]] = []
-    boundary_distances: list[float] = []
-    boundary_names: list[str] = []
+    rows = []
+    boundary_distances = []
+    boundary_names = []
 
     for index, value in enumerate(params):
         name = names[index] if index < len(names) else f"param_{index}"
@@ -304,23 +227,17 @@ def coefficient_diagnostics(result: Any) -> dict[str, Any]:
     }
 
 
-def evaluate_arima_candidate(
-    values: np.ndarray,
-    order: ArimaOrder,
-    *,
-    mode: str = "contiguous",
-    allow_missing: bool = False,
-    test_fraction: float = 0.20,
-    acf_lags: int = 80,
-    ljung_box_lags: tuple[int, ...] = (10, 20, 40),
-    short_acf_lags: int = 24,
-    transit_lag_range: tuple[int, int] = (3, 24),
-    fit_maxiter: int | None = None,
-) -> dict[str, Any]:
-    """Fit and diagnose one ARIMA order."""
-
+def evaluate_arima_candidate(values, order, **options):
+    mode = options.get("mode", "contiguous")
+    allow_missing = options.get("allow_missing", False)
+    test_fraction = options.get("test_fraction", 0.20)
+    acf_lags = options.get("acf_lags", 80)
+    ljung_box_lags = options.get("ljung_box_lags", (10, 20, 40))
+    short_acf_lags = options.get("short_acf_lags", 24)
+    transit_lag_range = options.get("transit_lag_range", (3, 24))
+    fit_maxiter = options.get("fit_maxiter")
     started_at = time.perf_counter()
-    warning_messages: list[str] = []
+    warning_messages = []
 
     try:
         series = validate_series(values, allow_missing=allow_missing)
@@ -393,7 +310,7 @@ def evaluate_arima_candidate(
             "warning_count": len(warning_messages),
             "failure_reason": "",
         }
-    except Exception as exc:  # noqa: BLE001 - candidate failures are recorded, not hidden.
+    except Exception as exc:
         runtime_seconds = time.perf_counter() - started_at
         acf_fields = {f"residual_acf_lag_{lag}": np.nan for lag in range(1, short_acf_lags + 1)}
         return {
@@ -456,33 +373,12 @@ def evaluate_arima_candidate(
         }
 
 
-def evaluate_arima_candidates(
-    values: np.ndarray,
-    orders: Iterable[ArimaOrder],
-    *,
-    mode: str = "contiguous",
-    allow_missing: bool = False,
-    test_fraction: float = 0.20,
-    acf_lags: int = 80,
-    ljung_box_lags: tuple[int, ...] = (10, 20, 40),
-    short_acf_lags: int = 24,
-    transit_lag_range: tuple[int, int] = (3, 24),
-    fit_maxiter: int | None = None,
-) -> pd.DataFrame:
-    """Evaluate a small, explicit list of ARIMA orders."""
-
+def evaluate_arima_candidates(values, orders, **options):
     rows = [
         evaluate_arima_candidate(
             values,
             order,
-            mode=mode,
-            allow_missing=allow_missing,
-            test_fraction=test_fraction,
-            acf_lags=acf_lags,
-            ljung_box_lags=ljung_box_lags,
-            short_acf_lags=short_acf_lags,
-            transit_lag_range=transit_lag_range,
-            fit_maxiter=fit_maxiter,
+            **options,
         )
         for order in orders
     ]

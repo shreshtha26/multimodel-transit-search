@@ -1,0 +1,4 @@
+gap_mode,n_injections,median_depth_retention_fraction,median_snr_retention_fraction,median_ingress_egress_distortion_fraction,median_best_spurious_statistic,spurious_peak_exceeds_injected_rate,recovery_rate_at_far_0.1,top_recovery_rate_at_far_0.1,median_spurious_peaks_above_far_0.1,recovery_rate_at_far_0.05,top_recovery_rate_at_far_0.05,median_spurious_peaks_above_far_0.05,recovery_rate_at_far_0.01,top_recovery_rate_at_far_0.01,median_spurious_peaks_above_far_0.01
+full_grid_missing,9,1.0573149501108627,0.626767101123242,0.9999999999999999,3.6361861122995927,0.0,1.0,1.0,8.0,1.0,1.0,4.0,1.0,1.0,1.0
+interpolated_full_grid,9,1.0346472367855497,0.6348506300449643,0.8416941124456978,4.541403189039308,0.0,1.0,1.0,8.0,1.0,1.0,4.0,1.0,1.0,1.0
+longest_contiguous,9,1.0081459210815824,0.7825038123968102,0.8303336712518077,1.994848365258275,0.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0

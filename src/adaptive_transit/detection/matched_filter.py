@@ -1,7 +1,5 @@
 """Matched-filter utilities for ARIMA-transformed transit templates."""
 
-from __future__ import annotations
-
 from dataclasses import asdict, dataclass
 
 import numpy as np

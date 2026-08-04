@@ -1,155 +1,118 @@
-"""Run the single-target multi-model-transit-search workflow over a configured target sample."""
+"""Run the curated target sample through the unified experiment path."""
 
-from __future__ import annotations
-import argparse
-import json
-import subprocess
-import sys
 from pathlib import Path
-from typing import Any
 import pandas as pd
 import yaml
+try:
+    from scripts.run_experiment import project_path, run_experiment
+except ModuleNotFoundError:
+    from run_experiment import project_path, run_experiment
+
+CONFIG_PATH = Path("configs/kepler_target_sample.yaml")
+EXPERIMENT_CONFIG_PATH = None
+OUTPUT_DIR = Path("outputs/target_sample")
+LIMIT = None
+TARGET_IDS = None
+STAGES = None
+SKIP_STAGES = ()
+CONTINUE_ON_ERROR = False
+DRY_RUN = False
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run multi-model-transit-search over a Kepler target sample.")
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path("configs/kepler_target_sample.yaml"),
-    )
-    parser.add_argument("--output-dir", type=Path, default=Path("outputs/target_sample"))
-    parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--target-id", action="append", help="Only run specific target IDs.")
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument(
-        "--continue-on-error",
-        action="store_true",
-        help="Continue running later targets if one target fails.",
-    )
-    return parser
-
-
-def load_config(path: Path) -> dict[str, Any]:
+def load_config(path):
+    path = project_path(path)
     with path.open() as handle:
-        data = yaml.safe_load(handle)
-    if not isinstance(data, dict):
+        config = yaml.safe_load(handle)
+    if not isinstance(config, dict):
         raise ValueError(f"{path} must contain a YAML mapping.")
-    if "targets" not in data or not isinstance(data["targets"], list):
+    if "targets" not in config or not isinstance(config["targets"], list):
         raise ValueError(f"{path} must contain a `targets` list.")
-    return data
+    return config
 
 
-def target_prefix(target_id: str | int, quarter: int) -> str:
-    clean_target = str(target_id).replace("KIC", "").strip()
-    return f"kic_{clean_target}_q{quarter}"
+def target_prefix(target_id, quarter):
+    return f"kic_{str(target_id).replace('KIC', '').strip()}_q{quarter}"
 
 
-def command_for_target(
-    *,
-    target: dict[str, Any],
-    common_args: list[str],
-    output_dir: Path,
-) -> tuple[list[str], str, int]:
-    target_id = str(target["target_id"])
-    quarter = int(target.get("quarter", 5))
-    command = [
-        sys.executable,
-        "scripts/run_single_target_arima.py",
-        "--target-id",
-        target_id,
-        "--quarter",
-        str(quarter),
-        "--output-dir",
-        str(output_dir),
-        *common_args,
-        *(str(value) for value in target.get("runner_args", [])),
-    ]
-    return command, target_id, quarter
-
-
-def read_json_if_present(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text())
-
-
-def main() -> int:
-    args = build_parser().parse_args()
-    config = load_config(args.config)
-    common_args = [str(value) for value in config.get("runner_args", [])]
-    requested_targets = set(args.target_id or [])
-
+def selected_targets(config, target_ids=None, limit=None):
     targets = config["targets"]
-    if requested_targets:
-        targets = [target for target in targets if str(target["target_id"]) in requested_targets]
-    if args.limit is not None:
-        targets = targets[: args.limit]
+    if target_ids:
+        wanted = {str(target_id) for target_id in target_ids}
+        targets = [target for target in targets if str(target["target_id"]) in wanted]
+    if limit is not None:
+        targets = targets[:limit]
     if not targets:
         raise ValueError("No targets selected.")
+    return targets
 
-    metrics_dir = args.output_dir / "metrics"
-    logs_dir = args.output_dir / "logs"
+
+def target_summary_row(target, record):
+    stages = record.get("stages", {})
+    phase1 = stages.get("single_target_arima", {}).get("summary", {})
+    gap = stages.get("gap_mode_comparison", {}).get("summary", {})
+    injection = stages.get("gap_mode_injection", {}).get("summary", {})
+    return {
+        "target_id": str(target["target_id"]),
+        "name": target.get("name", ""),
+        "quarter": int(target.get("quarter", 5)),
+        "experiment_success": record.get("success"),
+        "phase1_engineering_complete": phase1.get("phase1_engineering_complete"),
+        "phase1_scientific_ready_for_phase2": phase1.get("phase1_scientific_ready_for_phase2"),
+        "selected_quality_policy": phase1.get("selected_quality_policy"),
+        "selected_mode": phase1.get("selected_mode"),
+        "selected_order": phase1.get("selected_order"),
+        "gap_best_available_mode": gap.get("best_available_gap_mode"),
+        "gap_best_available_order": gap.get("best_available_selected_order"),
+        "gap_scientifically_acceptable": gap.get("best_available_scientifically_acceptable"),
+        "gap_no_scientifically_acceptable_combination": gap.get("no_scientifically_acceptable_combination"),
+        "gap_injection_count": injection.get("injection_count"),
+        "gap_injection_best_snr_mode": injection.get("best_median_snr_retention_mode"),
+        "gap_injection_far_0.01_top_recovery": injection.get("any_mode_top_recovers_all_at_far_0.01"),
+    }
+
+
+def run_target_sample(**options):
+    config_path = options.get("config_path", CONFIG_PATH)
+    experiment_config_path = options.get("experiment_config_path", EXPERIMENT_CONFIG_PATH)
+    output_dir = options.get("output_dir", OUTPUT_DIR)
+    limit = options.get("limit", LIMIT)
+    target_ids = options.get("target_ids", TARGET_IDS)
+    stages = options.get("stages", STAGES)
+    skip_stages = options.get("skip_stages", SKIP_STAGES)
+    continue_on_error = options.get("continue_on_error", CONTINUE_ON_ERROR)
+    dry_run = options.get("dry_run", DRY_RUN)
+    output_dir = project_path(output_dir)
+    config = load_config(config_path)
+    experiment_config_path = experiment_config_path or Path(config.get("experiment_config", "configs/phase2.yaml"))
+    metrics_dir = Path(output_dir) / "metrics"
     metrics_dir.mkdir(parents=True, exist_ok=True)
-    logs_dir.mkdir(parents=True, exist_ok=True)
-
-    rows: list[dict[str, Any]] = []
+    rows = []
     failed = False
-    for target in targets:
-        command, target_id, quarter = command_for_target(
-            target=target,
-            common_args=common_args,
-            output_dir=args.output_dir,
-        )
-        prefix = target_prefix(target_id, quarter)
-        log_path = logs_dir / f"{prefix}.log"
 
-        if args.dry_run:
-            print(" ".join(command))
-            continue
-
-        completed = subprocess.run(
-            command,
-            check=False,
-            cwd=Path.cwd(),
-            text=True,
-            capture_output=True,
-        )
-        log_path.write_text(completed.stdout + "\n" + completed.stderr)
-
-        phase1 = read_json_if_present(metrics_dir / f"{prefix}_phase1_completion.json")
-        recovery = read_json_if_present(metrics_dir / f"{prefix}_multi_injection_recovery_summary.json")
-        row = {
-            "target_id": target_id,
-            "name": target.get("name", ""),
-            "quarter": quarter,
-            "return_code": completed.returncode,
-            "log_path": str(log_path),
-            "phase1_engineering_complete": phase1.get("phase1_engineering_complete"),
-            "phase1_scientific_ready_for_phase2": phase1.get("phase1_scientific_ready_for_phase2"),
-            "selected_quality_policy": phase1.get("selected_quality_policy"),
-            "selected_mode": phase1.get("selected_mode"),
-            "selected_order": phase1.get("selected_order"),
-            "n_injections": recovery.get("n_injections"),
-            "rank1_recovery_rate": recovery.get("rank1_recovery_rate"),
-            "rank3_recovery_rate": recovery.get("rank3_recovery_rate"),
-            "transit_preservation_failure_rate": recovery.get("transit_preservation_failure_rate"),
-        }
-        rows.append(row)
-        print(f"{target_id} Q{quarter}: return_code={completed.returncode}")
-
-        if completed.returncode != 0:
+    for target in selected_targets(config, target_ids, limit):
+        target_id = str(target["target_id"])
+        quarter = int(target.get("quarter", 5))
+        try:
+            record = run_experiment(target_id, quarter, experiment_config_path, output_dir, stages, skip_stages, continue_on_error, dry_run)
+        except Exception as exc:
+            record = {"success": False, "stages": {}, "error": f"{type(exc).__name__}: {exc}"}
+        rows.append(target_summary_row(target, record))
+        print(f"{target_id} Q{quarter}: success={record.get('success')}")
+        if not record.get("success"):
             failed = True
-            if not args.continue_on_error:
+            if not continue_on_error:
                 break
 
-    if rows:
-        summary = pd.DataFrame(rows)
-        summary_path = metrics_dir / "target_sample_summary.csv"
-        summary.to_csv(summary_path, index=False)
-        print(f"Target-sample summary: {summary_path}")
+    summary = pd.DataFrame(rows)
+    summary_path = metrics_dir / "target_sample_summary.csv"
+    summary.to_csv(summary_path, index=False)
+    print(f"Target-sample summary: {summary_path}")
+    return summary, not failed
 
-    return 1 if failed else 0
+
+def main():
+    _, ok = run_target_sample()
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

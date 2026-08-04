@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 
 from adaptive_transit.noise_models.arima import generate_arima_orders

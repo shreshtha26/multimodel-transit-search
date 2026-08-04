@@ -1,0 +1,50 @@
+description: >
+  Phase 2A unified ARIMA, gap-mode, and injection-preservation experiment
+  configuration. This config keeps the current work focused on periodic
+  benchmark preparation rather than ML, deep learning, or pixel vetting.
+
+stages:
+  single_target_arima:
+    enabled: true
+    output_subdir: single_target
+    options:
+      quality_policy:
+        - default
+        - permissive
+      scan_stride: 25
+      scan_max_centers: 80
+      injection_depth_grid:
+        - 0.0005
+        - 0.001
+        - 0.002
+      injection_duration_grid:
+        - 3
+        - 6
+        - 12
+      injection_centers_per_duration: 2
+      injection_max_segments: 2
+
+  gap_mode_comparison:
+    enabled: true
+    output_subdir: gap_modes
+    options:
+      quality_policy:
+        - default
+      correlogram_lags: 24
+      max_interpolated_gap_cadences: 12
+
+  gap_mode_injection:
+    enabled: true
+    output_subdir: injections
+    options:
+      quality_policy: default
+      scan_stride: 25
+      scan_max_centers: 80
+      injection_depth_grid:
+        - 0.0005
+        - 0.001
+        - 0.002
+      injection_duration_grid:
+        - 6
+      centers_per_duration: 3
+      max_interpolated_gap_cadences: 12

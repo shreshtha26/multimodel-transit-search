@@ -1,0 +1,25 @@
+{
+  "n_injections": 36,
+  "unique_depths": [
+    0.0005,
+    0.001,
+    0.002
+  ],
+  "unique_durations_cadences": [
+    3,
+    6,
+    12
+  ],
+  "rank1_recovery_rate": 1.0,
+  "rank3_recovery_rate": 1.0,
+  "median_best_injected_neighborhood_rank": 1.0,
+  "median_transformed_template_statistic": 22.43716944797012,
+  "minimum_transformed_template_statistic": 8.969297209727436,
+  "transformed_template_improvement_rate": 1.0,
+  "transit_preservation_failure_rate": 1.0,
+  "quality_policy": "default",
+  "mode": "full_gap",
+  "order": "(1, 1, 0)",
+  "scan_stride": 25,
+  "scan_max_centers": 80
+}

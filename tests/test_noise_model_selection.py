@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pandas as pd
 
 from adaptive_transit.noise_models.selection import score_arima_candidates, select_noise_model

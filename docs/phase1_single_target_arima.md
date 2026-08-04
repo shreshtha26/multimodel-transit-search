@@ -21,10 +21,13 @@ PDCSAP flux
 
 ## Latest Full Run
 
-Command:
+Current personal-test entry points:
 
-```bash
-.venv/bin/python scripts/run_single_target_arima.py --target-id 11904151 --quarter 5
+```python
+from pathlib import Path
+from scripts.run_experiment import run_experiment
+
+run_experiment(target_id="11904151", quarter=5, output_dir=Path("outputs/experiments"))
 ```
 
 Selected baseline after hierarchical constraints:
@@ -169,7 +172,18 @@ longest_contiguous:     median SNR retention 0.58, FAR 1% recovery 1.00
 This does not make the ARIMA model scientifically acceptable. It means the
 selected ARIMA transformations preserve detectability for this narrow injected
 sample while still distorting transit morphology, especially at ingress and
-egress. The next implementation phase should be the PDCSAP + BLS baseline.
+egress.
+
+The repository now has a unified experiment runner:
+
+```text
+scripts/run_experiment.py
+```
+
+The curated target-sample runner calls this unified path rather than only the
+older single-target ARIMA script. The next implementation phase should use that
+runner to finalize the gap-handling decision across the curated target sample
+before implementing the PDCSAP + BLS baseline.
 
 The code now includes the first selected-model recovery grid over multiple
 synthetic transit depths, durations, and clean injection centers. The output is:

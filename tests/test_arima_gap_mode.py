@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 
 from adaptive_transit.noise_models.arima import evaluate_arima_candidate, fit_arima_model

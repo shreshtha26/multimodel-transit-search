@@ -1,0 +1,2 @@
+n_trial_centers,best_transformed_template_center_cadenceno,best_transformed_template_statistic,best_transformed_template_center_error_cadences,best_injected_neighborhood_rank,best_injected_neighborhood_statistic,injected_center_recovered_as_best,quality_policy,mode,order,scan_stride,scan_max_centers
+81,16518,20.903382704701936,0,1,20.903382704701936,True,default,full_gap,"(1, 1, 0)",25,80

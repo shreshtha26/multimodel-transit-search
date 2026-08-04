@@ -1,6 +1,5 @@
 """ADF/KPSS stationarity diagnostics for ARIMA model-selection context."""
 
-from __future__ import annotations
 import warnings
 from dataclasses import asdict, dataclass
 from typing import Any

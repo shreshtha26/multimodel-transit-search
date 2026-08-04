@@ -4,8 +4,6 @@ This module is intentionally small: Stage 1 only needs one target and one
 quarter of PDCSAP flux, not a full archive ingestion system.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

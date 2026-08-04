@@ -1,264 +1,360 @@
 # multimodel-transit-search
 
-`multimodel-transit-search` is a multimodel benchmark for exoplanet transit
-detection. Its long-term goal is to compare statistical detectors,
-ARIMA/ARMA transformed-template methods, BLS- and TCF-style searches,
-machine-learning classifiers, deep-learning morphology models, and adaptive
-ensembles using reproducible Kepler injection-recovery experiments.
+`multimodel-transit-search` is a research prototype for benchmarking multiple approaches to exoplanet transit detection in Kepler light curves.
 
-The current implementation focuses on validating the ARIMA/ARMA noise-model
-branch. It should be treated as a **Phase 1 single-target science-data
-prototype**, not as a completed transit-search system.
+The long-term goal is to compare classical statistical detectors, ARIMA/ARMA transformed-template methods, BLS- and TCF-style searches, probabilistic models, machine-learning classifiers, deep-learning morphology models, and adaptive ensembles using reproducible injection-recovery experiments.
 
-## Current Objective
+> **Status:** Phase 1 engineering prototype. The current repository validates the ARIMA noise-model and transformed-template branch on one Kepler target and quarter. It is not yet a complete or scientifically validated transit-search system.
 
-The immediate objective is to determine whether a simple ARIMA-family model can
-reduce correlated variability in Kepler PDCSAP light curves while preserving
-transit evidence in a form suitable for downstream detection.
+## Scientific Question
 
-The current Phase 1 workflow is:
+The immediate Phase 1 question is:
+
+> Can an ARIMA-family model reduce predictable correlated variability in a Kepler PDCSAP light curve while retaining transit evidence in a form that remains detectable downstream?
 
 ```text
 Kepler PDCSAP flux
--> explicit cadence and gap representation
--> ARIMA candidate diagnostics
+-> quality filtering and explicit cadence grid
+-> gap-aware light-curve representation
+-> leakage-free normalization
+-> ARIMA candidate fitting and diagnostics
 -> one-step-ahead innovations
--> transit-preservation checks
--> ARIMA-transformed-template matched-filter prototype
+-> synthetic transit-injection tests
+-> ARIMA-transformed-template matched filtering
+-> scientific-readiness report
 ```
 
-## Implemented Phase 1 Components
-
-The package currently includes:
-
-- Kepler PDCSAP loading and quality filtering.
-- Regular cadence-grid construction with explicit gap and usability masks.
-- Leakage-free flux normalization on a chronological fit fraction.
-- Gap-mode comparison across longest-contiguous, full-grid-with-missing-values, and interpolated full-grid representations.
-- ARIMA candidate fitting over explicit order grids.
-- Convergence, fit-validity, and coefficient-boundary checks.
-- Residual whitening diagnostics using ACF and Ljung-Box tests.
-- Residual ACF diagnostics through lag 24, including transit-relevant lag summaries.
-- Variance-stability diagnostics using rolling variance and ARCH testing.
-- Simple forecast baselines for mean, median, and persistence comparisons.
-- Basic synthetic box-transit preservation diagnostics.
-- Fixed-parameter ARIMA application to injected light curves and transit templates.
-- Gap-mode transit-injection experiment with transformed-template depth, SNR retention, ingress/egress distortion, spurious peaks, and empirical FAR thresholds.
-- Scientific model-selection hierarchy with best-available versus scientifically acceptable semantics.
-- ADF/KPSS stationarity diagnostics for the exact series representation supplied to ARIMA selection.
-- `d=0` versus `d=1` candidate-family and differencing-alignment reporting.
-- ACF/PACF plot generation for gap representations where cadence-lag assumptions are defensible.
-- Machine-readable CSV, JSON, and Parquet outputs for the single-target and smoke workflows.
-
-Primary Phase 1 references:
-
-* [Phase 1: Single-Target ARIMA Prototype](docs/phase1_single_target_arima.md)
-* [Kepler Dataset Strategy](docs/kepler_dataset_strategy.md)
-
-## Gap-Mode Comparison
-
-The current default representation is `full_grid_missing`: the regular Kepler
-cadence grid is preserved and missing cadences remain `NaN`. Statsmodels'
-state-space ARIMA machinery handles those missing observations during fitting;
-the pipeline does not invent flux values for the default mode.
-
-The gap comparison now evaluates three explicit representations:
+For observed normalized flux `y_t`, the innovation is
 
 ```text
-longest_contiguous
-    Uses only the longest uninterrupted usable cadence segment.
-    Ordinary ACF/PACF lag interpretation is defensible, but most of the quarter
-    is discarded.
-
-full_grid_missing
-    Preserves the full regular cadence grid and keeps missing cadences as NaN.
-    It is the default modelling representation. Ordinary PACF is omitted for
-    the missing-valued modelling series because compressing gaps would change
-    the meaning of cadence lags.
-
-interpolated_full_grid
-    Fills only eligible short interior gaps with configured linear interpolation.
-    It is a challenger mode, not the default. Any ACF/PACF plots are labelled as
-    interpolation-dependent, and long gaps are not silently filled.
+e_t = y_t - y_hat(t | t - 1)
 ```
 
-For the current default target and quarter, the gap-mode comparison reports:
+The prediction represents variability that the model considers predictable from the past. The innovation contains unpredictable variation, model error, and any transit evidence not absorbed by the model.
+
+## Implemented in Phase 1
+
+The current codebase includes:
+
+- Kepler PDCSAP loading through `lightkurve`;
+- configurable Kepler quality-mask policies;
+- regular cadence-grid construction with explicit gap and usability masks;
+- chronological, leakage-free normalization;
+- longest-contiguous and full-grid-with-missing-values ARIMA representations;
+- a challenger workflow for short-gap interpolation;
+- configurable ARIMA order grids;
+- convergence, numerical-validity, and coefficient-boundary checks;
+- ADF and KPSS stationarity diagnostics;
+- explicit `d=0` versus `d=1` differencing-alignment reporting;
+- AIC, BIC, RMSE, MAE, and negative-log-score diagnostics;
+- mean, median, and persistence forecast baselines;
+- residual ACF and Ljung-Box whitening diagnostics;
+- rolling-variance and ARCH-style variance-stability diagnostics;
+- chronological-prefix and segment-level stability checks;
+- synthetic box-transit injection;
+- transit depth, SNR, timing, and morphology-preservation measurements;
+- ARIMA-transformed-template matched filtering;
+- blind single-event template scans;
+- small multi-injection recovery experiments; and
+- CSV, JSON, Parquet, and PNG experiment artifacts.
+
+## Current Verified Result
+
+The latest supplied successful single-target run used:
 
 ```text
-longest_contiguous:     ARIMA(2,1,0), stationarity_supported, recommended d=0, differencing conflict
-full_grid_missing:      ARIMA(1,1,0), conflicting_rejections, recommended d unresolved
-interpolated_full_grid: ARIMA(1,1,0), conflicting_rejections, recommended d unresolved
+target:             KIC 11904151
+quarter:            Q5
+raw cadences:       4492
+quality policy:     default
+selected mode:      full_gap
+selected model:     ARIMA(1,1,0)
+selection status:   valid_but_residual_autocorrelation_remains
 ```
 
-No gap representation/model combination is scientifically acceptable yet.
-Residual autocorrelation and variance instability remain in every mode, and
-transit-recovery performance has not yet been benchmarked at controlled
-false-alarm rates. Interpolation can improve forecast metrics, but that is not
-treated as scientific evidence that the interpolated mode is better.
-
-## Current Injection Result
-
-The first gap-mode injection experiment uses shared synthetic transit centers
-from the longest clean segment and evaluates the selected ARIMA model for each
-gap representation. It measures transformed-template depth retention, matched
-filter SNR retention, ingress/egress distortion, spurious residual peaks, and
-single-light-curve empirical false-alarm thresholds.
-
-Current default run:
+### Stationarity
 
 ```text
-full_grid_missing:      median SNR retention 0.63, recovery at FAR 1% = 1.00
-interpolated_full_grid: median SNR retention 0.63, recovery at FAR 1% = 1.00
-longest_contiguous:     median SNR retention 0.58, recovery at FAR 1% = 1.00
+ADF p-value:                      0.00134143
+KPSS p-value:                     0.01
+joint conclusion:                conflicting_rejections
+recommended d:                   unresolved
+selected differencing alignment: unresolved
+differencing requires review:    True
 ```
 
-This is a narrow controlled-injection result, not a population-scale benchmark.
-The full-grid and interpolated modes preserve detectability for these injected
-events, but their transformed templates are strongly ingress/egress dominated,
-which is expected for differenced ARIMA models and still needs downstream
-detector benchmarking.
+ADF rejects a unit root, while KPSS rejects level stationarity. These conflicting results do **not** justify ordinary differencing. The selected `d=1` model is therefore the best-available admissible full-gap candidate under the current ranking rules, not a validated final noise model.
 
-## Current Scientific Result
+### Residual and transit diagnostics
 
-For the default single-target run, the current best-available full-gap model is:
+The selected model remains scientifically inadequate because:
+
+- residual autocorrelation remains;
+- residual variance is unstable;
+- the selected order changes with the gap representation;
+- the selected model fails the current direct transit-preservation constraint; and
+- the experiment is limited to one target, one quarter, and a small synthetic injection grid.
+
+For the selected `ARIMA(1,1,0)` candidate, the current candidate table reports approximately:
 
 ```text
-quality policy: default
-mode: full_gap
-model: ARIMA(1,1,0)
-status: valid_but_residual_autocorrelation_remains
+depth-retention fraction: 0.138
+SNR-retention fraction:   0.094
+transit-preservation test: failed
 ```
 
-This model is **not scientifically accepted** as the final noise model because:
-
-* the stationarity evidence is conflicting;
-* the need for ordinary differencing remains unresolved;
-* residual autocorrelation remains;
-* residual variance is unstable;
-* downstream transit-recovery performance has not yet been evaluated at controlled false-alarm rates.
-
-The current full-gap stationarity result is:
+The limited transformed-template multi-injection scan nevertheless reports:
 
 ```text
-ADF: rejects the unit-root null
-KPSS: rejects the level-stationarity null
-joint conclusion: conflicting_rejections
-recommended d: unresolved
-selected-model differencing alignment: unresolved
-differencing requires review: True
+rank-1 recovery rate: 1.000
 ```
 
-This result must not be interpreted as statistical justification for `d=1`.
+These results answer different questions. Direct retention asks whether the injected transit remains box-like in the innovations. Transformed-template recovery asks whether the expected ARIMA-distorted shape can still identify the injected location. The current result suggests that transformed-template matching can recover the tested injections even though the original box morphology is strongly distorted.
 
-`ARIMA(1,1,0)` is the highest-ranked admissible full-gap candidate under the current selection hierarchy. It is not yet a scientifically acceptable final model.
+This is encouraging engineering evidence, not population-level proof of improved transit detection.
 
-## Invalid Candidates
-
-Non-converged, unstable, or otherwise invalid candidates may still report attractive values for:
+### Phase status
 
 ```text
-AIC
-BIC
-RMSE
-MAE
-negative log score
+Phase 1 engineering complete:                 True
+ARIMA branch accepted as final noise model:   False
 ```
 
-These values are retained for diagnostic purposes only. They are not considered
-trustworthy for model selection and cannot make an invalid candidate the winner.
+“Engineering complete” means that the planned diagnostics and artifacts for the single-target prototype were generated. It does not mean that the selected ARIMA model passed the scientific acceptance criteria.
 
-For example, an ARIMA model may appear strong under forecast-fit metrics while
-failing convergence or numerical-stability checks. In this project, fit validity
-is evaluated before forecasting or information-criterion metrics.
+## Model-Selection Policy
 
-## Model-Selection Hierarchy
-
-ARIMA candidate selection follows a scientific hierarchy rather than a forecast-only ranking.
-
-The broad order is:
+ARIMA candidates are not ranked only by forecast accuracy.
 
 ```text
-fit validity
--> residual-whitening constraints
+fit and numerical validity
+-> residual-whitening adequacy
 -> variance stability
 -> transit preservation
--> transit distortion
+-> transit distortion and transformed-template behavior
 -> baseline-relative forecasting
 -> model complexity
--> forecast metrics
--> information criteria
+-> RMSE / MAE / negative log score
+-> AIC / BIC
 ```
 
-RMSE, MAE, negative log score, AIC, and BIC are therefore used as diagnostics or late-stage tie-breakers.
+A non-converged or unstable model may still print attractive AIC, BIC, or forecast metrics. Those values are retained for debugging but are not considered trustworthy enough to make that candidate the winner.
 
-They are not the primary scientific objective because ARIMA is an intermediate noise transformation rather than the final forecasting product.
+`statsmodels` convergence warnings are therefore expected during candidate-grid evaluation and are intentionally surfaced.
 
-The intended scientific transformation is:
+## Gap Representations
+
+### `longest_contiguous`
+
+Uses only the longest uninterrupted usable segment.
+
+- Cadence-lag ACF/PACF interpretation is defensible.
+- Much of the quarter may be discarded.
+- The latest run selected a different model than the full-gap representation, demonstrating gap sensitivity.
+
+### `full_gap` / `full_grid_missing`
+
+Preserves the regular cadence grid and leaves missing cadences as `NaN`.
+
+- This is the default scientific representation.
+- State-space ARIMA handles missing observations without inventing flux values.
+- The single-target runner calls this mode `full_gap`.
+- The dedicated gap-comparison runner calls the equivalent representation `full_grid_missing`.
+
+### `interpolated_full_grid`
+
+Fills only eligible short interior gaps under the configured interpolation policy.
+
+- This is a challenger representation, not the default.
+- Better forecast metrics do not establish better scientific validity.
+- Results must be labelled as interpolation-dependent.
+
+The latest verified orchestration completed all three current stages:
 
 ```text
-correlated light curve
--> reduced predictable noise
--> preserved and detectable transformed transit evidence
+single_target_arima:   success
+gap_mode_comparison:  success
+gap_mode_injection:   success
+```
+
+The current gap-mode comparison reports:
+
+```text
+longest_contiguous:     ARIMA(1,0,0), stationarity_supported, recommended d=0
+full_grid_missing:      ARIMA(1,1,0), conflicting_rejections, recommended d unresolved
+interpolated_full_grid: ARIMA(1,1,1), conflicting_rejections, recommended d unresolved
+```
+
+None of these representation/model combinations is scientifically accepted yet. The change in selected order across modes is useful evidence that gap handling affects the ARIMA decision.
+
+## Installation
+
+Python 3.11 or newer is required.
+
+```bash
+git clone https://github.com/shreshtha26/multimodel-transit-search.git
+cd multimodel-transit-search
+
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+Optional dependency groups are available for machine learning, deep learning, notebooks, parallel processing, and experiment tracking. These packages support the planned architecture; installing them does not mean that the corresponding model branches are already implemented.
+
+## Running the Prototype
+
+Unified experiment run:
+
+```bash
+PYTHONPATH=src python scripts/run_experiment.py
+```
+
+The default constants in `scripts/run_experiment.py` use KIC 11904151, Quarter 5, `configs/phase2.yaml`, and `outputs/experiments/`.
+
+Run a stage directly only when debugging that specific stage:
+
+```bash
+PYTHONPATH=src python scripts/run_single_target_arima.py
+PYTHONPATH=src python scripts/run_gap_mode_comparison.py
+PYTHONPATH=src python scripts/run_gap_mode_injection_experiment.py
+```
+
+Configured target sample:
+
+```bash
+PYTHONPATH=src python scripts/run_target_sample.py
+```
+
+Tests:
+
+```bash
+PYTHONPATH=src pytest
 ```
 
 ## Outputs
 
-The default single-target run writes:
+The unified experiment writes:
 
 ```text
-outputs/metrics/kic_11904151_q5_arima_candidates.csv
-outputs/metrics/kic_11904151_q5_stationarity_diagnostics.csv
-outputs/metrics/kic_11904151_q5_phase1_completion.json
-outputs/processed/kic_11904151_q5_regularized_light_curve.parquet
-outputs/processed/kic_11904151_q5_innovations.parquet
+outputs/experiments/
+├── single_target/   ARIMA candidate diagnostics and single-target artifacts
+├── gap_modes/       gap-representation comparison tables and ACF/PACF plots
+├── injections/      gap-mode injection and transformed-template diagnostics
+└── records/         one JSON/CSV orchestration record
 ```
 
-The gap-mode comparison run writes:
+The single-target stage layout is:
 
 ```text
-outputs/gap_modes/metrics/kic_11904151_q5_gap_mode_comparison.csv
-outputs/gap_modes/metrics/kic_11904151_q5_gap_mode_report.json
-outputs/gap_modes/metrics/kic_11904151_q5_gap_mode_plot_manifest.csv
-outputs/gap_modes/processed/kic_11904151_q5_gap_mode_comparison.parquet
-outputs/injections/metrics/kic_11904151_q5_gap_mode_injection_summary.csv
-outputs/injections/metrics/kic_11904151_q5_gap_mode_injection_report.json
-outputs/injections/processed/kic_11904151_q5_gap_mode_injection_results.parquet
+outputs/experiments/single_target/
+├── figures/     diagnostic plots
+├── metrics/     candidate tables, stationarity, injections, scans, and reports
+└── processed/   regularized light curve and innovations
 ```
 
-The smoke workflow writes the same artifact family under:
+Important artifacts include:
 
 ```text
-outputs/smoke/
+metrics/kic_11904151_q5_arima_candidates.csv
+metrics/kic_11904151_q5_stationarity_diagnostics.csv
+metrics/kic_11904151_q5_transit_preservation.csv
+metrics/kic_11904151_q5_transformed_template_match.csv
+metrics/kic_11904151_q5_template_scan.csv
+metrics/kic_11904151_q5_multi_injection_recovery.csv
+metrics/kic_11904151_q5_phase1_completion.json
+processed/kic_11904151_q5_regularized_light_curve.parquet
+processed/kic_11904151_q5_innovations.parquet
 ```
-
-These files serve different purposes:
 
 ```text
-CSV      -> compact tables for manual inspection
-JSON     -> structured run and scientific-readiness reports
-Parquet  -> typed machine-readable data for downstream analysis
+CSV      -> compact diagnostic and result tables
+JSON     -> structured summaries and scientific-readiness reports
+Parquet  -> typed time-series data for downstream analysis
+PNG      -> visual scientific diagnostics
 ```
+
+## Repository Structure
+
+```text
+configs/                  experiment and target-sample configuration
+docs/                     scientific and implementation notes
+notebooks/                exploratory analysis
+outputs/                  generated experiment artifacts
+scripts/                  command-line experiment runners
+src/adaptive_transit/     reusable package code
+tests/                    automated tests
+pyproject.toml            package metadata and dependencies
+```
+
+The distribution name in `pyproject.toml` is `multi-model-transit-search`; the import package is `adaptive_transit`.
+
+## Planned Multi-Model Architecture
+
+The planned system separates background/noise modelling from transit detection.
+
+```text
+input light curve
+-> preprocessing, quality, cadence, and gap features
+-> parallel background/noise models
+-> residual or detrended representations
+-> parallel transit detectors
+-> candidate-level features and diagnostics
+-> adaptive selector or calibrated ensemble
+-> final transit score and explanation
+```
+
+| Memory family | Background/noise branch | Transit branch |
+|---|---|---|
+| Linear | ARIMA/ARMA, linear state-space models | BLS, linear matched filters |
+| Probabilistic | Gaussian processes, Kalman models | Bayesian transit models |
+| Nonlinear | nonlinear autoregression and engineered temporal models | XGBoost/LightGBM candidate classifiers |
+| Convolutional | 1D CNN or temporal convolutional network | local-window or phase-folded morphology CNN |
+| Attention | time-series Transformer or patch encoder | attention-based event classifier |
+
+XGBoost is most naturally used as a candidate classifier or meta-selector over engineered light-curve, detector, and diagnostic features. It should not be assumed to choose the correct time-series model directly from raw flux without intermediate features and validation.
 
 ## Current Limitations
 
-The current implementation remains limited in several important ways:
+Not yet implemented or validated:
 
-- Single-target, single-quarter prototype.
-- Gap representation is now explicitly compared, but none of the tested modes is scientifically accepted.
-- No complete BLS benchmark yet.
-- No transformed-template TCF benchmark yet.
-- No false-alarm-controlled method comparison yet.
-- No population-scale injection benchmark yet.
-- No feature-based ML, deep-learning morphology model, or adaptive ensemble has been implemented yet.
+- complete PDCSAP + BLS and robust-detrending + BLS baselines;
+- transformed-template TCF search;
+- population-scale injection-recovery benchmarking;
+- matched empirical false-alarm-rate comparison;
+- systematic tests across stellar variability, depth, duration, cadence, and gap regimes;
+- feature-based ML, convolutional, probabilistic, and attention branches;
+- calibrated uncertainty and out-of-distribution diagnostics; and
+- an adaptive model selector or ensemble.
 
-## Next Implementation Phase
-
-The immediate next task is:
+## Immediate Next Step
 
 ```text
-Implement the PDCSAP + BLS baseline.
+Kepler PDCSAP
+-> documented baseline preprocessing
+-> Box Least Squares period search
+-> injection recovery
+-> empirical false-alarm calibration
 ```
 
-Later phases should add biweight + BLS, ARIMA-transformed-template TCF,
-survey-scale empirical false-alarm calibration, and larger injection-recovery
-benchmarks. Those are planned scientific extensions, not completed functionality.
+This establishes a standard transit-search reference before expanding the ARIMA-transformed-template branch or training an adaptive ensemble.
+
+## Current Conclusion
+
+Phase 1 has built a reproducible single-target experiment framework and shown that an ARIMA-transformed template can recover the tested injected locations despite substantial distortion of the original box-shaped transit.
+
+However, the selected `ARIMA(1,1,0)` model is not scientifically accepted because differencing remains unresolved, residual dependence remains, variance is unstable, and direct transit preservation is weak.
+
+> The ARIMA branch is implemented and diagnostically informative, but it has not yet been validated as a superior or generally reliable transit-search preprocessing method.
+
+## Documentation
+
+- [Phase 1: Single-Target ARIMA Prototype](docs/phase1_single_target_arima.md)
+- [Kepler Dataset Strategy](docs/kepler_dataset_strategy.md)

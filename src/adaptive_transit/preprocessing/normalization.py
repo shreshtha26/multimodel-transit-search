@@ -1,7 +1,5 @@
 """Cadence-aware quality masking and normalization for Kepler PDCSAP flux."""
 
-from __future__ import annotations
-
 from dataclasses import asdict, dataclass
 from typing import Any
 

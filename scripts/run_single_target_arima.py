@@ -3,7 +3,6 @@ PDCSAP flux -> cadence grid -> explicit masks/gaps -> leakage-free
 normalization -> ARIMA diagnostics -> selected model -> one-step-ahead innovations.
 """
 
-from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
@@ -1345,8 +1344,8 @@ def transit_preservation_table(
     return pd.DataFrame(rows)
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(args=None):
+    args = args or build_parser().parse_args()
     if not 0.0 < args.stationarity_alpha < 1.0:
         raise ValueError("--stationarity-alpha must be between 0 and 1.")
     if args.stationarity_min_observations < 8:

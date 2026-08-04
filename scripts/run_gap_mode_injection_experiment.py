@@ -1,7 +1,5 @@
 """Run transit-injection preservation and recovery checks across gap modes."""
 
-from __future__ import annotations
-
 import argparse
 import json
 from pathlib import Path
@@ -235,6 +233,14 @@ def build_shared_injections(reference: GapModeRepresentation, config: GapModeInj
 
 
 def human_report(summary: pd.DataFrame, model_summary: pd.DataFrame, report: dict[str, Any]) -> str:
+    model_columns = [
+        "gap_mode",
+        "selected_order",
+        "stationarity_conclusion",
+        "recommended_d",
+        "selected_differencing_alignment",
+        "scientifically_acceptable",
+    ]
     lines = [
         "# Gap-Mode Transit-Injection Experiment",
         "",
@@ -243,20 +249,15 @@ def human_report(summary: pd.DataFrame, model_summary: pd.DataFrame, report: dic
         "",
         "## Selected Gap-Mode Models",
         "",
-        model_summary[
-            [
-                "gap_mode",
-                "selected_order",
-                "stationarity_conclusion",
-                "recommended_d",
-                "selected_differencing_alignment",
-                "scientifically_acceptable",
-            ]
-        ].to_markdown(index=False),
+        "```text",
+        model_summary[model_columns].to_string(index=False),
+        "```",
         "",
         "## Injection Summary",
         "",
-        summary.to_markdown(index=False),
+        "```text",
+        summary.to_string(index=False),
+        "```",
         "",
         "## Interpretation",
         "",
@@ -391,8 +392,8 @@ def run_experiment(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame
     return injection_results, injection_summary, threshold_table, model_summary_table, candidate_table, report
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(args=None):
+    args = args or build_parser().parse_args()
     if args.centers_per_duration < 1:
         raise ValueError("--centers-per-duration must be positive.")
     if args.local_half_width_cadences < 1:

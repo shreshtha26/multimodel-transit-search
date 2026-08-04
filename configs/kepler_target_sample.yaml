@@ -3,23 +3,7 @@ description: >
   experiments. This is intentionally a curated sample, not the full Kepler
   archive.
 
-runner_args:
-  - --quality-policy
-  - default
-  - --quality-policy
-  - permissive
-  - --scan-stride
-  - "25"
-  - --scan-max-centers
-  - "80"
-  - --injection-depth-grid
-  - "0.0005,0.001,0.002"
-  - --injection-duration-grid
-  - "3,6,12"
-  - --injection-centers-per-duration
-  - "2"
-  - --injection-max-segments
-  - "2"
+experiment_config: configs/phase2.yaml
 
 targets:
   - target_id: 11904151

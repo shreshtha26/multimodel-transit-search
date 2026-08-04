@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 
 from adaptive_transit.noise_models.diagnostics import max_abs_acf, residual_diagnostics

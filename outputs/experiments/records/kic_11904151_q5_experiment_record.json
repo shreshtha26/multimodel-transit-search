@@ -1,0 +1,67 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "config_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/configs/phase2.yaml",
+  "output_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments",
+  "dry_run": false,
+  "success": true,
+  "stages": {
+    "single_target_arima": {
+      "output_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/single_target",
+      "return_code": 0,
+      "success": true,
+      "runtime_seconds": 131.25230100005865,
+      "outputs": {
+        "phase1_completion": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/single_target/metrics/kic_11904151_q5_phase1_completion.json",
+        "recovery_summary": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/single_target/metrics/kic_11904151_q5_multi_injection_recovery_summary.json"
+      },
+      "summary": {
+        "phase1_engineering_complete": true,
+        "phase1_scientific_ready_for_phase2": false,
+        "selected_quality_policy": "default",
+        "selected_mode": "full_gap",
+        "selected_order": "(1, 1, 0)",
+        "n_injections": 36,
+        "rank1_recovery_rate": 1.0,
+        "rank3_recovery_rate": 1.0
+      }
+    },
+    "gap_mode_comparison": {
+      "output_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/gap_modes",
+      "return_code": 0,
+      "success": true,
+      "runtime_seconds": 22.11916558397934,
+      "outputs": {
+        "comparison_csv": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/gap_modes/metrics/kic_11904151_q5_gap_mode_comparison.csv",
+        "report_json": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/gap_modes/metrics/kic_11904151_q5_gap_mode_report.json",
+        "plot_manifest": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/gap_modes/metrics/kic_11904151_q5_gap_mode_plot_manifest.csv"
+      },
+      "summary": {
+        "same_candidate_family_across_modes": true,
+        "no_scientifically_acceptable_combination": true,
+        "best_available_gap_mode": "longest_contiguous",
+        "best_available_selected_order": "ARIMA(1, 0, 0)",
+        "best_available_stationarity_conclusion": "stationary_supported",
+        "best_available_scientifically_acceptable": false
+      }
+    },
+    "gap_mode_injection": {
+      "output_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/injections",
+      "return_code": 0,
+      "success": true,
+      "runtime_seconds": 55.71155908307992,
+      "outputs": {
+        "summary_csv": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/injections/metrics/kic_11904151_q5_gap_mode_injection_summary.csv",
+        "report_json": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/injections/metrics/kic_11904151_q5_gap_mode_injection_report.json",
+        "results_csv": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/injections/metrics/kic_11904151_q5_gap_mode_injection_results.csv"
+      },
+      "summary": {
+        "injection_count": 27,
+        "best_median_snr_retention_mode": "longest_contiguous",
+        "highest_spurious_peak_rate_mode": "full_grid_missing",
+        "any_mode_top_recovers_all_at_far_0.01": true,
+        "any_mode_scientifically_acceptable_before_injection": false
+      }
+    }
+  }
+}
