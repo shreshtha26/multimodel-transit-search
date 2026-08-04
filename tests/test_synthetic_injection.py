@@ -4,6 +4,7 @@ from adaptive_transit.injections.synthetic import (
     TransitInjection,
     choose_injection_centers,
     inject_box_transit,
+    inject_periodic_box_transit,
     transit_preservation_metrics,
 )
 
@@ -68,3 +69,14 @@ def test_choose_injection_centers_uses_long_clean_segments() -> None:
 
     assert len(centers) == 2
     assert all(0 <= center <= 11 for center in centers)
+
+
+def test_periodic_box_injection_preserves_nan_gaps():
+    time = np.linspace(0.0, 10.0, 200)
+    values = np.zeros(time.size)
+    values[20] = np.nan
+    injected, template, in_transit = inject_periodic_box_transit(time, values, period_days=3.0, epoch_days=1.0, duration_days=0.2, depth=0.01)
+    assert np.isnan(injected[20])
+    assert np.nanmin(injected) < 0.0
+    assert template.shape == values.shape
+    assert in_transit.shape == values.shape

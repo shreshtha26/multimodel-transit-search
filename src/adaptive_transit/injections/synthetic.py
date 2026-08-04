@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 
 from adaptive_transit.noise_models.scaling import robust_mad_scale
+from adaptive_transit.transit_models.box import box_transit_template
+from adaptive_transit.transit_models.periodic import periodic_box_transit_template
 
 
 @dataclass(frozen=True)
@@ -85,28 +87,6 @@ def choose_injection_centers(
     return tuple(sorted(set(centers)))
 
 
-def box_transit_template(
-    cadenceno: np.ndarray,
-    *,
-    center_cadenceno: int,
-    duration_cadences: int,
-    depth: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return additive box-transit signal and in-transit mask."""
-
-    if duration_cadences < 1:
-        raise ValueError("duration_cadences must be positive.")
-    if depth <= 0:
-        raise ValueError("depth must be positive.")
-
-    cadence = np.asarray(cadenceno, dtype=float)
-    half_width = duration_cadences / 2.0
-    in_transit = np.abs(cadence - center_cadenceno) < half_width
-    template = np.zeros(cadence.shape, dtype=float)
-    template[in_transit] = -float(depth)
-    return template, in_transit
-
-
 def inject_box_transit(
     values: np.ndarray,
     cadenceno: np.ndarray,
@@ -124,6 +104,16 @@ def inject_box_transit(
         duration_cadences=duration_cadences,
         depth=depth,
     )
+    finite = np.isfinite(series)
+    injected = series.copy()
+    injected[finite] = injected[finite] + template[finite]
+    return injected, template, in_transit
+
+
+def inject_periodic_box_transit(time, values, period_days, epoch_days, duration_days, depth):
+    """Add a repeated box transit to finite flux samples."""
+    series = np.asarray(values, dtype=float).copy()
+    template, in_transit = periodic_box_transit_template(time, period_days, epoch_days, duration_days, depth)
     finite = np.isfinite(series)
     injected = series.copy()
     injected[finite] = injected[finite] + template[finite]

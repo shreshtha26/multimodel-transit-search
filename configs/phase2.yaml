@@ -48,3 +48,19 @@ stages:
         - 6
       centers_per_duration: 3
       max_interpolated_gap_cadences: 12
+
+  bls_baseline:
+    enabled: true
+    output_subdir: bls_baseline
+    options:
+      quality_policy: default
+      injection_period_days: 5.0
+      injection_epoch_offset_days: 1.0
+      injection_duration_hours: 4.0
+      injection_depth: 0.001
+      min_period_days: 1.0
+      max_period_days: 15.0
+      n_periods: 1000
+      min_duration_hours: 1.5
+      max_duration_hours: 10.0
+      n_durations: 8

@@ -5,12 +5,12 @@ from dataclasses import asdict, dataclass
 import numpy as np
 import pandas as pd
 
-from adaptive_transit.injections.synthetic import box_transit_template
 from adaptive_transit.noise_models.arima import (
     FittedArimaModel,
     apply_fitted_arima_filter,
 )
 from adaptive_transit.noise_models.scaling import trailing_robust_scale
+from adaptive_transit.transit_models.box import box_transit_template
 
 
 @dataclass(frozen=True)

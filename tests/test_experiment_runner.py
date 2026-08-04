@@ -31,11 +31,24 @@ def test_run_experiment_builds_stage_settings(tmp_path):
 
 def test_run_experiment_respects_requested_and_skipped_stages():
     runner = load_script("run_experiment", "scripts/run_experiment.py")
-    config = {"stages": {"single_target_arima": {"enabled": True}, "gap_mode_comparison": {"enabled": False}, "gap_mode_injection": {"enabled": True}}}
+    config = {"stages": {"single_target_arima": {"enabled": True}, "gap_mode_comparison": {"enabled": False}, "gap_mode_injection": {"enabled": True}, "bls_baseline": {"enabled": False}}}
 
     stages = runner.selected_stages(config, stages=None, skip_stages=["single_target_arima"])
 
     assert stages == ["gap_mode_injection"]
+
+
+def test_run_experiment_summarizes_bls_stage(tmp_path):
+    runner = load_script("run_experiment", "scripts/run_experiment.py")
+    metrics = tmp_path / "metrics"
+    metrics.mkdir()
+    (metrics / "kic_11904151_q5_bls_summary.json").write_text('{"injected_period_days": 5.0, "recovered_period_days": 5.01, "period_matched": true}\n')
+
+    summary = runner.summarize_stage("bls_baseline", tmp_path, "kic_11904151_q5")
+
+    assert summary["injected_period_days"] == 5.0
+    assert summary["recovered_period_days"] == 5.01
+    assert summary["period_matched"] is True
 
 
 def test_run_experiment_flattens_stage_summaries():
@@ -57,10 +70,18 @@ def test_run_experiment_flattens_stage_summaries():
 def test_target_sample_summarizes_unified_record():
     sample = load_script("run_target_sample", "scripts/run_target_sample.py")
     target = {"target_id": 11904151, "quarter": 5, "name": "Kepler-10"}
-    record = {"success": True, "stages": {"gap_mode_injection": {"summary": {"injection_count": 27, "best_median_snr_retention_mode": "full_grid_missing"}}}}
+    record = {
+        "success": True,
+        "stages": {
+            "gap_mode_injection": {"summary": {"injection_count": 27, "best_median_snr_retention_mode": "full_grid_missing"}},
+            "bls_baseline": {"summary": {"recovered_period_days": 5.0, "period_matched": True}},
+        },
+    }
 
     row = sample.target_summary_row(target, record)
 
     assert row["target_id"] == "11904151"
     assert row["gap_injection_count"] == 27
     assert row["gap_injection_best_snr_mode"] == "full_grid_missing"
+    assert row["bls_recovered_period_days"] == 5.0
+    assert row["bls_period_matched"] is True

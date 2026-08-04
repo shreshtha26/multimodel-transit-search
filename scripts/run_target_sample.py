@@ -51,6 +51,7 @@ def target_summary_row(target, record):
     phase1 = stages.get("single_target_arima", {}).get("summary", {})
     gap = stages.get("gap_mode_comparison", {}).get("summary", {})
     injection = stages.get("gap_mode_injection", {}).get("summary", {})
+    bls = stages.get("bls_baseline", {}).get("summary", {})
     return {
         "target_id": str(target["target_id"]),
         "name": target.get("name", ""),
@@ -68,6 +69,11 @@ def target_summary_row(target, record):
         "gap_injection_count": injection.get("injection_count"),
         "gap_injection_best_snr_mode": injection.get("best_median_snr_retention_mode"),
         "gap_injection_far_0.01_top_recovery": injection.get("any_mode_top_recovers_all_at_far_0.01"),
+        "bls_injected_period_days": bls.get("injected_period_days"),
+        "bls_recovered_period_days": bls.get("recovered_period_days"),
+        "bls_period_error_fraction": bls.get("period_error_fraction"),
+        "bls_period_matched": bls.get("period_matched"),
+        "bls_injected_beats_null": bls.get("injected_beats_null"),
     }
 
 

@@ -17,11 +17,12 @@ STAGES = None
 SKIP_STAGES = ()
 CONTINUE_ON_ERROR = False
 DRY_RUN = False
-STAGE_ORDER = ("single_target_arima", "gap_mode_comparison", "gap_mode_injection")
+STAGE_ORDER = ("single_target_arima", "gap_mode_comparison", "gap_mode_injection", "bls_baseline")
 STAGE_SPECS = {
     "single_target_arima": {"script": "run_single_target_arima.py", "output_subdir": "single_target"},
     "gap_mode_comparison": {"script": "run_gap_mode_comparison.py", "output_subdir": "gap_modes"},
     "gap_mode_injection": {"script": "run_gap_mode_injection_experiment.py", "output_subdir": "injections"},
+    "bls_baseline": {"script": "run_bls_baseline.py", "output_subdir": "bls_baseline"},
 }
 BASE_DEFAULTS = {
     "orders": None,
@@ -82,6 +83,22 @@ STAGE_DEFAULTS = {
         "scan_max_centers": 120,
         "scale_window": 96,
         "false_alarm_rates": (0.10, 0.05, 0.01),
+    },
+    "bls_baseline": {
+        "quality_policy": "default",
+        "injection_period_days": 5.0,
+        "injection_epoch_offset_days": 1.0,
+        "injection_duration_hours": 4.0,
+        "injection_depth": 0.001,
+        "min_period_days": 1.0,
+        "max_period_days": 15.0,
+        "n_periods": 1000,
+        "min_duration_hours": 1.5,
+        "max_duration_hours": 10.0,
+        "n_durations": 8,
+        "objective": "snr",
+        "top_k": 10,
+        "period_match_tolerance_fraction": 0.02,
     },
 }
 ALIASES = {
@@ -174,6 +191,12 @@ def stage_output_paths(stage, output_dir, prefix):
             "report_json": str(metrics / f"{prefix}_gap_mode_injection_report.json"),
             "results_csv": str(metrics / f"{prefix}_gap_mode_injection_results.csv"),
         }
+    if stage == "bls_baseline":
+        return {
+            "summary_json": str(metrics / f"{prefix}_bls_summary.json"),
+            "periodogram_csv": str(metrics / f"{prefix}_bls_periodogram.csv"),
+            "top_peaks_csv": str(metrics / f"{prefix}_bls_top_peaks.csv"),
+        }
     return {}
 
 
@@ -211,6 +234,15 @@ def summarize_stage(stage, output_dir, prefix):
             "highest_spurious_peak_rate_mode": report.get("highest_spurious_peak_rate_mode"),
             "any_mode_top_recovers_all_at_far_0.01": report.get("any_mode_top_recovers_all_at_far_0.01"),
             "any_mode_scientifically_acceptable_before_injection": report.get("any_mode_scientifically_acceptable_before_injection"),
+        }
+    if stage == "bls_baseline":
+        summary = read_json(metrics / f"{prefix}_bls_summary.json")
+        return {
+            "injected_period_days": summary.get("injected_period_days"),
+            "recovered_period_days": summary.get("recovered_period_days"),
+            "period_error_fraction": summary.get("period_error_fraction"),
+            "period_matched": summary.get("period_matched"),
+            "injected_beats_null": summary.get("injected_beats_null"),
         }
     return {}
 

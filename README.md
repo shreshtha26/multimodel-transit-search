@@ -55,6 +55,7 @@ The current codebase includes:
 - transit depth, SNR, timing, and morphology-preservation measurements;
 - ARIMA-transformed-template matched filtering;
 - blind single-event template scans;
+- an initial PDCSAP plus BLS baseline stage for one periodic synthetic box-transit case;
 - small multi-injection recovery experiments; and
 - CSV, JSON, Parquet, and PNG experiment artifacts.
 
@@ -274,6 +275,14 @@ processed/kic_11904151_q5_regularized_light_curve.parquet
 processed/kic_11904151_q5_innovations.parquet
 ```
 
+The first BLS baseline stage writes:
+
+```text
+outputs/experiments/bls_baseline/
+├── metrics/     BLS summary, periodogram, and top peaks
+└── processed/   BLS input light curve and periodogram parquet
+```
+
 ```text
 CSV      -> compact diagnostic and result tables
 JSON     -> structured summaries and scientific-readiness reports
@@ -295,6 +304,18 @@ pyproject.toml            package metadata and dependencies
 ```
 
 The distribution name in `pyproject.toml` is `multi-model-transit-search`; the import package is `adaptive_transit`.
+
+## Package Boundaries
+
+The modelling code is separated by responsibility:
+
+```text
+transit_models = what signal shape should exist?
+detection      = how do we search for that signal?
+injections     = how do we add that signal into data?
+```
+
+For example, the reusable box and periodic transit shapes live in `src/adaptive_transit/transit_models/`. BLS and transformed-template matched filtering live in `src/adaptive_transit/detection/`. Synthetic injection experiments live in `src/adaptive_transit/injections/`.
 
 ## Planned Multi-Model Architecture
 
@@ -325,7 +346,7 @@ XGBoost is most naturally used as a candidate classifier or meta-selector over e
 
 Not yet implemented or validated:
 
-- complete PDCSAP + BLS and robust-detrending + BLS baselines;
+- complete PDCSAP + BLS and robust-detrending + BLS benchmarks;
 - transformed-template TCF search;
 - population-scale injection-recovery benchmarking;
 - matched empirical false-alarm-rate comparison;
@@ -339,12 +360,12 @@ Not yet implemented or validated:
 ```text
 Kepler PDCSAP
 -> documented baseline preprocessing
--> Box Least Squares period search
--> injection recovery
+-> broader Box Least Squares period search
+-> periodic injection recovery across a parameter grid
 -> empirical false-alarm calibration
 ```
 
-This establishes a standard transit-search reference before expanding the ARIMA-transformed-template branch or training an adaptive ensemble.
+The first BLS module and single-case runner are now started. The next step is to expand that baseline into a fair periodic injection-recovery benchmark before extending the ARIMA-transformed-template branch or training an adaptive ensemble.
 
 ## Current Conclusion
 
