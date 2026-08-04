@@ -84,6 +84,14 @@ def validate_series(values: np.ndarray, *, allow_missing: bool = False) -> np.nd
     return series
 
 
+def _fit_statsmodels_arima(model: ARIMA, *, fit_maxiter: int | None = None) -> Any:
+    """Fit statsmodels ARIMA with an optional optimizer iteration cap."""
+
+    if fit_maxiter is None:
+        return model.fit()
+    return model.fit(method_kwargs={"maxiter": int(fit_maxiter)})
+
+
 def chronological_train_test_split(
     values: np.ndarray,
     *,
@@ -129,6 +137,7 @@ def fit_arima_model(
     *,
     allow_missing: bool = False,
     mode: str = "contiguous",
+    fit_maxiter: int | None = None,
 ) -> FittedArimaModel:
     """Fit ARIMA and return one-step-ahead predictions and innovations."""
 
@@ -141,7 +150,7 @@ def fit_arima_model(
         enforce_stationarity=True,
         enforce_invertibility=True,
     )
-    result = model.fit()
+    result = _fit_statsmodels_arima(model, fit_maxiter=fit_maxiter)
 
     prediction = result.get_prediction(start=0, end=series.size - 1, dynamic=False)
     one_step_prediction = np.asarray(prediction.predicted_mean, dtype=float)
@@ -213,6 +222,7 @@ def forecast_metrics(
     order: ArimaOrder,
     *,
     allow_missing: bool = False,
+    fit_maxiter: int | None = None,
 ) -> dict[str, float | bool]:
     """Fit on the past and score forecasts on the held-out future segment."""
 
@@ -226,7 +236,7 @@ def forecast_metrics(
         enforce_stationarity=True,
         enforce_invertibility=True,
     )
-    result = model.fit()
+    result = _fit_statsmodels_arima(model, fit_maxiter=fit_maxiter)
     prediction = result.get_prediction(start=0, end=series.size - 1, dynamic=False)
     predicted_mean = np.asarray(prediction.predicted_mean, dtype=float)
     predicted_variance = np.asarray(prediction.var_pred_mean, dtype=float)
@@ -305,6 +315,7 @@ def evaluate_arima_candidate(
     ljung_box_lags: tuple[int, ...] = (10, 20, 40),
     short_acf_lags: int = 24,
     transit_lag_range: tuple[int, int] = (3, 24),
+    fit_maxiter: int | None = None,
 ) -> dict[str, Any]:
     """Fit and diagnose one ARIMA order."""
 
@@ -326,12 +337,14 @@ def evaluate_arima_candidate(
                 test_mask,
                 order,
                 allow_missing=allow_missing,
+                fit_maxiter=fit_maxiter,
             )
             fitted = fit_arima_model(
                 series,
                 order,
                 allow_missing=allow_missing,
                 mode=mode,
+                fit_maxiter=fit_maxiter,
             )
 
         warning_messages = [str(item.message) for item in caught]
@@ -454,6 +467,7 @@ def evaluate_arima_candidates(
     ljung_box_lags: tuple[int, ...] = (10, 20, 40),
     short_acf_lags: int = 24,
     transit_lag_range: tuple[int, int] = (3, 24),
+    fit_maxiter: int | None = None,
 ) -> pd.DataFrame:
     """Evaluate a small, explicit list of ARIMA orders."""
 
@@ -468,6 +482,7 @@ def evaluate_arima_candidates(
             ljung_box_lags=ljung_box_lags,
             short_acf_lags=short_acf_lags,
             transit_lag_range=transit_lag_range,
+            fit_maxiter=fit_maxiter,
         )
         for order in orders
     ]

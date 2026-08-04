@@ -139,7 +139,7 @@ candidate still has unresolved differencing evidence and fails whitening and
 variance-stability constraints. That is the correct scientific conclusion from
 this run.
 
-The next implementation phase should compare gap-handling representations:
+The package now includes a dedicated gap-mode comparison that evaluates:
 
 ```text
 longest contiguous segment
@@ -147,9 +147,29 @@ full cadence grid with missing values
 interpolated cadence grid
 ```
 
-Only after the gap-mode comparison should the project move to complete
-transit-injection benchmarking, BLS comparisons, transformed-template TCF
-comparisons and empirical false-alarm calibration.
+For the current target, the longest contiguous segment supports `d=0` by ADF/KPSS
+but still selects a differenced ARIMA challenger, while full-grid and
+interpolated modes keep the unresolved stationarity conclusion and select
+ARIMA(1, 1, 0). No gap mode is scientifically acceptable yet.
+
+The repository now includes the first narrow gap-mode injection experiment. It
+injects shared synthetic transit centers into each gap representation and
+measures transformed-template depth retention, matched-filter SNR retention,
+ingress/egress distortion, spurious residual peaks and empirical
+single-light-curve false-alarm thresholds.
+
+Current result:
+
+```text
+full_grid_missing:      median SNR retention 0.63, FAR 1% recovery 1.00
+interpolated_full_grid: median SNR retention 0.63, FAR 1% recovery 1.00
+longest_contiguous:     median SNR retention 0.58, FAR 1% recovery 1.00
+```
+
+This does not make the ARIMA model scientifically acceptable. It means the
+selected ARIMA transformations preserve detectability for this narrow injected
+sample while still distorting transit morphology, especially at ingress and
+egress. The next implementation phase should be the PDCSAP + BLS baseline.
 
 The code now includes the first selected-model recovery grid over multiple
 synthetic transit depths, durations, and clean injection centers. The output is:

@@ -36,6 +36,7 @@ def _safe_select(
     allow_missing: bool,
     test_fraction: float,
     acf_lags: int,
+    fit_maxiter: int | None = None,
 ) -> tuple[str, float, str]:
     results = evaluate_arima_candidates(
         values,
@@ -44,6 +45,7 @@ def _safe_select(
         allow_missing=allow_missing,
         test_fraction=test_fraction,
         acf_lags=acf_lags,
+        fit_maxiter=fit_maxiter,
     )
     scored = score_arima_candidates(results)
     selected = select_noise_model(scored)
@@ -63,6 +65,7 @@ def chronological_prefix_stability(
     test_fraction: float = 0.20,
     acf_lags: int = 80,
     prefix_fractions: Sequence[float] = (0.55, 0.70, 0.85, 1.0),
+    fit_maxiter: int | None = None,
 ) -> pd.DataFrame:
     """Check whether selected order changes across growing chronological prefixes."""
 
@@ -84,6 +87,7 @@ def chronological_prefix_stability(
                 allow_missing=allow_missing,
                 test_fraction=test_fraction,
                 acf_lags=acf_lags,
+                fit_maxiter=fit_maxiter,
             )
         except Exception as exc:  # noqa: BLE001 - stability should report failures.
             selected_order = ""
@@ -114,6 +118,7 @@ def segment_stability(
     test_fraction: float = 0.20,
     acf_lags: int = 80,
     max_segments: int = 3,
+    fit_maxiter: int | None = None,
 ) -> pd.DataFrame:
     """Check selected orders on the longest contiguous usable segments."""
 
@@ -127,6 +132,7 @@ def segment_stability(
                 allow_missing=False,
                 test_fraction=test_fraction,
                 acf_lags=acf_lags,
+                fit_maxiter=fit_maxiter,
             )
         except Exception as exc:  # noqa: BLE001 - stability should report failures.
             selected_order = ""

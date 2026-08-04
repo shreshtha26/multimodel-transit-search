@@ -5,7 +5,7 @@
   "selected_quality_policy": "default",
   "selected_mode": "full_gap",
   "selected_order": "(1, 1, 0)",
-  "selected_global_rank": 1.0,
+  "selected_global_rank": 2.0,
   "selected_mode_rank": 1.0,
   "stationarity": {
     "stationarity_diagnostics_available": true,

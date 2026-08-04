@@ -167,6 +167,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--test-fraction", type=float, default=0.20)
     parser.add_argument("--acf-lags", type=int, default=80)
+    parser.add_argument("--fit-maxiter", type=int, default=200)
     parser.add_argument("--stationarity-alpha", type=float, default=0.05)
     parser.add_argument("--stationarity-min-observations", type=int, default=24)
     parser.add_argument("--adf-regression", choices=("c", "ct", "ctt", "n"), default="c")
@@ -523,6 +524,7 @@ def evaluate_top_segment_fits(
     test_fraction: float,
     acf_lags: int,
     transit_lag_range: tuple[int, int],
+    fit_maxiter: int | None = None,
 ) -> pd.DataFrame:
     """Run the full candidate grid on the longest usable segments."""
 
@@ -539,6 +541,7 @@ def evaluate_top_segment_fits(
             test_fraction=test_fraction,
             acf_lags=acf_lags,
             transit_lag_range=transit_lag_range,
+            fit_maxiter=fit_maxiter,
         )
         segment_results["quality_policy"] = quality_policy
         segment_results["segment_rank"] = segment_rank
@@ -1211,6 +1214,7 @@ def run_transit_preservation(
     duration_cadences: int,
     local_half_width_cadences: int,
     scale_window: int,
+    fit_maxiter: int | None = None,
 ) -> tuple[dict[str, object], np.ndarray, np.ndarray, np.ndarray, TransitInjection]:
     """Inject one transit, run ARIMA, and measure morphology/detectability."""
 
@@ -1236,6 +1240,7 @@ def run_transit_preservation(
         order,
         allow_missing=allow_missing,
         mode=mode,
+        fit_maxiter=fit_maxiter,
     )
     injected_scale = trailing_robust_scale(
         injected_fit.innovations,
@@ -1272,6 +1277,7 @@ def transit_preservation_table(
     duration_cadences: int,
     local_half_width_cadences: int,
     scale_window: int,
+    fit_maxiter: int | None = None,
 ) -> pd.DataFrame:
     """Evaluate transit preservation for each quality policy, mode, and order."""
 
@@ -1323,6 +1329,7 @@ def transit_preservation_table(
                 duration_cadences=duration_cadences,
                 local_half_width_cadences=local_half_width_cadences,
                 scale_window=scale_window,
+                fit_maxiter=fit_maxiter,
             )
             row.update(metrics)
             row["transit_preservation_failure_reason"] = ""
@@ -1344,6 +1351,8 @@ def main() -> int:
         raise ValueError("--stationarity-alpha must be between 0 and 1.")
     if args.stationarity_min_observations < 8:
         raise ValueError("--stationarity-min-observations must be at least 8.")
+    if args.fit_maxiter is not None and args.fit_maxiter <= 0:
+        raise ValueError("--fit-maxiter must be positive when provided.")
     if args.transit_lag_min < 1 or args.transit_lag_max < args.transit_lag_min:
         raise ValueError("--transit-lag-min must be >= 1 and --transit-lag-max must be >= --transit-lag-min.")
 
@@ -1359,14 +1368,17 @@ def main() -> int:
     for directory in (metrics_dir, figures_dir, processed_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
+    print(f"Loading Kepler PDCSAP target={args.target_id} quarter={args.quarter}", flush=True)
     light_curve = load_kepler_pdcsap(args.target_id, args.quarter)
     raw = light_curve.to_dataframe()
+    print(f"Loaded {len(raw)} raw cadences", flush=True)
 
     regular_by_policy: dict[str, pd.DataFrame] = {}
     summary_by_policy: dict[str, dict[str, object]] = {}
     stationarity_assessments: dict[tuple[str, str], StationarityAssessment] = {}
     result_frames: list[pd.DataFrame] = []
     for quality_policy in quality_policies:
+        print(f"Evaluating quality policy: {quality_policy}", flush=True)
         regular, preprocessing_summary = preprocess_pdcsap_light_curve(
             raw,
             quality_policy=quality_policy,
@@ -1400,9 +1412,11 @@ def main() -> int:
             test_fraction=args.test_fraction,
             acf_lags=args.acf_lags,
             transit_lag_range=transit_lag_range,
+            fit_maxiter=args.fit_maxiter,
         )
         full_results["quality_policy"] = quality_policy
         result_frames.append(full_results)
+        print(f"Finished full-gap candidates for {quality_policy}", flush=True)
 
         try:
             longest_segment = longest_contiguous_segment(regular)
@@ -1430,13 +1444,16 @@ def main() -> int:
                 test_fraction=args.test_fraction,
                 acf_lags=args.acf_lags,
                 transit_lag_range=transit_lag_range,
+                fit_maxiter=args.fit_maxiter,
             )
             segment_results["quality_policy"] = quality_policy
             result_frames.append(segment_results)
+            print(f"Finished longest-segment candidates for {quality_policy}", flush=True)
         except ValueError:
             pass
 
     results = attach_stationarity_context(pd.concat(result_frames, ignore_index=True), stationarity_assessments)
+    print("Evaluating transit preservation for candidate rows", flush=True)
     preservation_by_candidate = transit_preservation_table(
         results,
         regular_by_policy,
@@ -1444,6 +1461,7 @@ def main() -> int:
         duration_cadences=args.injection_duration_cadences,
         local_half_width_cadences=args.injection_local_half_width_cadences,
         scale_window=args.scale_window,
+        fit_maxiter=args.fit_maxiter,
     )
     results = results.merge(
         preservation_by_candidate,
@@ -1458,6 +1476,7 @@ def main() -> int:
     selected_order = order_from_row(selected)
     selected_mode = str(selected["mode"])
     selected_quality_policy = str(selected["quality_policy"])
+    print(f"Selected {selected_quality_policy} {selected_mode} {selected['order']}", flush=True)
     selected_stationarity_assessment = stationarity_assessments[(selected_quality_policy, selected_mode)]
     regular = regular_by_policy[selected_quality_policy]
     full_values = regular["normalized_flux"].to_numpy(dtype=float)
@@ -1470,6 +1489,7 @@ def main() -> int:
         selected_order,
         allow_missing=selected_mode == "full_gap",
         mode=selected_mode,
+        fit_maxiter=args.fit_maxiter,
     )
 
     gap_sensitive = (
@@ -1494,6 +1514,7 @@ def main() -> int:
     )
 
     prefix_fractions = np.linspace(0.55, 1.0, max(args.stability_folds, 1))
+    print("Running stability checks", flush=True)
     fold_stability = chronological_prefix_stability(
         full_values,
         orders,
@@ -1502,6 +1523,7 @@ def main() -> int:
         test_fraction=args.test_fraction,
         acf_lags=args.acf_lags,
         prefix_fractions=tuple(float(value) for value in prefix_fractions),
+        fit_maxiter=args.fit_maxiter,
     )
     segment_stability_table = segment_stability(
         top_segment_values(regular, args.stability_segments),
@@ -1509,6 +1531,7 @@ def main() -> int:
         test_fraction=args.test_fraction,
         acf_lags=args.acf_lags,
         max_segments=args.stability_segments,
+        fit_maxiter=args.fit_maxiter,
     )
     stability = pd.concat([fold_stability, segment_stability_table], ignore_index=True)
     stability_summaries = {
@@ -1523,7 +1546,9 @@ def main() -> int:
         test_fraction=args.test_fraction,
         acf_lags=args.acf_lags,
         transit_lag_range=transit_lag_range,
+        fit_maxiter=args.fit_maxiter,
     )
+    print("Running transformed-template diagnostics", flush=True)
 
     (
         preservation_metrics,
