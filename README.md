@@ -1,6 +1,6 @@
 # multi-model-transit-search
 
-TRIDENT, currently published as `multi-model-transit-search`, is a multimodel
+`multimodel-transit-search`, is a multimodel
 exoplanet transit-search benchmark. The long-term goal is to compare statistical
 detectors, ARIMA/ARMA-transformed-template methods, BLS/TCF-style searches,
 machine-learning classifiers, deep-learning morphology models, and adaptive
