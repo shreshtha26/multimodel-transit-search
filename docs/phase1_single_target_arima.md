@@ -1,6 +1,6 @@
 # multi-model-transit-search Phase 1: Single-Target ARIMA Prototype
 
-Status: complete as a single-target prototype.
+Status: engineering-complete as a single-target prototype; not yet a final adequate noise model.
 
 This phase uses one Kepler PDCSAP quarter to build and audit the first multi-model-transit-search
 noise-model and detection experiment:
@@ -10,6 +10,7 @@ PDCSAP flux
 -> explicit cadence grid and masks
 -> leakage-free normalization
 -> ARIMA candidate comparison
+-> hierarchical ARIMA selection constraints
 -> one-step-ahead innovations
 -> rolling-scale standardized innovations
 -> synthetic transit preservation test
@@ -26,10 +27,10 @@ Command:
 .venv/bin/python scripts/run_single_target_arima.py --target-id 11904151 --quarter 5
 ```
 
-Selected baseline:
+Selected baseline after hierarchical constraints:
 
 ```text
-quality policy: permissive
+quality policy: default
 mode: full_gap
 order: ARIMA(1, 1, 0)
 ```
@@ -39,6 +40,33 @@ permissive quality masks, fits full-quarter NaN-gap models, fits contiguous
 segment models, records residual diagnostics, compares simple baselines, checks
 coefficient boundaries, tests order stability, injects a synthetic transit, and
 runs a blind transformed-template scan.
+
+The selector does not treat RMSE/MAE as the primary objective. It first checks
+fit validity, residual-whitening constraints, variance stability and injected
+transit preservation. Forecast metrics, information criteria and simplicity are
+used only as tie-breakers among models in the same constraint tier.
+
+Non-converged candidates can still emit RMSE, AIC and BIC values, but those
+values are treated as diagnostics from a failed fit rather than trustworthy
+selection evidence. Differenced candidates are also flagged for review because
+first differencing changes transit morphology; preservation must be judged in
+the transformed-template space used by the detector.
+
+Stationarity diagnostics are now run in package code on the exact modelling
+series used by each ARIMA representation. For the current default full-gap
+series, ADF rejects the unit-root null and KPSS rejects the level-stationarity
+null:
+
+```text
+original full-gap conclusion: conflicting_rejections
+recommended d: unresolved
+selected-model differencing alignment: unresolved
+differencing requires review: True
+```
+
+This does not statistically justify `d=1`. It means ARIMA(1, 1, 0) remains a
+best-available full-gap candidate under the current hierarchy, not a final
+scientifically accepted noise model.
 
 ## Completion Criteria
 
@@ -64,13 +92,18 @@ standardized innovations are saved
 injected transit preservation is measured
 ARIMA-transformed-template matching is measured
 blind single-event scan is measured
+hierarchical model selection is explicit
+stationarity diagnostics are recorded
 ```
 
 ## Scientific Result
 
-The selected ARIMA baseline still has documented limitations:
+The selected full-quarter ARIMA baseline still has documented limitations:
 
 ```text
+selected status: valid_but_residual_autocorrelation_remains
+stationarity evidence is conflicting
+differencing remains unresolved
 residual autocorrelation remains
 variance instability remains
 raw innovation-space transit preservation fails
@@ -95,14 +128,28 @@ best injected-neighborhood rank: 1
 
 ## Phase 1 Conclusion
 
-Phase 1 is complete because the project now has a reproducible single-target
-pipeline that exposes ARIMA's noise-model limitations while also demonstrating
-that ARIMA-transformed templates can recover an injected transit in a blind
+Phase 1 is engineering-complete because the project now has a reproducible
+single-target pipeline that exposes ARIMA's noise-model limitations, ranks
+candidate noise models with an explicit hierarchy, and demonstrates that
+ARIMA-transformed templates can recover an injected transit in a blind
 single-event scan.
 
-The next phase should scale this from one injected event to injection-recovery
-experiments across transit depths, durations, periods, targets, and noise
-regimes.
+It is not yet a final adequate ARIMA noise model because the selected full-gap
+candidate still has unresolved differencing evidence and fails whitening and
+variance-stability constraints. That is the correct scientific conclusion from
+this run.
+
+The next implementation phase should compare gap-handling representations:
+
+```text
+longest contiguous segment
+full cadence grid with missing values
+interpolated cadence grid
+```
+
+Only after the gap-mode comparison should the project move to complete
+transit-injection benchmarking, BLS comparisons, transformed-template TCF
+comparisons and empirical false-alarm calibration.
 
 The code now includes the first selected-model recovery grid over multiple
 synthetic transit depths, durations, and clean injection centers. The output is:

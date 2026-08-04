@@ -9,13 +9,13 @@
   "rank1_recovery_rate": 1.0,
   "rank3_recovery_rate": 1.0,
   "median_best_injected_neighborhood_rank": 1.0,
-  "median_transformed_template_statistic": 22.444800398745052,
-  "minimum_transformed_template_statistic": 17.793996941116077,
+  "median_transformed_template_statistic": 20.50150619535054,
+  "minimum_transformed_template_statistic": 17.89688359770482,
   "transformed_template_improvement_rate": 1.0,
   "transit_preservation_failure_rate": 1.0,
   "quality_policy": "default",
   "mode": "full_gap",
-  "order": "(3, 1, 0)",
+  "order": "(1, 1, 0)",
   "scan_stride": 10,
   "scan_max_centers": 250
 }

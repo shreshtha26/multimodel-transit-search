@@ -25,5 +25,9 @@ def test_residual_diagnostics_has_stage_one_fields() -> None:
     assert "residual_mean" in diagnostics
     assert "residual_std" in diagnostics
     assert "max_abs_residual_acf" in diagnostics
+    assert "residual_acf_lag_1" in diagnostics
+    assert "max_abs_residual_acf_1_24" in diagnostics
+    assert "mean_abs_residual_acf_1_24" in diagnostics
+    assert "max_abs_residual_acf_transit_lags" in diagnostics
     assert "minimum_ljung_box_p" in diagnostics
     assert "outlier_fraction" in diagnostics

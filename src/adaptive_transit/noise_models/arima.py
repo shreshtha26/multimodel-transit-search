@@ -303,6 +303,8 @@ def evaluate_arima_candidate(
     test_fraction: float = 0.20,
     acf_lags: int = 80,
     ljung_box_lags: tuple[int, ...] = (10, 20, 40),
+    short_acf_lags: int = 24,
+    transit_lag_range: tuple[int, int] = (3, 24),
 ) -> dict[str, Any]:
     """Fit and diagnose one ARIMA order."""
 
@@ -338,6 +340,8 @@ def evaluate_arima_candidate(
             usable_innovations,
             acf_lags=acf_lags,
             ljung_box_lags=ljung_box_lags,
+            short_acf_lags=short_acf_lags,
+            transit_lag_range=transit_lag_range,
         )
         result = fitted.result
         converged = bool(getattr(result, "mle_retvals", {}).get("converged", True))
@@ -378,6 +382,7 @@ def evaluate_arima_candidate(
         }
     except Exception as exc:  # noqa: BLE001 - candidate failures are recorded, not hidden.
         runtime_seconds = time.perf_counter() - started_at
+        acf_fields = {f"residual_acf_lag_{lag}": np.nan for lag in range(1, short_acf_lags + 1)}
         return {
             "mode": mode,
             "order": str(order),
@@ -409,6 +414,12 @@ def evaluate_arima_candidate(
             "residual_mean": np.nan,
             "residual_std": np.nan,
             "max_abs_residual_acf": np.nan,
+            **acf_fields,
+            "max_abs_residual_acf_1_24": np.nan,
+            "mean_abs_residual_acf_1_24": np.nan,
+            "max_abs_residual_acf_transit_lags": np.nan,
+            "transit_relevant_lag_min": int(transit_lag_range[0]),
+            "transit_relevant_lag_max": int(transit_lag_range[1]),
             "minimum_ljung_box_p": np.nan,
             "outlier_fraction": np.nan,
             "innovation_skew": np.nan,
@@ -441,6 +452,8 @@ def evaluate_arima_candidates(
     test_fraction: float = 0.20,
     acf_lags: int = 80,
     ljung_box_lags: tuple[int, ...] = (10, 20, 40),
+    short_acf_lags: int = 24,
+    transit_lag_range: tuple[int, int] = (3, 24),
 ) -> pd.DataFrame:
     """Evaluate a small, explicit list of ARIMA orders."""
 
@@ -453,6 +466,8 @@ def evaluate_arima_candidates(
             test_fraction=test_fraction,
             acf_lags=acf_lags,
             ljung_box_lags=ljung_box_lags,
+            short_acf_lags=short_acf_lags,
+            transit_lag_range=transit_lag_range,
         )
         for order in orders
     ]

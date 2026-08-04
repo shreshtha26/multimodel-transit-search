@@ -39,6 +39,11 @@ from adaptive_transit.noise_models.selection import (
     order_from_row,
     score_arima_candidates,
     select_noise_model)
+from adaptive_transit.noise_models.stationarity import (
+    StationarityAssessment,
+    assess_stationarity,
+    stationarity_candidate_fields,
+    stationarity_report_fields)
 from adaptive_transit.noise_models.stability import (
     chronological_prefix_stability,
     segment_stability,
@@ -105,6 +110,32 @@ def parse_int_grid(value: str) -> tuple[int, ...]:
     return values
 
 
+def parse_adf_autolag(value: str) -> str | None:
+    """Parse ADF autolag configuration."""
+
+    normalized = value.strip()
+    if normalized.lower() == "none":
+        return None
+    if normalized not in {"AIC", "BIC", "t-stat"}:
+        raise argparse.ArgumentTypeError("ADF autolag must be AIC, BIC, t-stat, or none.")
+    return normalized
+
+
+def parse_kpss_nlags(value: str) -> str | int:
+    """Parse KPSS lag-selection configuration."""
+
+    normalized = value.strip()
+    if normalized in {"auto", "legacy"}:
+        return normalized
+    try:
+        nlags = int(normalized)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("KPSS nlags must be auto, legacy, or a non-negative integer.") from exc
+    if nlags < 0:
+        raise argparse.ArgumentTypeError("KPSS nlags must be non-negative.")
+    return nlags
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run single-target PDCSAP ARIMA diagnostics.")
     parser.add_argument(
@@ -136,6 +167,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--test-fraction", type=float, default=0.20)
     parser.add_argument("--acf-lags", type=int, default=80)
+    parser.add_argument("--stationarity-alpha", type=float, default=0.05)
+    parser.add_argument("--stationarity-min-observations", type=int, default=24)
+    parser.add_argument("--adf-regression", choices=("c", "ct", "ctt", "n"), default="c")
+    parser.add_argument("--adf-autolag", type=parse_adf_autolag, default="AIC")
+    parser.add_argument("--kpss-regression", choices=("c", "ct"), default="c")
+    parser.add_argument("--kpss-nlags", type=parse_kpss_nlags, default="auto")
+    parser.add_argument("--transit-lag-min", type=int, default=3)
+    parser.add_argument("--transit-lag-max", type=int, default=24)
     parser.add_argument(
         "--quality-policy",
         dest="quality_policies",
@@ -381,6 +420,55 @@ def quality_comparison_table(scored: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def attach_stationarity_context(
+    results: pd.DataFrame,
+    assessments: dict[tuple[str, str], StationarityAssessment],
+) -> pd.DataFrame:
+    """Attach stationarity evidence to each candidate without changing rank directly."""
+
+    rows: list[dict[str, object]] = []
+    for _, candidate in results.iterrows():
+        key = (str(candidate["quality_policy"]), str(candidate["mode"]))
+        assessment = assessments[key]
+        rows.append(stationarity_candidate_fields(assessment, int(candidate["d"])))
+    return pd.concat([results.reset_index(drop=True), pd.DataFrame(rows)], axis=1)
+
+
+def stationarity_assessment_table(
+    assessments: dict[tuple[str, str], StationarityAssessment],
+) -> pd.DataFrame:
+    """Flatten all per-policy/per-mode stationarity assessments for CSV output."""
+
+    rows: list[dict[str, object]] = []
+    for (quality_policy, mode), assessment in assessments.items():
+        metadata = assessment.preprocessing_summary
+        rows.append(
+            {
+                "quality_policy": quality_policy,
+                "mode": mode,
+                **stationarity_report_fields(assessment),
+                "stationarity_series_representation": metadata.get("stationarity_series_representation", ""),
+                "stationarity_gaps_compressed": metadata.get("stationarity_gaps_compressed", False),
+                "stationarity_interpolated": metadata.get("stationarity_interpolated", False),
+                "stationarity_contiguous_segment_used": metadata.get("stationarity_contiguous_segment_used", False),
+                "stationarity_removed_nonfinite": metadata.get("stationarity_removed_nonfinite", 0),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def format_optional_float(value: object, digits: int = 6) -> str:
+    """Format nullable numeric values for concise terminal output."""
+
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "unavailable"
+    if not np.isfinite(numeric):
+        return "unavailable"
+    return f"{numeric:.{digits}g}"
+
+
 def arima_orders_from_args(args: argparse.Namespace) -> tuple[tuple[int, int, int], ...]:
     """Resolve manual/default/generated ARIMA order choices from CLI args."""
 
@@ -434,6 +522,7 @@ def evaluate_top_segment_fits(
     max_segments: int,
     test_fraction: float,
     acf_lags: int,
+    transit_lag_range: tuple[int, int],
 ) -> pd.DataFrame:
     """Run the full candidate grid on the longest usable segments."""
 
@@ -449,6 +538,7 @@ def evaluate_top_segment_fits(
             allow_missing=False,
             test_fraction=test_fraction,
             acf_lags=acf_lags,
+            transit_lag_range=transit_lag_range,
         )
         segment_results["quality_policy"] = quality_policy
         segment_results["segment_rank"] = segment_rank
@@ -939,6 +1029,7 @@ def phase1_completion_report(
     *,
     selected: pd.Series,
     preprocessing_summary: dict[str, object],
+    stationarity_assessment: StationarityAssessment,
     stability_summaries: dict[str, dict[str, object]],
     preservation_metrics: dict[str, object],
     transformed_template_metrics: dict[str, object],
@@ -959,6 +1050,21 @@ def phase1_completion_report(
     residual_autocorrelation_remaining = bool(selected.get("residual_autocorrelation_remaining", False))
     variance_instability = bool(selected.get("variance_instability", False))
     transit_preservation_failure = bool(preservation_metrics.get("transit_preservation_failure", False))
+    differencing_requires_review = bool(selected.get("differencing_requires_review", False))
+    stationarity_fields = stationarity_report_fields(stationarity_assessment)
+    selected_acf_1 = float(selected.get("residual_acf_lag_1", np.nan))
+    selected_max_acf = float(selected.get("max_abs_residual_acf", np.nan))
+    selected_max_short_acf = float(selected.get("max_abs_residual_acf_1_24", np.nan))
+    selected_transit_acf = float(selected.get("max_abs_residual_acf_transit_lags", np.nan))
+    lag1_materially_negative = bool(np.isfinite(selected_acf_1) and selected_acf_1 < -0.10)
+    short_lag_concentrated = bool(np.isfinite(selected_max_short_acf) and np.isfinite(selected_max_acf) and selected_max_short_acf >= 0.90 * selected_max_acf)
+    transit_lag_overlap = bool(np.isfinite(selected_transit_acf) and selected_transit_acf > 0.10)
+    selected_alignment = str(selected.get("candidate_differencing_alignment", "unresolved"))
+    selected_reason_codes = list(stationarity_assessment.reason_codes)
+    if bool(selected.get("differenced_model", False)) and selected_alignment == "conflicts_with_stationarity_evidence" and stationarity_assessment.recommended_d == 0:
+        selected_reason_codes.append("SELECTED_DIFFERENCED_MODEL_CONFLICTS_WITH_D0_EVIDENCE")
+    elif bool(selected.get("differenced_model", False)) and selected_alignment == "unresolved":
+        selected_reason_codes.append("SELECTED_DIFFERENCED_MODEL_HAS_UNRESOLVED_STATIONARITY_EVIDENCE")
     transformed_improves = bool(
         transformed_template_metrics.get(
             "transformed_template_improves_unchanged_box",
@@ -967,6 +1073,16 @@ def phase1_completion_report(
     )
     scan_recovers = bool(template_scan_summary.get("injected_center_recovered_as_best", False))
     rank1_recovery_rate = float(multi_injection_summary.get("rank1_recovery_rate", 0.0))
+    selected_constraints_pass = not any(
+        [
+            bool(selected_failure_reason),
+            bool(selected.get("statistical_validity_failed", False)),
+            bool(selected.get("whitening_constraint_failed", False)),
+            bool(selected.get("variance_constraint_failed", False)),
+            bool(selected.get("transit_preservation_constraint_failed", False)),
+            differencing_requires_review,
+        ]
+    )
 
     required_criteria = {
         "preprocessing_is_explicit_and_reproducible": bool(preprocessing_summary.get("quality_policy") and preprocessing_summary.get("normalization_fit_fraction") is not None),
@@ -1006,10 +1122,42 @@ def phase1_completion_report(
         ),
         "blind_single_event_scan_is_measured": bool(int(template_scan_summary.get("n_trial_centers", 0)) > 1 and template_scan_summary.get("best_injected_neighborhood_rank") is not None),
         "multi_injection_recovery_is_measured": bool(int(multi_injection_summary.get("n_injections", 0)) > 0),
+        "hierarchical_model_selection_is_explicit": bool(
+            {
+                "selection_rank",
+                "mode_selection_rank",
+                "selection_status",
+                "statistical_validity_failed",
+                "whitening_constraint_failed",
+                "variance_constraint_failed",
+                "transit_preservation_constraint_failed",
+                "fit_metrics_trustworthy",
+                "differenced_model",
+                "differencing_requires_review",
+            }.issubset(scored.columns)
+        ),
+        "stationarity_diagnostics_are_recorded": bool(stationarity_fields["stationarity_diagnostics_available"] and "candidate_differencing_alignment" in scored.columns),
     }
 
     scientific_findings = {
         "selected_model_has_candidate_failure_reason": bool(selected_failure_reason),
+        "selected_model_selection_status": str(selected.get("selection_status", "")),
+        "selected_model_statistical_validity_failed": bool(selected.get("statistical_validity_failed", False)),
+        "selected_model_whitening_constraint_failed": bool(selected.get("whitening_constraint_failed", False)),
+        "selected_model_variance_constraint_failed": bool(selected.get("variance_constraint_failed", False)),
+        "selected_model_transit_preservation_constraint_failed": bool(selected.get("transit_preservation_constraint_failed", False)),
+        "selected_model_constraints_passed": selected_constraints_pass,
+        "selected_model_fit_metrics_trustworthy": bool(selected.get("fit_metrics_trustworthy", False)),
+        "selected_model_uses_differencing": bool(selected.get("differenced_model", False)),
+        "selected_model_differencing_requires_review": differencing_requires_review,
+        "selected_model_differencing_alignment": selected_alignment,
+        "selected_model_differencing_statistically_supported": bool(stationarity_assessment.differencing_statistically_supported and bool(selected.get("differenced_model", False))),
+        "selected_model_stationarity_reason_codes": selected_reason_codes,
+        "original_series_stationarity_conclusion": str(stationarity_assessment.original_series_conclusion),
+        "recommended_d": stationarity_assessment.recommended_d,
+        "lag1_residual_dependence_materially_negative": lag1_materially_negative,
+        "remaining_correlation_concentrated_at_short_lags": short_lag_concentrated,
+        "remaining_correlation_overlaps_transit_duration_lags": transit_lag_overlap,
         "residual_autocorrelation_remaining": residual_autocorrelation_remaining,
         "variance_instability": variance_instability,
         "transit_preservation_failure": transit_preservation_failure,
@@ -1020,7 +1168,7 @@ def phase1_completion_report(
         "multi_injection_transit_preservation_failure_rate": float(multi_injection_summary.get("transit_preservation_failure_rate", 0.0)),
     }
     phase1_engineering_complete = all(required_criteria.values())
-    phase1_scientific_ready_for_phase2 = bool(phase1_engineering_complete and transformed_improves and scan_recovers and rank1_recovery_rate >= 0.50)
+    phase1_scientific_ready_for_phase2 = bool(phase1_engineering_complete and selected_constraints_pass and transformed_improves and scan_recovers and rank1_recovery_rate >= 0.50)
 
     return {
         "phase": "multi-model-transit-search Phase 1: single-target ARIMA transformed-template prototype",
@@ -1029,12 +1177,25 @@ def phase1_completion_report(
         "selected_quality_policy": str(selected.get("quality_policy", "")),
         "selected_mode": str(selected.get("mode", "")),
         "selected_order": str(selected.get("order", "")),
+        "selected_global_rank": float(selected.get("selection_rank", np.nan)),
+        "selected_mode_rank": float(selected.get("mode_selection_rank", np.nan)),
+        "stationarity": {
+            **stationarity_fields,
+            "selected_model_differencing_alignment": selected_alignment,
+            "selected_model_differencing_requires_review": differencing_requires_review,
+            "selected_model_stationarity_reason_codes": selected_reason_codes,
+            "assessment": stationarity_assessment.to_dict(),
+        },
         "required_criteria": required_criteria,
         "scientific_findings": scientific_findings,
         "interpretation": [
             "Phase 1 is complete as a single-target prototype when all required criteria are true.",
+            "ARIMA selection is hierarchical: validity, whitening, variance stability, transit preservation, then forecasting tie-breakers.",
+            "Non-converged candidates may report fit metrics, but those metrics are not trustworthy for selection.",
+            "ADF and KPSS stationarity diagnostics are advisory constraints for differencing, not proof that an ARIMA model is suitable for transit detection.",
+            "Differenced models require review unless the exact modelled series has joint ADF/KPSS support for ordinary differencing.",
             "Residual autocorrelation, variance instability, or transit-preservation failure remain documented scientific limitations.",
-            "These are baseline ARIMA model limitations, not missing implementation.",
+            "Scientific readiness for scale-up requires the selected model to pass those constraints, not only recover one injected event.",
         ],
     }
 
@@ -1179,10 +1340,18 @@ def transit_preservation_table(
 
 def main() -> int:
     args = build_parser().parse_args()
+    if not 0.0 < args.stationarity_alpha < 1.0:
+        raise ValueError("--stationarity-alpha must be between 0 and 1.")
+    if args.stationarity_min_observations < 8:
+        raise ValueError("--stationarity-min-observations must be at least 8.")
+    if args.transit_lag_min < 1 or args.transit_lag_max < args.transit_lag_min:
+        raise ValueError("--transit-lag-min must be >= 1 and --transit-lag-max must be >= --transit-lag-min.")
+
     orders = arima_orders_from_args(args)
     quality_policies = tuple(args.quality_policies) if args.quality_policies else DEFAULT_QUALITY_POLICIES
     injection_depth_grid = args.injection_depth_grid or (args.injection_depth,)
     injection_duration_grid = args.injection_duration_grid or (args.injection_duration_cadences,)
+    transit_lag_range = (int(args.transit_lag_min), int(args.transit_lag_max))
 
     metrics_dir = args.output_dir / "metrics"
     figures_dir = args.output_dir / "figures"
@@ -1195,6 +1364,7 @@ def main() -> int:
 
     regular_by_policy: dict[str, pd.DataFrame] = {}
     summary_by_policy: dict[str, dict[str, object]] = {}
+    stationarity_assessments: dict[tuple[str, str], StationarityAssessment] = {}
     result_frames: list[pd.DataFrame] = []
     for quality_policy in quality_policies:
         regular, preprocessing_summary = preprocess_pdcsap_light_curve(
@@ -1207,6 +1377,21 @@ def main() -> int:
         summary_by_policy[quality_policy] = preprocessing_summary.to_dict()
 
         full_values = regular["normalized_flux"].to_numpy(dtype=float)
+        stationarity_assessments[(quality_policy, "full_gap")] = assess_stationarity(
+            full_values,
+            modelling_mode="full_gap",
+            preprocessing_summary=summary_by_policy[quality_policy],
+            alpha=args.stationarity_alpha,
+            adf_regression=args.adf_regression,
+            adf_autolag=args.adf_autolag,
+            kpss_regression=args.kpss_regression,
+            kpss_nlags=args.kpss_nlags,
+            min_observations=args.stationarity_min_observations,
+            gaps_compressed=bool(np.isnan(full_values).any()),
+            interpolated=False,
+            contiguous_segment_used=False,
+            series_representation="finite_observed_values_from_full_gap_series",
+        )
         full_results = evaluate_arima_candidates(
             full_values,
             orders,
@@ -1214,6 +1399,7 @@ def main() -> int:
             allow_missing=True,
             test_fraction=args.test_fraction,
             acf_lags=args.acf_lags,
+            transit_lag_range=transit_lag_range,
         )
         full_results["quality_policy"] = quality_policy
         result_frames.append(full_results)
@@ -1221,6 +1407,21 @@ def main() -> int:
         try:
             longest_segment = longest_contiguous_segment(regular)
             segment_values = longest_segment["normalized_flux"].to_numpy(dtype=float)
+            stationarity_assessments[(quality_policy, "longest_segment")] = assess_stationarity(
+                segment_values,
+                modelling_mode="longest_segment",
+                preprocessing_summary=summary_by_policy[quality_policy],
+                alpha=args.stationarity_alpha,
+                adf_regression=args.adf_regression,
+                adf_autolag=args.adf_autolag,
+                kpss_regression=args.kpss_regression,
+                kpss_nlags=args.kpss_nlags,
+                min_observations=args.stationarity_min_observations,
+                gaps_compressed=False,
+                interpolated=False,
+                contiguous_segment_used=True,
+                series_representation="finite_values_from_longest_contiguous_segment",
+            )
             segment_results = evaluate_arima_candidates(
                 segment_values,
                 orders,
@@ -1228,13 +1429,14 @@ def main() -> int:
                 allow_missing=False,
                 test_fraction=args.test_fraction,
                 acf_lags=args.acf_lags,
+                transit_lag_range=transit_lag_range,
             )
             segment_results["quality_policy"] = quality_policy
             result_frames.append(segment_results)
         except ValueError:
             pass
 
-    results = pd.concat(result_frames, ignore_index=True)
+    results = attach_stationarity_context(pd.concat(result_frames, ignore_index=True), stationarity_assessments)
     preservation_by_candidate = transit_preservation_table(
         results,
         regular_by_policy,
@@ -1256,6 +1458,7 @@ def main() -> int:
     selected_order = order_from_row(selected)
     selected_mode = str(selected["mode"])
     selected_quality_policy = str(selected["quality_policy"])
+    selected_stationarity_assessment = stationarity_assessments[(selected_quality_policy, selected_mode)]
     regular = regular_by_policy[selected_quality_policy]
     full_values = regular["normalized_flux"].to_numpy(dtype=float)
     longest_segment = longest_contiguous_segment(regular)
@@ -1319,6 +1522,7 @@ def main() -> int:
         max_segments=args.stability_segments,
         test_fraction=args.test_fraction,
         acf_lags=args.acf_lags,
+        transit_lag_range=transit_lag_range,
     )
 
     (
@@ -1439,6 +1643,7 @@ def main() -> int:
     phase1_report = phase1_completion_report(
         selected=selected,
         preprocessing_summary=summary_by_policy[selected_quality_policy],
+        stationarity_assessment=selected_stationarity_assessment,
         stability_summaries=stability_summaries,
         preservation_metrics=preservation_metrics,
         transformed_template_metrics=transformed_template_metrics,
@@ -1452,6 +1657,7 @@ def main() -> int:
     prefix = f"kic_{str(args.target_id).replace('KIC', '').strip()}_q{args.quarter}"
     results_path = metrics_dir / f"{prefix}_arima_candidates.csv"
     quality_comparison_path = metrics_dir / f"{prefix}_quality_comparison.csv"
+    stationarity_path = metrics_dir / f"{prefix}_stationarity_diagnostics.csv"
     summary_path = metrics_dir / f"{prefix}_preprocessing_summary.json"
     stability_path = metrics_dir / f"{prefix}_order_stability.csv"
     stability_summary_path = metrics_dir / f"{prefix}_order_stability_summary.json"
@@ -1470,6 +1676,7 @@ def main() -> int:
 
     scored.to_csv(results_path, index=False)
     quality_comparison_table(scored).to_csv(quality_comparison_path, index=False)
+    stationarity_assessment_table(stationarity_assessments).to_csv(stationarity_path, index=False)
     coefficient_table(scored).to_csv(coefficient_path, index=False)
     preservation_by_candidate.to_csv(preservation_by_candidate_path, index=False)
     stability.to_csv(stability_path, index=False)
@@ -1534,9 +1741,18 @@ def main() -> int:
     print(f"Selected quality policy: {selected_quality_policy}")
     print(f"Selected ARIMA mode: {selected_mode}")
     print(f"Selected ARIMA order: {selected_order}")
+    print(f"Selected model status: {selected.get('selection_status', '')}")
+    print("Stationarity assessment:")
+    print(f"  ADF p-value: {format_optional_float(selected_stationarity_assessment.original_adf.pvalue)}")
+    print(f"  KPSS p-value: {format_optional_float(selected_stationarity_assessment.original_kpss.pvalue)}")
+    print(f"  conclusion: {selected_stationarity_assessment.original_series_conclusion}")
+    print(f"  recommended d: {selected_stationarity_assessment.recommended_d if selected_stationarity_assessment.recommended_d is not None else 'unresolved'}")
+    print(f"  selected differencing alignment: {selected.get('candidate_differencing_alignment', 'unresolved')}")
+    print(f"  selected differencing requires review: {selected.get('differencing_requires_review', False)}")
     print(f"Gap-sensitive selected order: {gap_sensitive}")
     print(f"Candidate table: {results_path}")
     print(f"Quality comparison: {quality_comparison_path}")
+    print(f"Stationarity diagnostics: {stationarity_path}")
     print(f"Preprocessing summary: {summary_path}")
     print(f"Order stability: {stability_path}")
     print(f"Segment fits: {segment_fits_path}")
@@ -1561,7 +1777,22 @@ def main() -> int:
                 "order",
                 "quality_policy",
                 "mode",
-                "adequacy_score",
+                "selection_rank",
+                "mode_selection_rank",
+                "selection_status",
+                "statistical_validity_failed",
+                "whitening_constraint_failed",
+                "variance_constraint_failed",
+                "transit_preservation_constraint_failed",
+                "fit_metrics_trustworthy",
+                "differenced_model",
+                "differencing_requires_review",
+                "candidate_d",
+                "candidate_family_role",
+                "candidate_differencing_alignment",
+                "recommended_d",
+                "original_adf_pvalue",
+                "original_kpss_pvalue",
                 "converged",
                 "AIC",
                 "BIC",
@@ -1575,6 +1806,10 @@ def main() -> int:
                 "transit_preservation_rank",
                 "transit_preservation_failure",
                 "max_abs_residual_acf",
+                "residual_acf_lag_1",
+                "max_abs_residual_acf_1_24",
+                "mean_abs_residual_acf_1_24",
+                "max_abs_residual_acf_transit_lags",
                 "minimum_ljung_box_p",
                 "residual_autocorrelation_remaining",
                 "variance_instability",

@@ -3,7 +3,7 @@
     "stability_kind": "chronological_prefix",
     "n_runs": 1,
     "n_successful_runs": 1,
-    "modal_order": "(1, 0, 1)",
+    "modal_order": "(1, 1, 0)",
     "modal_order_fraction": 1.0,
     "unique_selected_orders": 1,
     "stable": true
@@ -12,7 +12,7 @@
     "stability_kind": "segment",
     "n_runs": 1,
     "n_successful_runs": 1,
-    "modal_order": "(1, 0, 0)",
+    "modal_order": "(3, 0, 1)",
     "modal_order_fraction": 1.0,
     "unique_selected_orders": 1,
     "stable": true

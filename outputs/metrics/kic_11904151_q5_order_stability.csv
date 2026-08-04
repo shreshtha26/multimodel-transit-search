@@ -1,7 +1,7 @@
 stability_kind,mode,fold,observed_fraction,n_total,n_observed,selected_order,adequacy_score,failure_reason,segment_id
-chronological_prefix,full_gap,1,0.55,2560,2467,"(2, 1, 1)",8.291666666666666,,
-chronological_prefix,full_gap,2,0.775,3613,3477,"(2, 0, 1)",35.90416666666667,,
-chronological_prefix,full_gap,3,1.0,4634,4486,"(1, 1, 0)",37.885416666666664,,
-segment,segment,1,,146,146,"(1, 0, 0)",32.833333333333336,,18.0
-segment,segment,2,,146,146,"(1, 0, 3)",32.53958333333333,,3.0
-segment,segment,3,,146,146,"(2, 1, 1)",8.545833333333334,,7.0
+chronological_prefix,full_gap,1,0.55,2560,2467,"(1, 1, 1)",1.0,,
+chronological_prefix,full_gap,2,0.775,3613,3477,"(2, 0, 1)",1.0,,
+chronological_prefix,full_gap,3,1.0,4634,4486,"(1, 1, 0)",1.0,,
+segment,segment,1,,146,146,"(2, 1, 0)",1.0,,18.0
+segment,segment,2,,146,146,"(2, 0, 0)",1.0,,3.0
+segment,segment,3,,146,146,"(3, 0, 0)",1.0,,7.0

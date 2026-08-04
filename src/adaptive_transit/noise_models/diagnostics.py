@@ -42,6 +42,51 @@ def max_abs_acf(values: np.ndarray, *, nlags: int = 80) -> float:
     return float(np.max(np.abs(acf_values[1:])))
 
 
+def residual_acf_summary(
+    values: np.ndarray,
+    *,
+    nlags: int = 24,
+    transit_lag_range: tuple[int, int] = (3, 24),
+) -> dict[str, float]:
+    """Record residual ACF at short lags and over transit-relevant lags."""
+
+    clean = finite_values(values)
+    fields = {f"residual_acf_lag_{lag}": float("nan") for lag in range(1, nlags + 1)}
+    fields.update(
+        {
+            "max_abs_residual_acf_1_24": float("nan"),
+            "mean_abs_residual_acf_1_24": float("nan"),
+            "max_abs_residual_acf_transit_lags": float("nan"),
+            "transit_relevant_lag_min": int(transit_lag_range[0]),
+            "transit_relevant_lag_max": int(transit_lag_range[1]),
+        }
+    )
+    if clean.size < 3:
+        return fields
+
+    usable_lags = min(max(nlags, transit_lag_range[1]), clean.size - 2)
+    acf_values = acf(clean, nlags=usable_lags, fft=True, missing="none")
+    for lag in range(1, nlags + 1):
+        if lag < len(acf_values):
+            fields[f"residual_acf_lag_{lag}"] = float(acf_values[lag])
+
+    short_values = np.asarray([fields[f"residual_acf_lag_{lag}"] for lag in range(1, nlags + 1)], dtype=float)
+    finite_short = short_values[np.isfinite(short_values)]
+    if finite_short.size:
+        fields["max_abs_residual_acf_1_24"] = float(np.max(np.abs(finite_short)))
+        fields["mean_abs_residual_acf_1_24"] = float(np.mean(np.abs(finite_short)))
+
+    lag_min, lag_max = transit_lag_range
+    lag_min = max(1, int(lag_min))
+    lag_max = max(lag_min, int(lag_max))
+    transit_values = [float(acf_values[lag]) for lag in range(lag_min, min(lag_max, len(acf_values) - 1) + 1)]
+    finite_transit = np.asarray(transit_values, dtype=float)
+    finite_transit = finite_transit[np.isfinite(finite_transit)]
+    if finite_transit.size:
+        fields["max_abs_residual_acf_transit_lags"] = float(np.max(np.abs(finite_transit)))
+    return fields
+
+
 def ljung_box_summary(
     values: np.ndarray,
     *,
@@ -108,6 +153,8 @@ def residual_diagnostics(
     *,
     acf_lags: int = 80,
     ljung_box_lags: tuple[int, ...] = (10, 20, 40),
+    short_acf_lags: int = 24,
+    transit_lag_range: tuple[int, int] = (3, 24),
     rolling_window: int = 96,
     outlier_sigma: float = 5.0,
 ) -> dict[str, float]:
@@ -130,6 +177,7 @@ def residual_diagnostics(
         "innovation_kurtosis": float(kurtosis(clean, fisher=True, bias=False)) if clean.size > 3 else float("nan"),
         "arch_pvalue": arch_pvalue(clean),
     }
+    diagnostics.update(residual_acf_summary(clean, nlags=short_acf_lags, transit_lag_range=transit_lag_range))
     diagnostics.update(ljung_box_summary(clean, lags=ljung_box_lags))
     diagnostics.update(rolling_variance_summary(clean, window=rolling_window))
     return diagnostics
