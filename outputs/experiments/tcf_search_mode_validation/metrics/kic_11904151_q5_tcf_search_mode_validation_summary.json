@@ -1,0 +1,20 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "validation_case_count": 5,
+  "injected_case_count": 4,
+  "rank1_exact_agreement_rate": 1.0,
+  "rank1_harmonic_agreement_rate": 1.0,
+  "median_top10_overlap_fraction": 1.0,
+  "minimum_top10_overlap_fraction": 1.0,
+  "coarse_exact_period_top10_rate": 0.75,
+  "exhaustive_exact_period_top10_rate": 0.75,
+  "coarse_candidate_retention_rate_when_exhaustive_detects": 1.0,
+  "median_coarse_score_loss_fraction": 0.0,
+  "maximum_coarse_score_loss_fraction": 0.0,
+  "median_speedup": 1.8426279743511005,
+  "threshold_decision_agreement_rate": 1.0,
+  "current_threshold": 15.58599716225368,
+  "threshold_scope_note": "The current FAP threshold was calibrated for coarse-to-fine TCF. Exhaustive threshold comparisons are diagnostic only.",
+  "coarse_search_acceptable_for_multistar": true
+}

@@ -1,0 +1,29 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "quality_policy": "default",
+  "arima_order": [
+    1,
+    1,
+    0
+  ],
+  "min_transit_events": 3,
+  "min_event_consistency_fraction": 0.6,
+  "injection_count": 81,
+  "arima_convergence_rate": 0.48148148148148145,
+  "period_match_rate": 0.7901234567901234,
+  "exact_period_match_rate": 0.654320987654321,
+  "exact_period_present_top10_rate": 1.0,
+  "median_exact_period_rank_top10": 1.0,
+  "detection_rate_fap_1_percent": 1.0,
+  "recovery_rate_fap_1_percent": 0.7901234567901234,
+  "exact_recovery_rate_fap_1_percent": 0.654320987654321,
+  "median_period_error_fraction": 0.0001500150015001367,
+  "median_exact_period_error_fraction": 0.0001500150015001367,
+  "median_recovered_score": 30.86085456566407,
+  "median_raw_pooled_score": 26.550530536085844,
+  "median_valid_transit_events": 36.0,
+  "median_positive_event_fraction": 1.0,
+  "median_event_score": 6.730127625156745,
+  "fap_1_percent_threshold": 15.58599716225368
+}

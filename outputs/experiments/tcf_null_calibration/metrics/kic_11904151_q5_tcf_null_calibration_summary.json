@@ -1,0 +1,60 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "quality_policy": "default",
+  "calibration_scope": "detector_conditional_on_fitted_arima",
+  "surrogate_source": "innovations",
+  "arima_order": [
+    1,
+    1,
+    0
+  ],
+  "base_arima_summary": {
+    "order": [
+      1,
+      1,
+      0
+    ],
+    "converged": false,
+    "aic": -71903.23400647515,
+    "bic": -71890.35251843664,
+    "finite_innovation_count": 4485
+  },
+  "n_periods": 10000,
+  "n_durations": 8,
+  "search_mode": "coarse_to_fine",
+  "n_coarse_periods": 2000,
+  "n_refinement_regions": 20,
+  "refinement_half_width_points": 30,
+  "min_transit_events": 3,
+  "min_event_consistency_fraction": 0.6,
+  "requested_null_trials": 1000,
+  "successful_null_trials": 1000,
+  "success_fraction": 1.0,
+  "parallel_worker_count": 6,
+  "worker_chunksize": 1,
+  "null_block_size_cadences": 24,
+  "random_seed": 123,
+  "arima_convergence_rate": 0.0,
+  "median_max_score": 8.674897665532388,
+  "maximum_null_score": 24.104024552701475,
+  "median_raw_pooled_score": 6.9731914545779,
+  "median_best_period_days": 13.228122812281228,
+  "median_best_duration_hours": 1.5,
+  "median_valid_transit_events": 7.0,
+  "median_positive_event_fraction": 0.8,
+  "median_event_score": 3.32015774859585,
+  "median_evaluated_period_count": 2960.0,
+  "fap_levels": [
+    0.01
+  ],
+  "thresholds": [
+    {
+      "fap_level": 0.01,
+      "score_threshold": 15.58599716225368,
+      "requested_null_trials": 1000,
+      "successful_null_trials": 1000,
+      "observed_exceedance_fraction": 0.01
+    }
+  ]
+}

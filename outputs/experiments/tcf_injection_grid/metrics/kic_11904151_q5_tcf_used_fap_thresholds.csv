@@ -1,0 +1,2 @@
+fap_level,score_threshold,requested_null_trials,successful_null_trials,observed_exceedance_fraction
+0.01,15.58599716225368,1000,1000,0.01
