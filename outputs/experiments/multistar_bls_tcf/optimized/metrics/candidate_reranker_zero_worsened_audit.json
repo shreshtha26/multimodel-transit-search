@@ -1,0 +1,14 @@
+{
+  "candidate_group_count": 900,
+  "xgboost_prediction_group_count": 900,
+  "groups_with_prediction_row_count_mismatch": 0,
+  "groups_with_missing_xgboost_rank1": 0,
+  "groups_with_duplicate_xgboost_rank1": 0,
+  "groups_with_missing_bls_rank1": 0,
+  "groups_with_duplicate_bls_rank1": 0,
+  "bls_exact_rank1_count": 571,
+  "xgboost_exact_rank1_count": 676,
+  "improved_count": 108,
+  "worsened_count": 3,
+  "same_exact_match_label_used": true
+}

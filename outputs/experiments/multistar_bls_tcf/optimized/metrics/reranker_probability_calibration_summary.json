@@ -1,0 +1,16 @@
+{
+  "calibration_status": "preliminary_rank1_only_not_final",
+  "fap_level": 0.01,
+  "global_probability_threshold": 0.9944905042648315,
+  "null_trials": 400,
+  "observed_null_exceedance_rate": 0.01,
+  "injection_groups": 900,
+  "exact_recall_at_1_without_threshold": 0.7511111111111111,
+  "exact_recovery_at_global_threshold": 0.31444444444444447,
+  "candidate_fraction_at_global_threshold": 0.3188888888888889,
+  "original_light_curves": 50,
+  "original_candidate_fraction_at_global_threshold": 0.02,
+  "top_candidate_brier_score": 0.10472284413308182,
+  "row_level_brier_score": 0.02864198967419962,
+  "note": "Preliminary only: null/original calibration uses rank-1 detector candidates because this validation path does not regenerate top-k null/original candidate lists. Use run_multistar_reranker_topk_calibration.py for the matched top-k calibration experiment."
+}

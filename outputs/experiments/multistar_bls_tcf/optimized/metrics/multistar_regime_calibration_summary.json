@@ -1,0 +1,20 @@
+{
+  "metrics_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics",
+  "fap_level": 0.01,
+  "star_count": 50,
+  "injection_count": 900,
+  "null_trial_count": 400,
+  "exact_union_recall_at_10": 0.8322222222222222,
+  "exact_union_rank1_before_fap": 0.7444444444444445,
+  "exact_union_recovery_global_fap": 0.5833333333333334,
+  "exact_union_recovery_regime_fap": 0.5677777777777778,
+  "outputs": {
+    "union_recall_summary": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_union_recall_summary.csv",
+    "recovery_by_noise_quartile": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_recovery_by_noise_quartile.csv",
+    "thresholds_by_noise_quartile": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_thresholds_by_noise_quartile.csv",
+    "original_candidates_by_noise_quartile": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_original_candidates_by_noise_quartile.csv",
+    "regime_calibrated_injections": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_regime_calibrated_injections.csv",
+    "regime_calibrated_star_summary": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_regime_calibrated_star_summary.csv",
+    "summary": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_regime_calibration_summary.json"
+  }
+}

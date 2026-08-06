@@ -11,6 +11,13 @@ build/
 dist/
 notebooks/.ipynb_checkpoints/
 
+# Local/generated Kepler downloads and per-star scratch outputs
+outputs/cache/
+outputs/experiments/multistar_bls_tcf/stars/
+outputs/experiments/multistar_bls_tcf/*/stars/
+outputs/experiments/multistar_bls_tcf/*/reranker_topk_calibration/stars/
+outputs/experiments/multistar_bls_tcf/*/reranker_topk_calibration_smoke/
+
 # Local Codex skill files
 SKILL.md
 *-SKILL.md

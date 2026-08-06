@@ -1,0 +1,19 @@
+{
+  "source_injections": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_regime_calibrated_injections.csv",
+  "output_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_candidate_reranking_dataset.csv",
+  "candidate_count": 7877,
+  "injection_count": 900,
+  "star_count": 50,
+  "period_tolerance_fraction": 0.02,
+  "merge_tolerance_fraction": 0.002,
+  "candidate_count_per_injection_median": 9.0,
+  "exact_match_candidate_count": 798,
+  "harmonic_match_candidate_count": 2539,
+  "exact_recall_at_candidate_set": 0.8322222222222222,
+  "harmonic_recall_at_candidate_set": 0.9344444444444444,
+  "source_detector_counts": {
+    "bls": 3377,
+    "tcf": 3377,
+    "both": 1123
+  }
+}

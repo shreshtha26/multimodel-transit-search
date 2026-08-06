@@ -1,0 +1,123 @@
+{
+  "reranker_version": "clean_reranker_v1",
+  "reranker_config": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/configs/candidate_reranker_clean_v1.json",
+  "reranker_config_sha256": "73fc836157620bd00d023d09dd5e855e05493a139fe2389fb7a46329e1783552",
+  "candidate_dataset": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_candidate_reranking_dataset.csv",
+  "feature_columns": [
+    "source_detector",
+    "selection_group",
+    "detector_agreement",
+    "detector_count",
+    "bls_present",
+    "tcf_present",
+    "has_bls_candidate",
+    "has_tcf_candidate",
+    "has_tcf_event_diagnostics",
+    "bls_rank",
+    "tcf_rank",
+    "bls_sde",
+    "tcf_score",
+    "bls_score_relative_to_rank1",
+    "tcf_score_relative_to_rank1",
+    "detector_candidate_period_delta_fraction",
+    "detector_candidate_harmonic_error_fraction",
+    "detector_candidate_best_harmonic_factor",
+    "bls_period_delta_to_tcf_best_fraction",
+    "tcf_period_delta_to_bls_best_fraction",
+    "candidate_to_tcf_best_harmonic_error_fraction",
+    "candidate_to_tcf_best_harmonic_factor",
+    "candidate_to_bls_best_harmonic_error_fraction",
+    "candidate_to_bls_best_harmonic_factor",
+    "bls_tcf_rank1_harmonic_error_fraction",
+    "bls_tcf_rank1_harmonic_factor",
+    "tcf_valid_transit_events",
+    "tcf_positive_transit_events",
+    "tcf_positive_event_fraction",
+    "tcf_median_event_score",
+    "tcf_raw_pooled_score",
+    "candidate_duration_hours",
+    "candidate_depth",
+    "noise_quartile",
+    "robust_flux_scatter_ppm",
+    "gap_fraction",
+    "lag_one_flux_acf",
+    "six_hour_scatter_proxy_ppm",
+    "arima_converged",
+    "tcf_global_empirical_p_value",
+    "bls_global_empirical_p_value",
+    "tcf_regime_empirical_p_value",
+    "bls_regime_empirical_p_value",
+    "raw_candidate_rank"
+  ],
+  "forbidden_feature_columns": [
+    "bls_candidate_period_days",
+    "candidate_best_harmonic_factor",
+    "candidate_harmonic_error_fraction",
+    "candidate_id",
+    "candidate_period_days",
+    "candidate_period_error_fraction",
+    "cv_group_id",
+    "epoch_phase_fraction",
+    "exact_match",
+    "fold",
+    "harmonic_match",
+    "in_transit_observation_count",
+    "injected_depth",
+    "injected_duration_hours",
+    "injected_epoch_days",
+    "injected_period_days",
+    "injection_index",
+    "quarter",
+    "target_id",
+    "tcf_candidate_period_days"
+  ],
+  "n_feature_columns": 44,
+  "fold_summary": [
+    {
+      "fold": 0,
+      "candidate_rows": 1624,
+      "stars": 10,
+      "injection_groups": 180
+    },
+    {
+      "fold": 1,
+      "candidate_rows": 1478,
+      "stars": 10,
+      "injection_groups": 180
+    },
+    {
+      "fold": 2,
+      "candidate_rows": 1608,
+      "stars": 10,
+      "injection_groups": 180
+    },
+    {
+      "fold": 3,
+      "candidate_rows": 1572,
+      "stars": 10,
+      "injection_groups": 180
+    },
+    {
+      "fold": 4,
+      "candidate_rows": 1595,
+      "stars": 10,
+      "injection_groups": 180
+    }
+  ],
+  "benchmarks": {
+    "injection_groups": 900,
+    "bls_exact_rank1": 0.6344444444444445,
+    "tcf_exact_rank1": 0.31333333333333335,
+    "oracle_rank1_union_exact": 0.7444444444444445,
+    "oracle_rank1_union_harmonic": 0.8233333333333334,
+    "candidate_set_ceiling_exact": 0.8322222222222222,
+    "candidate_set_ceiling_harmonic": 0.9344444444444444,
+    "candidate_set_exact_misses": 151,
+    "candidate_set_harmonic_misses": 59
+  },
+  "outputs": {
+    "predictions": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/candidate_reranker_oof_predictions.csv",
+    "metrics": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/candidate_reranker_metrics.csv",
+    "regime_metrics": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/candidate_reranker_regime_metrics.csv"
+  }
+}
