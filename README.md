@@ -1,44 +1,61 @@
-# Multi-Model Transit Search
+# multimodel-transit-search
 
-A reproducible research prototype for comparing exoplanet transit-search methods on Kepler light curves.
+`multimodel-transit-search` is a reproducible research prototype for benchmarking complementary approaches to exoplanet transit detection in Kepler light curves.
 
-The project currently implements and evaluates two detector branches plus a frozen candidate reranker:
+The current implementation contains two detector branches and a candidate-level machine-learning reranker:
 
 ```text
 Kepler PDCSAP flux
+│
 ├── direct normalized-flux branch
 │   └── Box Least Squares (BLS)
+│
 └── autoregressive-transformation branch
     ├── ARIMA diagnostics and model selection
     ├── one-step-ahead innovations
     └── periodic Transit Comb Filter (TCF)
-
-BLS/TCF candidate tables
-└── leakage-audited XGBoost reranker
-    ├── grouped validation by unseen target_id
-    ├── frozen clean_v1 feature contract
-    └── top-k null/original false-alarm calibration
+             │
+             ▼
+      detector candidate sets
+             │
+             ▼
+      BLS / TCF candidate merge
+             │
+             ▼
+   leakage-audited candidate reranker
+             │
+             ├── logistic regression
+             ├── XGBoost classifier
+             └── XGBoost pairwise ranker
+             │
+             ▼
+      frozen clean_reranker_v1
+             │
+             ▼
+   top-k null/original calibration
 ```
 
-The longer-term goal is to compare statistical, machine-learning, and deep-learning detectors at matched false-alarm rates and then combine their evidence using an adaptive ensemble.
+The longer-term goal is to benchmark statistical, probabilistic, machine-learning, and deep-learning approaches at controlled false-alarm rates, characterize where each method succeeds or fails, and eventually combine complementary evidence in a calibrated adaptive ensemble.
 
-> **Research status:** active research prototype with one single-target benchmark and one 50-star Kepler pilot. The clean reranker is frozen as `clean_reranker_v1`, but the pipeline is still not a production transit-search system or a validated astrophysical catalog generator.
+> **Research status:** active prototype. The repository contains a single-target methodological benchmark and a 50-star Kepler Quarter 5 pilot. The candidate reranker is frozen as `clean_reranker_v1`, but neither the detector pipeline nor the reranker should yet be interpreted as a validated astrophysical transit-search system or catalog generator.
 
-## Current Research Questions
+## Research Questions
 
-The repository is being developed around four questions:
+The current work is organized around five questions:
 
-1. Can an ARIMA-family model reduce predictable correlated variability without destroying transit information?
-2. How sensitive is ARIMA selection to the representation of missing Kepler cadences?
-3. How does direct BLS detection compare with ARIMA-transformed TCF detection on the same injection grid?
-4. Can all methods eventually be compared at controlled empirical false-alarm rates across many stars and noise regimes?
-5. Can a leakage-audited candidate reranker combine BLS and TCF candidates without overfitting to target identity or injected-period metadata?
+1. Can an ARIMA-family model reduce predictable correlated variability while retaining transit information in a detectable form?
+2. How sensitive is ARIMA selection and transit preservation to the treatment of missing Kepler cadences?
+3. How does direct BLS detection compare with TCF detection on ARIMA-transformed light curves?
+4. Do BLS and TCF provide complementary candidate information across multiple stars and noise regimes?
+5. Can a leakage-audited candidate reranker combine those candidates while generalizing to previously unseen targets and maintaining an empirically calibrated false-alarm threshold?
 
-## Current Scope
+## Experimental Design
 
-The original single-target benchmark uses:
+### Single-target benchmark
 
-| Item                         | Current value                   |
+The original methodological benchmark uses:
+
+| Item                         | Value                           |
 | ---------------------------- | ------------------------------- |
 | Target                       | KIC 11904151                    |
 | Quarter                      | Kepler Quarter 5                |
@@ -47,177 +64,270 @@ The original single-target benchmark uses:
 | Usable observations          | 4,486                           |
 | Regular cadence-grid length  | 4,634                           |
 | Explicit missing cadences    | 148                             |
-| Injection periods            | 2, 5, and 10 days               |
-| Injection durations          | 2, 4, and 8 hours               |
-| Injection depths             | 200, 500, and 1,000 ppm         |
-| Epoch phases                 | 0.15, 0.45, and 0.75            |
+| Injection periods            | 2, 5, 10 days                   |
+| Injection durations          | 2, 4, 8 hours                   |
+| Injection depths             | 200, 500, 1,000 ppm             |
+| Epoch phases                 | 0.15, 0.45, 0.75                |
 | Injection cases per detector | 81                              |
 
-The synthetic box transits are added to a real Kepler PDCSAP light curve. Therefore, this is a **real-noise, synthetic-signal injection-recovery benchmark**, not a purely simulated dataset.
+Synthetic box-shaped transits are injected into an observed Kepler PDCSAP light curve.
 
-The current multi-star pilot uses:
-
-| Item                         | Current value                                            |
-| ---------------------------- | -------------------------------------------------------- |
-| Targets                      | 50 Kepler target-quarter rows                            |
-| Quarter                      | Kepler Quarter 5                                         |
-| Flux product                 | PDCSAP flux                                              |
-| Injection periods            | 2, 5, and 10 days                                        |
-| Injection durations          | 2, 4, and 8 hours                                        |
-| Injection depths             | 500 and 1,000 ppm                                        |
-| Epoch phases                 | 0.45                                                     |
-| Injection cases              | 900 total, 18 per target                                 |
-| Null trials                  | 400 total, 8 per target                                  |
-| Candidate reranker version   | `clean_reranker_v1`                                      |
-| Reranker split policy        | grouped by `target_id`, never by candidate row           |
-| Frozen reranker feature set  | 44 non-leaking detector/noise/candidate-consistency fields |
-
-The multi-star pilot deliberately excludes answer-derived fields such as injected period, injected depth, injected duration, epoch phase, exact-match labels, harmonic labels, target ID, and absolute candidate period from model features.
-
-## Implemented Components
-
-### Data and preprocessing
-
-* Kepler PDCSAP loading with Lightkurve.
-* Configurable quality filtering.
-* Construction of a regular cadence grid.
-* Explicit masks for observed, usable, missing, and interpolated cadences.
-* Leakage-aware normalization using a chronological fitting fraction.
-* Machine-readable CSV, JSON, and Parquet outputs.
-
-### Gap-representation experiments
-
-Three representations are compared:
+The benchmark is therefore:
 
 ```text
-longest_contiguous
-    Uses only the longest uninterrupted usable segment.
-
-full_grid_missing
-    Preserves the complete regular cadence grid and leaves missing cadences as NaN.
-    This is the default explicit gap representation.
-
-interpolated_full_grid
-    Interpolates only eligible short interior gaps.
-    This is treated as a challenger representation rather than ground truth.
+real Kepler background variability and measurement noise
++
+synthetic known transit signal
 ```
 
-Earlier single-target outputs use the label `full_gap` for the full-grid missing-data representation.
+rather than a fully simulated light curve.
 
-### ARIMA branch
+This allows detection performance to be evaluated against a known injected truth while retaining realistic stellar and instrumental structure.
 
-* Candidate fitting over explicit `(p, d, q)` grids.
-* Convergence and numerical-validity checks.
-* ADF and KPSS stationarity diagnostics.
-* Residual ACF and Ljung-Box whitening diagnostics.
-* Rolling-variance and ARCH-based variance diagnostics.
-* Coefficient-boundary and stability checks.
-* Forecast baselines and fit metrics.
-* Transit-preservation experiments.
-* ARIMA-transformed template matching.
-* Gap-mode comparison.
-* Best-available versus scientifically acceptable model-selection semantics.
+### 50-star pilot
 
-### BLS branch
+The current multi-star benchmark uses:
 
-* Astropy Box Least Squares period search.
-* Period and duration grids.
-* Synthetic periodic box-transit injection.
-* Moving-block null surrogates.
-* Empirical 1% and 0.1% false-alarm thresholds.
-* Injection-recovery summaries by depth, duration, and period.
+| Item                     | Value                         |
+| ------------------------ | ----------------------------- |
+| Targets                  | 50 Kepler target-quarter rows |
+| Quarter                  | Kepler Quarter 5              |
+| Flux product             | PDCSAP flux                   |
+| Injection periods        | 2, 5, 10 days                 |
+| Injection durations      | 2, 4, 8 hours                 |
+| Injection depths         | 500, 1,000 ppm                |
+| Epoch phases             | 0.45                          |
+| Injections               | 900 total                     |
+| Injections per target    | 18                            |
+| Null trials              | 400 total                     |
+| Null trials per target   | 8                             |
+| Detector FAP target      | 1%                            |
+| Candidate reranker       | `clean_reranker_v1`           |
+| Reranker split unit      | `target_id`                   |
+| Frozen reranker features | 44                            |
 
-### ARIMA-TCF branch
+The 50-star run completed successfully for all 50 requested targets.
 
-* Fixed ARIMA transformation to one-step-ahead innovations.
-* Periodic ingress-egress comb matching.
-* Event-consistent scoring across repeated transit events.
-* Minimum event-count and event-consistency constraints.
-* Harmonic-aware period matching.
-* Exact-period top-10 rank diagnostics.
-* Coarse-to-fine period search.
-* Parallel moving-block null calibration.
-* Injection-recovery summaries by depth, duration, and period.
+The reduced multi-star injection grid is an engineering pilot designed to test generalization, calibration, and candidate combination. It is not intended to approximate the full Kepler planet population.
 
-### Multi-star candidate reranking
+## Data and Preprocessing
 
-* Parallel 50-star BLS/ARIMA-TCF benchmark with resumable per-star checkpoints.
-* Cached Kepler light curves and cached base ARIMA fits.
-* Merged BLS/TCF candidate rows for reranking.
-* Explicit missingness indicators for detector-specific diagnostics.
-* Frozen `clean_reranker_v1` feature list and model metadata.
-* Logistic-regression, XGBoost classifier, and XGBoost pairwise-ranker comparisons.
-* Grouped cross-validation by unseen `target_id`.
-* Label-permutation validation, feature ablation, star-level bootstrap confidence intervals, and miss analysis.
-* Corrected top-k null/original calibration for reranker scores.
+The current preprocessing pipeline includes:
 
-## Current Results
+* Kepler PDCSAP loading with `lightkurve`;
+* configurable Kepler quality-mask policies;
+* regular cadence-grid reconstruction;
+* explicit observed, usable, missing, and interpolated-cadence masks;
+* chronological normalization intended to avoid future-data leakage;
+* cached light curves for multi-star experiments;
+* machine-readable CSV, JSON, Parquet, and PNG outputs.
 
-### 1. ARIMA model validation
+## Gap Representations
 
-For the default full-grid missing-data representation, the current highest-ranked admissible model is:
+ARIMA diagnostics are evaluated under three representations of the same light curve.
+
+### `longest_contiguous`
+
+Uses the longest uninterrupted usable segment.
+
+Advantages:
+
+* conventional cadence-lag ACF/PACF interpretation is easier;
+* no flux values are invented across gaps.
+
+Limitation:
+
+* a substantial fraction of the quarter can be discarded.
+
+### `full_gap` / `full_grid_missing`
+
+Preserves the complete regular cadence grid and represents missing observations as `NaN`.
+
+This is the default full-light-curve representation.
+
+The name `full_gap` appears in earlier single-target outputs, while the gap-comparison workflow uses `full_grid_missing` for the equivalent representation.
+
+### `interpolated_full_grid`
+
+Interpolates only eligible short interior gaps.
+
+This is treated as a challenger representation, not as ground truth.
+
+A better forecast metric under interpolation is not by itself evidence that the representation is scientifically preferable.
+
+## ARIMA Branch
+
+For observed normalized flux (y_t), the one-step-ahead innovation is conceptually
+
+```text
+e_t = y_t - y_hat(t | t - 1)
+```
+
+where `y_hat(t | t - 1)` is the prediction made using information available before cadence `t`.
+
+The intended interpretation is:
+
+```text
+predictable stellar/instrumental variation
+            ↓
+       ARIMA prediction
+
+unpredicted variation + model error + possible transit evidence
+            ↓
+          innovation
+```
+
+ARIMA is therefore used as an intermediate signal transformation rather than as the final scientific forecasting product.
+
+### Implemented ARIMA diagnostics
+
+The branch includes:
+
+* configurable `(p, d, q)` candidate grids;
+* convergence checks;
+* numerical-validity checks;
+* coefficient-boundary and stability checks;
+* ADF stationarity testing;
+* KPSS stationarity testing;
+* explicit differencing diagnostics;
+* AIC and BIC;
+* RMSE and MAE;
+* negative log-score diagnostics;
+* baseline forecasting comparisons;
+* residual autocorrelation analysis;
+* Ljung-Box tests;
+* rolling-variance diagnostics;
+* ARCH-style variance diagnostics;
+* chronological and segment stability checks;
+* transit-preservation experiments;
+* transformed-template matching;
+* gap-representation experiments.
+
+### ARIMA selection policy
+
+Candidates are not selected solely because they minimize AIC, BIC, RMSE, or MAE.
+
+The intended hierarchy is approximately:
+
+```text
+fit and numerical validity
+→ residual whitening
+→ variance stability
+→ transit preservation
+→ transit distortion
+→ baseline-relative forecasting
+→ model complexity
+→ forecast metrics
+→ information criteria
+```
+
+A model with attractive AIC/BIC or forecast error is therefore not scientifically preferred if it is unstable, non-converged, leaves strong residual dependence, or destroys transit information.
+
+### Current ARIMA status
+
+For the default full-grid missing-data representation, the current best-available candidate is:
 
 ```text
 ARIMA(1,1,0)
 ```
 
-It is **not scientifically accepted as a final noise model**.
+This should **not** be interpreted as a validated optimal noise model.
 
-The main unresolved issues are:
+Important unresolved issues include:
 
-* ADF and KPSS give conflicting evidence for the undifferenced series.
-* The statistical need for `d=1` remains unresolved.
-* Residual autocorrelation remains.
-* Residual variance is unstable.
-* The selected model fails the current transit-preservation constraint.
+* ADF and KPSS provide conflicting evidence about stationarity;
+* the physical/statistical justification for `d=1` remains unresolved;
+* residual autocorrelation remains;
+* residual variance is unstable;
+* the selected order is sensitive to gap representation;
+* direct box-shaped transit preservation is weak;
+* ARIMA convergence remains problematic in subsequent TCF experiments.
 
-The engineering workflow for the single-target ARIMA prototype is complete, but the saved phase report marks it as not scientifically ready for scale-up.
+The ARIMA work should therefore currently be interpreted as a completed methodological branch with unresolved scientific adequacy, not as evidence that `ARIMA(1,1,0)` is the correct Kepler noise model.
 
-### 2. BLS baseline
+## BLS Branch
 
-The single 5-day, 4-hour, 1,000-ppm injection is recovered at approximately 4.994 days and exceeds both calibrated thresholds.
+The direct detector branch applies Astropy Box Least Squares to normalized PDCSAP flux.
 
-The 81-case injection grid reports:
+Implemented functionality includes:
 
-| Metric                             | Result |
-| ---------------------------------- | -----: |
-| Harmonic-aware rank-1 period match |  88.9% |
-| Detection rate at 1% FAP           |  82.7% |
-| Recovery rate at 1% FAP            |  82.7% |
-| Detection rate at 0.1% FAP         |  74.1% |
-| Recovery rate at 0.1% FAP          |  74.1% |
-| Median period error                |  0.12% |
-| Median recovered/injected depth    |  88.5% |
-| Median recovered/injected duration | 110.6% |
+* period-grid search;
+* duration-grid search;
+* periodic box-transit injection;
+* top-k candidate extraction;
+* moving-block null surrogates;
+* empirical false-alarm calibration;
+* harmonic-aware period matching;
+* injection-recovery analysis by period, duration, and depth.
 
-The BLS false-alarm thresholds are based on 1,000 moving-block null trials:
+### Single-target BLS benchmark
+
+Across the 81-case injection grid:
+
+| Metric                               | Result |
+| ------------------------------------ | -----: |
+| Harmonic-aware rank-1 period match   |  88.9% |
+| Detection rate at 1% FAP             |  82.7% |
+| Recovery rate at 1% FAP              |  82.7% |
+| Detection rate at 0.1% FAP           |  74.1% |
+| Recovery rate at 0.1% FAP            |  74.1% |
+| Median period error                  |  0.12% |
+| Median recovered / injected depth    |  88.5% |
+| Median recovered / injected duration | 110.6% |
+
+The BLS null distribution uses 1,000 moving-block surrogate trials.
 
 ```text
 1% FAP threshold:   59.8864
 0.1% FAP threshold: 74.3911
 ```
 
-### 3. ARIMA-TCF baseline
+These thresholds are specific to this preprocessing, search grid, statistic, target, and null-generation procedure.
 
-For the single 5-day, 4-hour, 1,000-ppm injection:
+## ARIMA-TCF Branch
 
-```text
-injected period:            5.0000 days
-recovered period:           4.9998 days
-period matched:             True
-event-consistent score:     86.3140
-original-light-curve score: 22.4209
-```
+The second detector searches the ARIMA innovation series rather than the original normalized flux.
 
-The current detector-conditional 1% TCF threshold is:
+The workflow is:
 
 ```text
-15.5860
+PDCSAP flux
+→ normalization
+→ ARIMA transformation
+→ one-step-ahead innovations
+→ periodic ingress/egress comb search
+→ event-consistency scoring
+→ TCF candidate periods
 ```
 
-This threshold is calibrated on moving-block surrogates of the fitted ARIMA innovations. It is therefore conditional on the fitted ARIMA transformation and does not yet include uncertainty from refitting ARIMA for every null trial.
+Implemented functionality includes:
 
-The 81-case TCF injection grid reports:
+* periodic TCF-style ingress/egress matching;
+* coarse-to-fine period search;
+* multiple duration trials;
+* minimum repeated-transit-event constraints;
+* event-consistency scoring;
+* harmonic-aware matching;
+* top-10 candidate diagnostics;
+* moving-block null calibration;
+* parallel null evaluation.
+
+### Single-case TCF example
+
+For a 5-day, 4-hour, 1,000-ppm injection:
+
+```text
+injected period:          5.0000 days
+recovered period:         4.9998 days
+period matched:           True
+event-consistent score:   86.3140
+```
+
+The fitted ARIMA model in this experiment did **not** converge.
+
+The result is therefore useful evidence that the search code can locate the injected periodicity after the transformation, but it is not evidence that the underlying ARIMA model is statistically satisfactory.
+
+### 81-case TCF benchmark
 
 | Metric                                  |  Result |
 | --------------------------------------- | ------: |
@@ -225,180 +335,338 @@ The 81-case TCF injection grid reports:
 | Harmonic-aware rank-1 period match      |   79.0% |
 | Exact rank-1 period match               |   65.4% |
 | Exact injected period present in top 10 |  100.0% |
-| Detection rate at 1% FAP                |  100.0% |
+| Score exceeds 1% FAP threshold          |  100.0% |
 | Harmonic-aware recovery at 1% FAP       |   79.0% |
 | Exact recovery at 1% FAP                |   65.4% |
 | Median exact-period rank when present   |       1 |
 | Median event-consistent score           | 30.8609 |
 
-### 4. 50-star BLS/ARIMA-TCF pilot
+The detector-conditional 1% threshold is:
 
-The 50-star pilot is an optimized real-noise, synthetic-signal experiment over 900 injections and 400 null trials. BLS generalized more strongly than TCF, while TCF still supplied complementary candidate periods.
+```text
+15.5860
+```
 
-Before false-alarm filtering:
+This threshold was generated from 1,000 moving-block surrogate realizations of the fitted ARIMA innovations.
 
-| Metric                           | Result |
-| -------------------------------- | -----: |
-| BLS exact rank-1 recovery        |  63.4% |
-| TCF exact rank-1 recovery        |  31.3% |
-| Oracle exact rank-1 union        |  74.4% |
-| BLS exact candidate-set recall   |  68.7% |
-| TCF exact candidate-set recall   |  42.0% |
+Importantly, this is a **detector-conditional calibration**.
+
+It does not propagate the uncertainty that would arise from independently refitting and reselecting ARIMA for every null realization.
+
+That distinction should be retained when interpreting the TCF results.
+
+## 50-Star BLS / ARIMA-TCF Pilot
+
+The multi-star experiment extends both detectors across 50 Kepler Quarter 5 target-quarter rows.
+
+Across 900 synthetic injections, before false-alarm filtering:
+
+| Metric                            | Result |
+| --------------------------------- | -----: |
+| BLS exact rank-1 recovery         |  63.4% |
+| TCF exact rank-1 recovery         |  31.3% |
+| Exact rank-1 union                |  74.4% |
+| BLS exact candidate-set recall    |  68.7% |
+| TCF exact candidate-set recall    |  42.0% |
 | BLS + TCF exact candidate ceiling |  83.2% |
 
-At the pooled detector-level 1% FAP threshold:
+The important observation is not that TCF outperforms BLS—it does not in this pilot.
 
-| Metric                       | Result |
-| ---------------------------- | -----: |
-| BLS exact recovery           |  52.7% |
-| TCF exact recovery           |  13.0% |
-| BLS + TCF exact recovery     |  58.3% |
-| Original TCF candidate rate  |  10.0% |
-| Original BLS candidate rate  |  20.0% |
+Instead, TCF contributes candidate periods that BLS does not always rank highly.
 
-Noise-quartile raw-score thresholds did not solve cross-star calibration. The simple regime threshold produced 56.8% exact union recovery, which is slightly below the pooled threshold result.
+This creates a candidate-set ceiling substantially above either detector's rank-1 performance and motivates candidate-level combination.
 
-### 5. Frozen clean reranker
+### Pooled detector-level 1% FAP
 
-The candidate reranker is frozen as:
+Using pooled null maxima across the 50 selected stars:
+
+| Metric                                        | Result |
+| --------------------------------------------- | -----: |
+| BLS exact recovery                            |  52.7% |
+| TCF exact recovery                            |  13.0% |
+| BLS + TCF exact union recovery                |  58.3% |
+| Original-light-curve BLS threshold exceedance |  20.0% |
+| Original-light-curve TCF threshold exceedance |  10.0% |
+
+Simple noise-quartile thresholds did not solve the cross-star calibration problem.
+
+This is one reason the project moved from direct detector-score comparison toward candidate-level reranking.
+
+## Candidate Reranking
+
+The BLS and TCF top candidates are merged into candidate groups and described using detector, consistency, and light-curve diagnostics.
+
+The current frozen model contract is:
 
 ```text
 clean_reranker_v1
 ```
 
-The frozen feature contract lives in:
+Configuration:
 
 ```text
 configs/candidate_reranker_clean_v1.json
 ```
 
-The clean feature list excludes injected-period metadata, labels, target identity, injection index, and absolute candidate-period fields. Absolute candidate periods were excluded because the pilot injection grid contains only 2, 5, and 10 day periods.
+The reranker uses 44 features.
 
-Out-of-fold grouped validation across all 50 stars:
+### Leakage controls
 
-| Model                  | Exact Recall@1 | Exact Recall@3 | Exact Recall@5 | Exact Recall@10 | Harmonic Recall@1 | MRR   |
-| ---------------------- | -------------: | -------------: | -------------: | --------------: | ----------------: | ----: |
-| BLS rank-1             |          63.4% |          67.2% |          68.7% |           68.7% |             65.6% | 0.655 |
-| TCF rank-1             |          31.3% |          38.7% |          42.0% |           42.0% |             58.7% | 0.353 |
-| Raw minimum rank       |          63.4% |          77.0% |          79.8% |           83.2% |             65.6% | 0.709 |
-| Logistic regression    |          72.8% |          76.8% |          79.8% |           83.2% |             79.2% | 0.756 |
-| XGBoost classifier     |          75.1% |          79.3% |          81.6% |           83.2% |             79.1% | 0.777 |
-| XGBoost pairwise ranker |          75.6% |          79.6% |          80.4% |           83.2% |             81.6% | 0.779 |
+The model deliberately excludes fields that reveal the experimental answer or allow the restricted injection grid to become a shortcut.
 
-The XGBoost classifier contingency against BLS rank-1 is:
+Forbidden features include:
 
-| BLS exact | XGBoost exact | Count |
-| --------- | ------------- | ----: |
-| Yes       | Yes           |   568 |
-| Yes       | No            |     3 |
-| No        | Yes           |   108 |
-| No        | No            |   221 |
+* `target_id`;
+* injection index;
+* injected period;
+* injected depth;
+* injected duration;
+* injected epoch;
+* epoch phase;
+* exact-match label;
+* harmonic-match label;
+* candidate period error relative to injected truth;
+* absolute candidate-period fields.
 
-Validation checks:
+Absolute candidate periods are excluded because the pilot injections occur only at 2, 5, and 10 days. Allowing the model to use absolute candidate period would make it possible to learn the experimental design instead of learning detector behavior.
 
-| Check                                      | Result |
-| ------------------------------------------ | -----: |
-| Label-permutation exact Recall@1 mean      |  13.5% |
-| Star-bootstrap XGBoost Recall@1 95% CI     | 67.0-82.9% |
-| Star-bootstrap improvement over BLS 95% CI | +6.2 to +17.6 percentage points |
-| Candidate-generation misses                |    151 |
-| XGBoost classifier ranking failures        |     73 |
+Cross-validation is grouped by:
 
-Feature ablation on the 40-star development split shows that BLS and TCF provide complementary information:
+```text
+target_id
+```
 
-| Feature set                     | Exact Recall@1 |
-| ------------------------------- | -------------: |
-| BLS only                        |          71.0% |
-| TCF only                        |          75.0% |
-| BLS + TCF detector features     |          78.1% |
-| Detector + stellar-noise fields |          78.2% |
-| Full clean model                |          77.8% |
+rather than by candidate row.
 
-### 6. Reranker score calibration
+Candidate rows from the same star therefore cannot appear simultaneously in training and validation folds.
 
-The initial rank-1-only reranker calibration is retained only as a preliminary diagnostic. It is explicitly labelled:
+## Candidate-Reranker Results
+
+Across all 900 injection groups using grouped out-of-fold predictions:
+
+| Model                     | Exact Recall@1 |  Recall@3 |  Recall@5 | Recall@10 | Harmonic Recall@1 |       MRR |
+| ------------------------- | -------------: | --------: | --------: | --------: | ----------------: | --------: |
+| BLS rank                  |          63.4% |     67.2% |     68.7% |     68.7% |             65.6% |     0.655 |
+| TCF rank                  |          31.3% |     38.7% |     42.0% |     42.0% |             58.7% |     0.353 |
+| Raw minimum detector rank |          63.4% |     77.0% |     79.8% |     83.2% |             65.6% |     0.709 |
+| Logistic regression       |          72.8% |     76.8% |     79.8% |     83.2% |             79.2% |     0.756 |
+| XGBoost classifier        |      **75.1%** |     79.3% | **81.6%** |     83.2% |             79.1% |     0.777 |
+| XGBoost pairwise ranker   |      **75.6%** | **79.6%** |     80.4% |     83.2% |         **81.6%** | **0.779** |
+
+The XGBoost classifier improves exact rank-1 selection over BLS in 108 injection cases and worsens it in 3 cases in the grouped out-of-fold analysis.
+
+The pairwise ranker has slightly higher rank-1 performance, but the XGBoost classifier is retained as the primary frozen reranker because it produces candidate probabilities that can be calibrated against null trials.
+
+### Validation checks
+
+The current validation workflow includes:
+
+* grouped cross-validation by unseen `target_id`;
+* a locked 10-star holdout;
+* label-permutation testing;
+* feature ablation;
+* star-level bootstrap confidence intervals;
+* candidate-generation miss analysis;
+* candidate-ranking failure analysis.
+
+Selected validation results:
+
+```text
+label-permutation Recall@1 mean:          13.5%
+
+star-bootstrap XGBoost Recall@1 95% CI:  67.0% – 82.9%
+
+bootstrap improvement over BLS 95% CI:   +6.2 to +17.6 percentage points
+
+candidate-generation misses:             151
+
+XGBoost ranking failures:                 73
+```
+
+### Locked 10-star holdout
+
+The validation workflow also reports performance on 180 injection cases from 10 held-out stars.
+
+| Model                   | Exact Recall@1 |
+| ----------------------- | -------------: |
+| BLS                     |          50.6% |
+| TCF                     |          27.2% |
+| Logistic regression     |          62.2% |
+| XGBoost classifier      |      **62.8%** |
+| XGBoost pairwise ranker |          62.2% |
+
+On this holdout, the XGBoost classifier improves 22 cases relative to BLS and worsens none.
+
+This is encouraging evidence of generalization across targets, but the holdout is still small and comes from the same restricted experimental design.
+
+It should not yet be treated as a population-level estimate of Kepler performance.
+
+## Feature Ablation
+
+Ablation on the 40-star development split gives:
+
+| Feature set                       | Exact Recall@1 |
+| --------------------------------- | -------------: |
+| BLS only                          |          71.0% |
+| TCF only                          |          75.0% |
+| BLS + TCF detector features       |          78.1% |
+| Detector + stellar-noise features |          78.2% |
+| Full clean feature set            |          77.8% |
+
+The result supports the central candidate-combination hypothesis:
+
+> BLS and TCF contain complementary ranking information, while the current stellar-noise features add relatively little beyond the detector features in this pilot.
+
+## Corrected Reranker False-Alarm Calibration
+
+An earlier calibration used only detector rank-1 candidates.
+
+That result is retained only as a diagnostic and is explicitly labelled:
 
 ```text
 preliminary_rank1_only_not_final
 ```
 
-The corrected calibration reruns null and original-data candidate generation with top-k detector outputs before applying the frozen reranker.
+It should not be used as the final reranker false-alarm calibration because injected examples were reranked over top-k candidates while the null/original calibration considered only rank-1 detector outputs.
 
-Corrected top-k calibration:
-
-| Metric                             | Result |
-| ---------------------------------- | -----: |
-| Null light curves                  |    400 |
-| Original light curves              |     50 |
-| Raw detector top-k rows            |  9,000 |
-| Merged candidate rows              |  8,828 |
-| Reranker probability threshold     | 0.992460 |
-| Observed null exceedance           |   1.0% |
-| OOF exact recovery at threshold    |  40.2% |
-| Original candidate fraction        |   2.0% |
-
-The one original light curve exceeding the corrected threshold is KIC 2557816, Quarter 5, with a BLS-sourced candidate period of 9.37946 days.
-
-### What these results do not establish
-
-The BLS and TCF numbers should not yet be interpreted as a final head-to-head comparison because:
-
-* the 50-star experiment is still a pilot, not a population-scale survey;
-* the injection grid is small and contains only box-shaped signals;
-* the optimized multi-star run uses a reduced grid relative to the earlier 81-case single-star experiments;
-* the frozen reranker has been validated by grouped cross-validation and a locked 10-star holdout, but it still needs a larger independent target sample;
-* the corrected reranker calibration uses 400 null light curves, which is thin for tail estimation at 1% FAP;
-* original-light-curve candidates are significant candidates, not proven false positives, because real planets, eclipsing binaries, stellar periodicity, and instrumental signals may be present;
-* no known-planet population or astrophysical false-positive benchmark has been evaluated.
-
-## Scientific Selection Policy
-
-ARIMA is treated as an intermediate signal transformation, not as the final forecasting product.
-
-Candidate selection therefore follows the broad hierarchy:
+The corrected experiment applies the same candidate-generation logic to null and original light curves:
 
 ```text
-fit validity
--> residual whitening
--> variance stability
--> transit preservation
--> transit distortion
--> baseline-relative forecasting
--> model complexity
--> forecast metrics
--> information criteria
+null/original light curve
+→ BLS top-k candidates
+→ TCF top-k candidates
+→ candidate merge
+→ frozen clean_reranker_v1 scoring
+→ maximum reranker probability per light curve
+→ empirical null threshold
 ```
 
-A model with attractive AIC, BIC, RMSE, or MAE is not accepted if it fails convergence, numerical validity, whitening, variance, or transit-preservation checks.
+with:
+
+```text
+top_k = 10
+```
+
+### Corrected calibration result
+
+| Metric                                    |   Result |
+| ----------------------------------------- | -------: |
+| Null light curves                         |      400 |
+| Original light curves                     |       50 |
+| Raw detector candidate rows               |    9,000 |
+| Merged candidate rows                     |    8,828 |
+| 1% FAP probability threshold              | 0.992460 |
+| Observed null exceedance                  |     1.0% |
+| Injection exact recovery at threshold     |    40.2% |
+| Original light curves exceeding threshold |   1 / 50 |
+
+The single original light curve above the threshold is:
+
+```text
+KIC 2557816
+Quarter 5
+BLS-sourced candidate period ≈ 9.37946 days
+```
+
+This object is a **candidate**, not a demonstrated false positive or planet.
+
+An original Kepler light curve can contain astrophysical periodicity, eclipsing binaries, stellar activity, instrumental structure, or a real planet.
+
+## What the Current Results Establish
+
+The current experiments support several engineering conclusions:
+
+1. A reproducible BLS injection-recovery baseline is operational.
+2. Periodic TCF-style searching of ARIMA innovations is operational.
+3. BLS is substantially stronger than the current TCF implementation as a standalone exact-period detector across the 50-star pilot.
+4. TCF nevertheless contributes complementary candidate periods.
+5. Candidate-level combination can outperform either detector's raw rank-1 choice.
+6. A leakage-audited XGBoost reranker improves candidate ordering on unseen target groups in the current pilot.
+7. The reranker can be calibrated using top-k null candidates under a matched candidate-generation procedure.
+8. ARIMA model adequacy and convergence remain major unresolved issues.
+
+## What the Current Results Do Not Establish
+
+The repository does **not** yet demonstrate that:
+
+* ARIMA is the optimal Kepler background model;
+* `ARIMA(1,1,0)` is generally appropriate for Kepler light curves;
+* ARIMA-TCF outperforms BLS;
+* the candidate reranker will generalize to the full Kepler population;
+* the current 1% threshold is precisely estimated in the distribution tail;
+* the model can distinguish planets from astrophysical false positives;
+* the model has been validated on confirmed Kepler planets;
+* the model handles realistic limb-darkened transit morphology;
+* performance is robust across quarters, cadence modes, stellar populations, or broad orbital-period distributions;
+* the pipeline is suitable for catalog production.
+
+Important limitations include:
+
+* only 50 targets in the multi-star pilot;
+* only Quarter 5;
+* a restricted 2/5/10-day injection-period design;
+* box-shaped synthetic transits;
+* only two injection depths in the multi-star run;
+* only 400 multi-star null realizations;
+* unresolved ARIMA non-convergence;
+* limited tail statistics for 1% FAP calibration;
+* no known-planet benchmark;
+* no eclipsing-binary or astrophysical false-positive benchmark;
+* no external population-scale validation set.
 
 ## Repository Structure
 
 ```text
 multimodel-transit-search/
-├── configs/                         configuration assets
-├── docs/                            scientific and dataset notes
-├── notebooks/                       exploratory analyses
-├── outputs/                         committed metrics, figures, and processed artifacts
+├── configs/
+│   ├── candidate_reranker_clean_v1.json
+│   └── kepler_target_sample.yaml
+│
+├── docs/
+│   └── scientific and dataset notes
+│
+├── notebooks/
+│   └── exploratory analysis
+│
+├── outputs/
 │   ├── experiments/
 │   │   ├── bls_baseline/
 │   │   ├── bls_injection_grid/
 │   │   ├── tcf_baseline/
 │   │   ├── tcf_null_calibration/
-│   │   └── tcf_injection_grid/
+│   │   ├── tcf_injection_grid/
+│   │   └── multistar_bls_tcf/
 │   ├── gap_modes/
 │   ├── injections/
 │   ├── metrics/
 │   └── processed/
-├── scripts/                         executable experiment workflows
+│
+├── scripts/
+│   └── executable experiment and validation workflows
+│
 ├── src/adaptive_transit/
-│   ├── data/                        Kepler data loading
-│   ├── detection/                   BLS, TCF, matched filters, and false-alarm tools
-│   ├── injections/                  synthetic transit injection
-│   ├── noise_models/                ARIMA fitting, selection, and diagnostics
-│   └── preprocessing/               cadence grids, masks, and normalization
-├── tests/                           automated tests
+│   ├── data/
+│   ├── detection/
+│   ├── injections/
+│   ├── noise_models/
+│   ├── preprocessing/
+│   └── transit_models/
+│
+├── tests/
 ├── pyproject.toml
 └── README.md
+```
+
+The Python distribution is named:
+
+```text
+multi-model-transit-search
+```
+
+while the import package is:
+
+```text
+adaptive_transit
 ```
 
 ## Installation
@@ -416,41 +684,31 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-On Windows PowerShell, activate the environment with:
+Windows PowerShell:
 
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-Development dependencies can be installed with:
+Development dependencies:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-Optional extras are available for later ML, deep-learning, parallel, tracking, and notebook work:
-
-```bash
-python -m pip install -e ".[ml]"
-python -m pip install -e ".[dl]"
-python -m pip install -e ".[parallel]"
-python -m pip install -e ".[tracking]"
-python -m pip install -e ".[notebooks]"
-```
-
-The multi-star reranker workflow requires the ML extra because it uses XGBoost:
+Machine-learning experiments require:
 
 ```bash
 python -m pip install -e ".[ml]"
 ```
 
-The first Kepler run requires network access so Lightkurve can retrieve the target light curve.
+Additional optional dependency groups are available for deep learning, notebooks, parallel processing, and experiment tracking.
 
-## Running the Current Experiments
+The first Kepler run requires network access so that `lightkurve` can retrieve the requested data.
 
-The experiment scripts currently use values defined in their `default_settings()` functions rather than a complete command-line interface.
+## Running the Experiments
 
-Run them from the repository root.
+Run scripts from the repository root.
 
 ### ARIMA prototype
 
@@ -460,9 +718,7 @@ python scripts/run_gap_mode_comparison.py
 python scripts/run_gap_mode_injection_experiment.py
 ```
 
-### BLS baseline and injection grid
-
-The BLS baseline creates the null calibration files required by the injection-grid script.
+### BLS
 
 ```bash
 python scripts/run_bls_baseline.py
@@ -470,9 +726,7 @@ python scripts/run_bls_injection_grid.py
 python scripts/analyse_bls_injection_grid.py
 ```
 
-### ARIMA-TCF baseline and injection grid
-
-Run the TCF null calibration before the TCF injection grid.
+### ARIMA-TCF
 
 ```bash
 python scripts/run_tcf_baseline.py
@@ -480,11 +734,15 @@ python scripts/run_tcf_null_calibration.py
 python scripts/run_tcf_injection_grid.py
 ```
 
-The TCF null calibration uses multiprocessing. Run it as a script from the repository root rather than from an interactive notebook cell.
+The TCF null calibration uses multiprocessing and should be run as a script rather than from an interactive notebook cell.
 
-### Multi-star BLS/ARIMA-TCF pilot
+### BLS / TCF comparison
 
-The optimized 50-star pilot is resumable and uses local light-curve and ARIMA caches:
+```bash
+python scripts/compare_bls_tcf.py
+```
+
+### 50-star pilot
 
 ```bash
 python scripts/run_multistar_bls_tcf.py
@@ -492,44 +750,31 @@ python scripts/analyze_multistar_regime_calibration.py
 python scripts/build_multistar_candidate_dataset.py
 ```
 
-The default optimized profile uses 50 targets, 18 injections per target, 8 null trials per target, and grouped target-level execution.
+The optimized workflow caches downloaded light curves and base ARIMA fits and supports resumable per-target execution.
 
-### Frozen candidate reranker
-
-Train and validate the clean reranker with grouped folds by `target_id`:
+### Candidate reranking
 
 ```bash
 python scripts/train_candidate_rerankers.py
 python scripts/validate_candidate_reranker_result.py
-```
-
-Freeze the final clean XGBoost classifier:
-
-```bash
 python scripts/freeze_candidate_reranker.py
 ```
 
-The frozen feature contract is:
+Frozen configuration:
 
 ```text
 configs/candidate_reranker_clean_v1.json
 ```
 
-The frozen model artifacts are written to:
-
-```text
-outputs/experiments/multistar_bls_tcf/optimized/models/
-```
-
-### Corrected top-k reranker calibration
-
-The matched calibration experiment regenerates top-k null and original-data detector candidates and applies the frozen reranker:
+### Corrected top-k calibration
 
 ```bash
 python scripts/run_multistar_reranker_topk_calibration.py
 ```
 
-This is the calibration result to use for reranker false-alarm analysis. The rank-1-only calibration in the validation script is preliminary and is labelled as such in its summary JSON.
+This is the reranker calibration that should be used for current false-alarm analysis.
+
+The earlier rank-1-only calibration is preliminary.
 
 ### Tests
 
@@ -537,7 +782,7 @@ This is the calibration result to use for reranker false-alarm analysis. The ran
 pytest
 ```
 
-## Important Output Files
+## Important Outputs
 
 ### ARIMA
 
@@ -568,46 +813,89 @@ outputs/experiments/tcf_injection_grid/metrics/kic_11904151_q5_tcf_injection_gri
 outputs/experiments/tcf_injection_grid/metrics/kic_11904151_q5_tcf_injection_grid_summary.json
 ```
 
-### Multi-star reranker
+### Multi-star benchmark and reranker
 
 ```text
 outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_summary.json
 outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_candidate_reranking_dataset.csv
 outputs/experiments/multistar_bls_tcf/optimized/metrics/candidate_reranker_metrics.csv
 outputs/experiments/multistar_bls_tcf/optimized/metrics/candidate_reranker_validation_summary.json
+outputs/experiments/multistar_bls_tcf/optimized/metrics/candidate_reranker_locked_holdout_metrics.csv
 outputs/experiments/multistar_bls_tcf/optimized/models/clean_reranker_v1_metadata.json
 outputs/experiments/multistar_bls_tcf/optimized/models/clean_reranker_v1_feature_columns.txt
 outputs/experiments/multistar_bls_tcf/optimized/models/clean_reranker_v1_xgboost_classifier.joblib
+```
+
+### Top-k reranker calibration
+
+```text
 outputs/experiments/multistar_bls_tcf/optimized/reranker_topk_calibration/reranker_topk_probability_calibration_summary.json
+outputs/experiments/multistar_bls_tcf/optimized/reranker_topk_calibration/reranker_topk_detector_candidates.csv
+outputs/experiments/multistar_bls_tcf/optimized/reranker_topk_calibration/reranker_topk_merged_candidates.csv
 outputs/experiments/multistar_bls_tcf/optimized/reranker_topk_calibration/reranker_topk_scored_candidates.csv
 outputs/experiments/multistar_bls_tcf/optimized/reranker_topk_calibration/reranker_topk_top_scores.csv
 ```
 
+## Reproducibility Rules
+
+The experiments follow several rules that should remain explicit as the project expands:
+
+* injection and null random seeds must be recorded;
+* false-alarm thresholds are detector- and configuration-specific;
+* thresholds must be recalibrated when preprocessing, search grids, score definitions, candidate generation, or null procedures change;
+* candidate-reranker validation must split by `target_id`, not candidate row;
+* answer-derived injection fields must not enter model features;
+* the frozen feature contract is versioned;
+* modifying the feature contract creates a new reranker version;
+* null and injected cases should use equivalent candidate-generation logic when calibrating the reranker;
+* summary numbers should not be generalized beyond the experiment that generated them.
+
 ## Next Scientific Milestones
 
-1. Expand the multi-star pilot beyond 50 targets and use more null trials per noise regime for stronger tail calibration.
-2. Replace the fixed three-period injection grid with a broader sampled period distribution so absolute period cannot act as an experimental-design shortcut.
-3. Save top-k detector diagnostics for injected, null, and original cases using the same schema in future runs.
-4. Validate `clean_reranker_v1` on a larger untouched target set before treating it as a final estimate.
-5. Investigate the 151 current candidate-generation misses by period, duration, depth, noise regime, gap fraction, and detector harmonic behavior.
-6. Improve candidate generation before adding deep-learning morphology models.
-7. Stabilize ARIMA fitting and define a scientifically defensible response to non-convergence.
-8. Compare additional background models such as robust biweight/spline detrending and Gaussian-process or state-space models.
-9. Add TLS and other transit-shaped statistical detectors.
-10. Evaluate all detectors at matched false-alarm rates and characterize performance by depth, duration, period, stellar variability, gaps, and cadence.
+The immediate priorities are:
+
+1. Expand beyond the current 50-star sample.
+2. Increase the number of null trials substantially for more reliable tail calibration.
+3. Replace the fixed 2/5/10-day injection grid with a broader sampled period distribution.
+4. Investigate the 151 candidate-generation misses before adding more complex classifiers.
+5. Improve and scientifically resolve ARIMA convergence and differencing behavior.
+6. Compare alternative background models, including robust biweight/spline detrending and probabilistic/state-space approaches.
+7. Add transit-shaped detectors such as TLS.
+8. Introduce realistic limb-darkened transit injections.
+9. Test on known Kepler planets and astrophysical false positives.
+10. Characterize performance across stellar variability, noise level, depth, duration, period, gaps, and cadence.
+11. Validate `clean_reranker_v1` on a substantially larger untouched target population.
+12. Only after candidate generation is robust, evaluate CNN/TCN, probabilistic, and attention-based morphology models and a higher-level adaptive ensemble.
+
+## Current Conclusion
+
+The project has progressed from a single-target ARIMA experiment into a working multi-detector candidate-generation and reranking prototype.
+
+The current evidence indicates that:
+
+```text
+BLS
+→ strongest standalone detector in the present pilot
+
+ARIMA-TCF
+→ weaker standalone detector
+→ contributes complementary candidate periods
+
+BLS + TCF candidate set
+→ higher recovery ceiling than either detector alone
+
+leakage-audited XGBoost reranker
+→ improves rank-1 candidate selection on unseen target groups
+
+top-k null calibration
+→ provides a matched empirical threshold for the frozen reranker
+```
+
+At the same time, ARIMA convergence, limited population size, restricted injections, thin false-alarm tails, and the absence of known-planet/false-positive validation remain substantial scientific limitations.
+
+> **The current result is evidence that heterogeneous transit detectors can provide complementary candidate information that a leakage-controlled reranker can exploit. It is not yet evidence of a validated replacement for established Kepler transit-search pipelines.**
 
 ## Documentation
 
 * [Phase 1: Single-Target ARIMA Prototype](docs/phase1_single_target_arima.md)
 * [Kepler Dataset Strategy](docs/kepler_dataset_strategy.md)
-
-## Reproducibility Notes
-
-* Random seeds should be recorded for all null and injection experiments.
-* Null thresholds are detector- and search-configuration-specific.
-* A threshold must be recalibrated whenever the preprocessing, period grid, duration grid, score, search strategy, or null-generation procedure changes.
-* The frozen reranker feature list is versioned in `configs/candidate_reranker_clean_v1.json`; changing it creates a new model version, not a silent update.
-* Candidate reranker validation must split by `target_id`, not by candidate row.
-* The rank-1-only reranker calibration is preliminary; use the top-k null/original calibration output for reranker false-alarm analysis.
-* Committed summary files represent specific experiment configurations and should not be generalized beyond their target, quarter, and injection grid.
-* Scientific conclusions should be based on larger population-scale, out-of-sample results rather than the current 50-star pilot alone.
