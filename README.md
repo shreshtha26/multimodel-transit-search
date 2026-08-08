@@ -2,7 +2,7 @@
 
 `multimodel-transit-search` is a reproducible research prototype for benchmarking complementary approaches to exoplanet transit detection in Kepler light curves.
 
-The current implementation contains two detector branches and a candidate-level machine-learning reranker:
+The current implementation contains three detector/background branches and a candidate-level machine-learning reranker:
 
 ```text
 Kepler PDCSAP flux
@@ -10,10 +10,16 @@ Kepler PDCSAP flux
 ├── direct normalized-flux branch
 │   └── Box Least Squares (BLS)
 │
-└── autoregressive-transformation branch
-    ├── ARIMA diagnostics and model selection
-    ├── one-step-ahead innovations
-    └── periodic Transit Comb Filter (TCF)
+├── autoregressive-transformation branch
+│   ├── ARIMA diagnostics and model selection
+│   ├── one-step-ahead innovations
+│   └── periodic Transit Comb Filter (TCF)
+│
+└── state-space challenger branch
+    ├── local-level Kalman background estimate
+    ├── one-step residuals
+    ├── residual BLS
+    └── residual TCF
              │
              ▼
       detector candidate sets
@@ -41,13 +47,14 @@ The longer-term goal is to benchmark statistical, probabilistic, machine-learnin
 
 ## Research Questions
 
-The current work is organized around five questions:
+The current work is organized around six questions:
 
 1. Can an ARIMA-family model reduce predictable correlated variability while retaining transit information in a detectable form?
 2. How sensitive is ARIMA selection and transit preservation to the treatment of missing Kepler cadences?
 3. How does direct BLS detection compare with TCF detection on ARIMA-transformed light curves?
-4. Do BLS and TCF provide complementary candidate information across multiple stars and noise regimes?
-5. Can a leakage-audited candidate reranker combine those candidates while generalizing to previously unseen targets and maintaining an empirically calibrated false-alarm threshold?
+4. Can a simple Kalman/state-space background model preserve transit evidence differently from the current ARIMA branch?
+5. Do BLS and TCF provide complementary candidate information across multiple stars and noise regimes?
+6. Can a leakage-audited candidate reranker combine those candidates while generalizing to previously unseen targets and maintaining an empirically calibrated false-alarm threshold?
 
 ## Experimental Design
 
@@ -354,6 +361,97 @@ Importantly, this is a **detector-conditional calibration**.
 It does not propagate the uncertainty that would arise from independently refitting and reselecting ARIMA for every null realization.
 
 That distinction should be retained when interpreting the TCF results.
+
+## Kalman State-Space Branch
+
+The Kalman branch is a new challenger background model, not a replacement for ARIMA.
+
+The first model is intentionally simple:
+
+```text
+background_t = background_t-1 + process_noise
+normalized_flux_t = background_t + measurement_noise
+```
+
+The hidden state is the slowly drifting stellar/instrumental background level. The observation equation says that normalized PDCSAP flux is that background plus measurement noise.
+
+Missing cadences are handled explicitly. The filter predicts through a gap but skips the observation update, so missing flux values are not silently interpolated.
+
+The detector input is the one-step residual:
+
+```text
+residual_t = normalized_flux_t - E[normalized_flux_t | previous cadences]
+```
+
+Those residuals are then passed through the existing BLS and TCF detector implementations:
+
+```text
+PDCSAP flux
+→ normalization
+→ local-level Kalman background
+→ one-step residuals
+├── BLS
+└── TCF
+```
+
+The Kalman branch reports likelihood-style fit diagnostics, residual whitening and variance diagnostics, transit depth retention, and transit SNR retention. A model should not be considered better merely because it predicts flux more accurately if it suppresses injected transits.
+
+See [Kalman State-Space Baseline](docs/kalman_state_space_baseline.md) for the model assumptions and run sequence.
+
+### Single-target Kalman benchmark
+
+The current saved repository outputs should be treated as the authoritative single-target comparison for KIC 11904151, Quarter 5.
+
+The primary recovery definition is harmonic-aware: periods at the injected value or simple harmonics such as `P/2` and `2P` are counted as successful recovery of the same periodic phenomenon. Exact-period recovery is retained as a stricter diagnostic.
+
+Across the matched 81-injection grid:
+
+| Pipeline                     | Recovery |
+| ---------------------------- | -------: |
+| Raw flux -> BLS              |    67/81 |
+| Existing TCF, harmonic-aware |    64/81 |
+| Existing TCF, exact period   |    53/81 |
+| Kalman residuals -> BLS      |    64/81 |
+| Kalman residuals -> TCF      |    67/81 |
+| Raw BLS union Kalman-TCF     |    71/81 |
+| Existing BLS union TCF       |    72/81 |
+| All four methods             |    72/81 |
+
+The corresponding rates are:
+
+```text
+Raw -> BLS:                         0.827
+Existing TCF, harmonic-aware:       0.790
+Existing TCF, exact period:         0.654
+Kalman -> BLS:                      0.790
+Kalman -> TCF:                      0.827
+Raw BLS union Kalman-TCF:           0.877
+Existing BLS union TCF:             0.889
+All four methods combined:          0.889
+```
+
+The row-level overlap between raw BLS and Kalman-TCF is:
+
+| Case                         | Count |
+| ---------------------------- | ----: |
+| Both recovered               |    63 |
+| Kalman-TCF only              |     4 |
+| Raw BLS only                 |     4 |
+| Neither recovered            |    10 |
+
+Kalman-TCF therefore changes the error pattern and provides pairwise complementarity with raw BLS. However, it does not expand the best current single-target ensemble: all Kalman recoveries are already contained within the existing BLS-TCF union on this 81-injection benchmark.
+
+The current Kalman conclusion is:
+
+> State-space/Kalman preprocessing produced competitive standalone transit recovery, with Kalman-TCF recovering 82.7% of injections at the calibrated 1% false-alarm rate. Relative to raw-flux BLS, Kalman-TCF recovered four additional cases while missing four BLS detections, demonstrating complementary detector behavior. However, adding the Kalman pipelines did not improve the overall BLS-TCF union recovery of 88.9% on this benchmark.
+
+This distinction should be retained for future challenger models:
+
+```text
+standalone performance
+pairwise complementarity
+incremental ensemble value beyond the best existing union
+```
 
 ## 50-Star BLS / ARIMA-TCF Pilot
 
@@ -736,6 +834,19 @@ python scripts/run_tcf_injection_grid.py
 
 The TCF null calibration uses multiprocessing and should be run as a script rather than from an interactive notebook cell.
 
+### Kalman State-Space Challenger
+
+```bash
+python scripts/run_kalman_baseline.py
+python scripts/run_kalman_null_calibration.py
+python scripts/run_kalman_injection_grid.py
+python scripts/compare_kalman_recovery_overlap.py
+```
+
+Run the Kalman null calibration before the Kalman injection grid. The injection grid reads the Kalman-specific BLS and TCF 1% FAP thresholds.
+
+The overlap comparison script does not rerun detectors. It joins the saved BLS, TCF, and Kalman injection grids on the exact injection parameter tuple and writes comparison-ready recovery-overlap tables.
+
 ### BLS / TCF comparison
 
 ```bash
@@ -813,6 +924,21 @@ outputs/experiments/tcf_injection_grid/metrics/kic_11904151_q5_tcf_injection_gri
 outputs/experiments/tcf_injection_grid/metrics/kic_11904151_q5_tcf_injection_grid_summary.json
 ```
 
+### Kalman
+
+```text
+outputs/experiments/kalman_baseline/metrics/kic_11904151_q5_kalman_summary.json
+outputs/experiments/kalman_baseline/metrics/kic_11904151_q5_kalman_model_diagnostics.csv
+outputs/experiments/kalman_null_calibration/metrics/kic_11904151_q5_kalman_fap_thresholds.csv
+outputs/experiments/kalman_null_calibration/metrics/kic_11904151_q5_kalman_null_calibration_summary.json
+outputs/experiments/kalman_injection_grid/metrics/kic_11904151_q5_kalman_injection_grid.csv
+outputs/experiments/kalman_injection_grid/metrics/kic_11904151_q5_kalman_injection_grid_summary.json
+outputs/experiments/kalman_recovery_overlap/metrics/kic_11904151_q5_kalman_recovery_overlap.csv
+outputs/experiments/kalman_recovery_overlap/metrics/kic_11904151_q5_kalman_pairwise_overlap.csv
+outputs/experiments/kalman_recovery_overlap/metrics/kic_11904151_q5_kalman_combination_overlap.csv
+outputs/experiments/kalman_recovery_overlap/metrics/kic_11904151_q5_kalman_recovery_overlap_summary.json
+```
+
 ### Multi-star benchmark and reranker
 
 ```text
@@ -881,6 +1007,11 @@ ARIMA-TCF
 → weaker standalone detector
 → contributes complementary candidate periods
 
+Kalman-TCF
+→ competitive standalone detector on the 81-case benchmark
+→ pairwise-complementary with raw BLS
+→ no added union recovery beyond the existing BLS-TCF union in the current saved outputs
+
 BLS + TCF candidate set
 → higher recovery ceiling than either detector alone
 
@@ -899,3 +1030,4 @@ At the same time, ARIMA convergence, limited population size, restricted injecti
 
 * [Phase 1: Single-Target ARIMA Prototype](docs/phase1_single_target_arima.md)
 * [Kepler Dataset Strategy](docs/kepler_dataset_strategy.md)
+* [Kalman State-Space Baseline](docs/kalman_state_space_baseline.md)

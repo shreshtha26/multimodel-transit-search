@@ -2,7 +2,6 @@
 This module converts loaded PDCSAP samples into an explicit cadence grid while preserving missing and unusable cadences for downstream analysis."""
 
 from dataclasses import asdict, dataclass
-from typing import Any
 import numpy as np
 import pandas as pd
 
@@ -175,6 +174,7 @@ def summarize_gaps(time):
 def preprocess_pdcsap_light_curve(frame, *, quality_policy="strict", require_quality_zero=None, require_finite_flux_error=False, normalization_fit_fraction=1.00):
     """Build the cadence grid, apply the selected validity policy, and normalize PDCSAP flux.
     The normalization median is fitted only on the leading configured fraction of usable cadences so train/holdout workflows can avoid normalization leakage."""
+
     validate_pdcsap_frame(frame)
     if not 0.0 < normalization_fit_fraction <= 1.0:
         raise ValueError("normalization_fit_fraction must be in (0, 1].")

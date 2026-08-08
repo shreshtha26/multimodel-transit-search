@@ -1,0 +1,71 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "quality_policy": "default",
+  "model": "local_level_kalman",
+  "state_vector": [
+    "background"
+  ],
+  "state_transition": [
+    [
+      1.0
+    ]
+  ],
+  "observation_matrix": [
+    [
+      1.0
+    ]
+  ],
+  "current_baseline_uses_smoothing": false,
+  "current_residual_definition": "normalized_flux_t - one_step_predicted_background_t",
+  "injected_period_days": 5.0,
+  "injected_epoch_days": 444.51122690278135,
+  "injected_duration_hours": 4.0,
+  "injected_depth": 0.001,
+  "observed_depth_before_kalman": 0.0009817587003493325,
+  "local_snr_before_kalman": 96.14872746845657,
+  "configuration_count": 10,
+  "sorted_by": [
+    "snr_retention_fraction",
+    "depth_retention_fraction"
+  ],
+  "reference_injected_parameters": {
+    "model_name": "local_level",
+    "state_equation": "background_t = background_t_minus_1 + process_noise",
+    "observation_equation": "normalized_flux_t = background_t + measurement_noise",
+    "missing_cadence_policy": "prediction_only_no_update",
+    "converged": true,
+    "status": "0",
+    "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
+    "log_likelihood": 34049.837915290205,
+    "aic": -68091.67583058041,
+    "bic": -68066.0409637201,
+    "finite_residual_count": 4486,
+    "process_variance": 9.93260312218886e-09,
+    "measurement_variance": 2.6944598998106362e-09,
+    "initial_state": -2.2716649564991087e-05,
+    "initial_variance": 4.996818863375051e-07
+  },
+  "reference_original_parameters": {
+    "model_name": "local_level",
+    "state_equation": "background_t = background_t_minus_1 + process_noise",
+    "observation_equation": "normalized_flux_t = background_t + measurement_noise",
+    "missing_cadence_policy": "prediction_only_no_update",
+    "converged": true,
+    "status": "0",
+    "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
+    "log_likelihood": 36088.53836672671,
+    "aic": -72169.07673345342,
+    "bic": -72143.4418665931,
+    "finite_residual_count": 4486,
+    "process_variance": 1.3696946993077846e-09,
+    "measurement_variance": 3.1300770253820903e-09,
+    "initial_state": -1.761814966261266e-05,
+    "initial_variance": 1.836537167628813e-07
+  },
+  "diagnostic_plot_configurations": [
+    "mle_injected_reference",
+    "fixed_q_over_r_0.001",
+    "fixed_q_over_r_0.01"
+  ]
+}

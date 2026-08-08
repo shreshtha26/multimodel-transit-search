@@ -1,0 +1,3 @@
+detector,fap_level,score_column,score_threshold,requested_null_trials,successful_null_trials,observed_exceedance_fraction
+kalman_bls,0.01,bls_max_power,0.0006978626377645,1000,1000,0.01
+kalman_tcf,0.01,tcf_max_score,14.086207860158858,1000,1000,0.01

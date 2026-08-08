@@ -1,0 +1,22 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "quality_policy": "default",
+  "model_name": "local_level_kalman",
+  "injection_count": 81,
+  "kalman_convergence_rate": 1.0,
+  "kalman_bls_period_match_rate": 0.7901234567901234,
+  "kalman_bls_exact_period_match_rate": 0.2716049382716049,
+  "kalman_bls_detection_rate_fap_1_percent": 1.0,
+  "kalman_bls_recovery_rate_fap_1_percent": 0.7901234567901234,
+  "kalman_bls_exact_recovery_rate_fap_1_percent": 0.2716049382716049,
+  "kalman_tcf_period_match_rate": 0.8271604938271605,
+  "kalman_tcf_exact_period_match_rate": 0.7037037037037037,
+  "kalman_tcf_detection_rate_fap_1_percent": 1.0,
+  "kalman_tcf_recovery_rate_fap_1_percent": 0.8271604938271605,
+  "kalman_tcf_exact_recovery_rate_fap_1_percent": 0.7037037037037037,
+  "median_depth_retention_fraction": 0.08548199708494883,
+  "median_snr_retention_fraction": 0.16207618723800168,
+  "kalman_bls_fap_1_percent_threshold": 0.0006978626377645,
+  "kalman_tcf_fap_1_percent_threshold": 14.086207860158858
+}
