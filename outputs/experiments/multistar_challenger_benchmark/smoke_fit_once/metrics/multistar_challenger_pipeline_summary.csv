@@ -1,0 +1,9 @@
+pipeline,branch,detector,injection_count,success_count,success_rate,harmonic_rank1_count,harmonic_rank1_rate,exact_rank1_count,exact_rank1_rate,median_score,median_runtime_seconds
+raw_bls,raw,bls,2,2,1.0,1,0.5,1,0.5,12.271454094572627,0.00422470842022445
+raw_tcf,raw,tcf,2,2,1.0,0,0.0,0,0.0,12.893102130714304,0.30529231240507215
+arima_bls,arima,bls,2,2,1.0,1,0.5,1,0.5,21.02257119558182,0.00498404190875585
+arima_tcf,arima,tcf,2,2,1.0,0,0.0,0,0.0,32.160057903693186,0.3041613334789872
+kalman_bls,kalman,bls,2,2,1.0,1,0.5,1,0.5,22.650310138430154,0.0048142914893105
+kalman_tcf,kalman,tcf,2,2,1.0,0,0.0,0,0.0,32.812356319145394,0.3114776039728895
+gp_bls,gp,bls,2,2,1.0,1,0.5,1,0.5,17.5962983028763,0.0040267285658046
+gp_tcf,gp,tcf,2,2,1.0,1,0.5,0,0.0,31.794942853533172,0.3431603130884468

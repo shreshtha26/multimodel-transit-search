@@ -24,7 +24,7 @@ from adaptive_transit.detection.false_alarm import moving_block_surrogate
 from adaptive_transit.detection.tcf import default_duration_grid, default_period_grid
 from adaptive_transit.noise_models.kalman import fit_kalman_local_level
 from adaptive_transit.preprocessing.normalization import preprocess_pdcsap_light_curve
-from scripts.run_multistar_challenger_benchmark import DEFAULT_PIPELINES, PIPELINE_DEFINITIONS, TQDM_BAR_FORMAT, config_signature, default_settings, fit_gp, json_ready, lag_one_acf, load_light_curve_frame, load_manifest, load_or_fit_base_arima, normalize_target_id, robust_scale, run_bls_search, run_tcf_search, star_prefix
+from scripts.run_multistar_challenger_benchmark import DEFAULT_PIPELINES, PIPELINE_DEFINITIONS, TQDM_BAR_FORMAT, apply_search_resolution, config_signature, default_settings, fit_gp, json_ready, lag_one_acf, load_light_curve_frame, load_manifest, load_or_fit_base_arima, normalize_target_id, robust_scale, run_bls_search, run_tcf_search, star_prefix
 BACKGROUND_FEATURE_PATH = PROJECT_ROOT / "outputs/experiments/multistar_background_timescale/metrics/multistar_background_timescale_features.csv"
 
 def parse_pipelines(value):
@@ -33,6 +33,23 @@ def parse_pipelines(value):
     if invalid:
         raise argparse.ArgumentTypeError(f"Unknown pipeline(s): {invalid}. Valid pipelines are {sorted(PIPELINE_DEFINITIONS)}.")
     return pipelines
+
+def apply_saved_benchmark_config(args):
+    path = Path(args.benchmark_dir) / "benchmark_config.json"
+    if not path.exists():
+        return False
+    try:
+        signature = json.loads(path.read_text()).get("config_signature", {})
+    except Exception:
+        return False
+    tuple_keys = {"pipelines", "arima_order", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid"}
+    for key, value in signature.items():
+        if not hasattr(args, key):
+            continue
+        if key in tuple_keys and value is not None:
+            value = tuple(value)
+        setattr(args, key, value)
+    return True
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Calibrate per-star FAP thresholds for the multi-star challenger benchmark.")
@@ -48,6 +65,7 @@ def parse_args(argv=None):
     parser.add_argument("--checkpoint-interval", type=int)
     parser.add_argument("--progress-interval", type=int)
     parser.add_argument("--pipelines", type=parse_pipelines)
+    parser.add_argument("--search-resolution", choices=("pilot", "medium", "high"))
     parser.add_argument("--no-download", dest="allow_download", action="store_false")
     parser.add_argument("--no-resume", dest="resume", action="store_false")
     parser.add_argument("--rerun-failures", action="store_true")
@@ -55,6 +73,11 @@ def parse_args(argv=None):
     args = default_settings(parsed.profile)
     args.benchmark_dir = Path(parsed.benchmark_dir) if parsed.benchmark_dir is not None else Path(args.output_dir)
     args.output_dir = args.benchmark_dir
+    apply_saved_benchmark_config(args)
+    args.benchmark_dir = Path(parsed.benchmark_dir) if parsed.benchmark_dir is not None else Path(args.output_dir)
+    args.output_dir = args.benchmark_dir
+    if parsed.search_resolution is not None:
+        apply_search_resolution(args, parsed.search_resolution)
     args.background_feature_path = Path(parsed.background_feature_path)
     args.n_null_trials_per_star = int(parsed.n_null_trials_per_star)
     args.fap_level = float(parsed.fap_level)
@@ -64,7 +87,7 @@ def parse_args(argv=None):
     args.reserve_cpu_cores = int(parsed.reserve_cpu_cores) if parsed.reserve_cpu_cores is not None else int(args.reserve_cpu_cores)
     args.checkpoint_interval = int(parsed.checkpoint_interval) if parsed.checkpoint_interval is not None else int(args.checkpoint_interval)
     args.progress_interval = int(parsed.progress_interval) if parsed.progress_interval is not None else int(args.progress_interval)
-    args.pipelines = parsed.pipelines if parsed.pipelines is not None else tuple(DEFAULT_PIPELINES)
+    args.pipelines = parsed.pipelines if parsed.pipelines is not None else tuple(args.pipelines)
     args.allow_download = bool(parsed.allow_download)
     args.resume = bool(parsed.resume)
     args.rerun_failures = bool(parsed.rerun_failures)
@@ -498,6 +521,7 @@ def main(args=None):
     print(f"Null trials per star: {args.n_null_trials_per_star}")
     print(f"Parallel star workers: {resolve_worker_count(args, len(manifest))}")
     print(f"Pipelines: {', '.join(args.pipelines)}")
+    print(f"Search resolution: {args.search_resolution} (BLS periods={args.n_periods}, TCF coarse periods={args.n_coarse_periods}, refinements={args.n_refinement_regions})")
     worker_args = settings_to_worker_dict(args)
     task_results.extend(run_pending_rows(pending_rows, worker_args, args))
     null_trials, thresholds, calibration_summaries = load_calibration_outputs(task_results)

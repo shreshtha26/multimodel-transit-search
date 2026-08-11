@@ -1,0 +1,6 @@
+combination,pipelines,injection_count,harmonic_rank1_count,harmonic_rank1_rate,exact_rank1_count,exact_rank1_rate
+raw_bls_union_gp_tcf,"raw_bls,gp_tcf",405,171,0.4222222222222222,152,0.37530864197530867
+existing_bls_tcf,"raw_bls,arima_tcf",405,165,0.4074074074074074,154,0.3802469135802469
+non_gp_union,"raw_bls,arima_tcf,kalman_bls,kalman_tcf",405,208,0.5135802469135803,196,0.4839506172839506
+gp_union,"gp_bls,gp_tcf",405,168,0.4148148148148148,164,0.4049382716049383
+all_pipelines,"raw_bls,raw_tcf,arima_bls,arima_tcf,kalman_bls,kalman_tcf,gp_bls,gp_tcf",405,223,0.5506172839506173,211,0.5209876543209877

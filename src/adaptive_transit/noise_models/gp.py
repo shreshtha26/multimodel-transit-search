@@ -2,6 +2,7 @@
 The baseline estimates long-timescale covariance structure and exposes residuals for transit search."""
 import warnings
 import numpy as np
+from scipy.linalg import cho_solve
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel, RBF
@@ -135,3 +136,83 @@ def fit_smooth_gp_background(time, values, max_train_points=512, length_scale_da
     status = 0 if converged else 1
     message = "converged" if converged else "; ".join(warning_messages)
     return FittedGaussianProcessModel("smooth_anchor_gp", parameters, background_mean, background_std, residuals, standardized, finite.copy(), training_mask, float(gp.log_marginal_likelihood_value_), converged, status, message)
+
+class PreparedGaussianProcessFilter:
+    """Reusable fixed-hyperparameter GP projection for equal-grid injection trials."""
+    def __init__(self, model_name, parameters, training_mask, prediction_mask, smoother_matrix, cholesky_factor, background_std, converged, status, message):
+        self.model_name = model_name
+        self.parameters = parameters
+        self.training_mask = training_mask
+        self.prediction_mask = prediction_mask
+        self.smoother_matrix = smoother_matrix
+        self.cholesky_factor = cholesky_factor
+        self.background_std = background_std
+        self.converged = converged
+        self.status = status
+        self.message = message
+
+def rbf_covariance(first_time, second_time, signal_variance, length_scale_days):
+    first = np.asarray(first_time, dtype=float).reshape(-1)
+    second = np.asarray(second_time, dtype=float).reshape(-1)
+    scaled = (first[:, None] - second[None, :]) / float(length_scale_days)
+    return float(signal_variance) * np.exp(-0.5 * scaled * scaled)
+
+def prepare_smooth_gp_filter(time, fitted_model):
+    """Precompute the linear GP smoothing operator for repeated equal-grid injections."""
+    time = np.asarray(time, dtype=float).reshape(-1)
+    if time.shape != fitted_model.residuals.shape:
+        raise ValueError("time must match the fitted GP series shape.")
+    parameters = dict(fitted_model.parameters)
+    signal_variance = float(parameters["signal_variance"])
+    length_scale_days = float(parameters["length_scale_days"])
+    measurement_variance = float(parameters["measurement_noise_variance"])
+    if signal_variance <= 0 or length_scale_days <= 0 or measurement_variance <= 0:
+        raise ValueError("Fitted GP covariance parameters must be positive.")
+    training_mask = np.asarray(fitted_model.training_mask, dtype=bool).copy()
+    prediction_mask = np.isfinite(time)
+    training_indices = np.flatnonzero(training_mask)
+    prediction_indices = np.flatnonzero(prediction_mask)
+    if training_indices.size < 20:
+        raise ValueError("Prepared GP filtering needs at least 20 training anchors.")
+    train_time = time[training_indices]
+    predict_time = time[prediction_indices]
+    train_covariance = rbf_covariance(train_time, train_time, signal_variance, length_scale_days)
+    train_covariance.flat[:: train_covariance.shape[0] + 1] += measurement_variance
+    cholesky_factor = np.linalg.cholesky(train_covariance)
+    cross_covariance = rbf_covariance(predict_time, train_time, signal_variance, length_scale_days)
+    smoother_matrix = cho_solve((cholesky_factor, True), cross_covariance.T, check_finite=False).T
+    posterior_variance = signal_variance - np.sum(cross_covariance * smoother_matrix, axis=1)
+    posterior_variance = np.maximum(posterior_variance, 0.0)
+    background_std = np.full(time.shape, np.nan, dtype=float)
+    background_std[prediction_indices] = np.sqrt(posterior_variance)
+    return PreparedGaussianProcessFilter(fitted_model.model_name, parameters, training_mask, prediction_mask, smoother_matrix, cholesky_factor, background_std, bool(fitted_model.converged), int(fitted_model.status), str(fitted_model.message))
+
+def apply_prepared_smooth_gp_filter(values, prepared_filter):
+    """Apply a precomputed GP operator while keeping base-star hyperparameters fixed."""
+    values = np.asarray(values, dtype=float).reshape(-1)
+    if values.shape != prepared_filter.training_mask.shape:
+        raise ValueError("values must match the prepared GP filter shape.")
+    if np.isinf(values).any():
+        raise ValueError("GP input may contain NaN gaps, but not infinite values.")
+    training_indices = np.flatnonzero(prepared_filter.training_mask)
+    prediction_indices = np.flatnonzero(prepared_filter.prediction_mask)
+    if not np.isfinite(values[training_indices]).all():
+        raise ValueError("Prepared GP training anchors must remain finite across injections.")
+    parameters = dict(prepared_filter.parameters)
+    flux_offset = float(parameters["flux_offset"])
+    measurement_variance = float(parameters["measurement_noise_variance"])
+    centered_train = values[training_indices] - flux_offset
+    predicted_centered = prepared_filter.smoother_matrix @ centered_train
+    background_mean = np.full(values.shape, np.nan, dtype=float)
+    background_mean[prediction_indices] = predicted_centered + flux_offset
+    residuals = np.full(values.shape, np.nan, dtype=float)
+    finite = np.isfinite(values) & np.isfinite(background_mean)
+    residuals[finite] = values[finite] - background_mean[finite]
+    standardized = np.full(values.shape, np.nan, dtype=float)
+    denominator = np.sqrt(prepared_filter.background_std * prepared_filter.background_std + measurement_variance)
+    usable_standardized = finite & np.isfinite(denominator) & (denominator > 0)
+    standardized[usable_standardized] = residuals[usable_standardized] / denominator[usable_standardized]
+    alpha = cho_solve((prepared_filter.cholesky_factor, True), centered_train, check_finite=False)
+    log_marginal_likelihood = float(-0.5 * np.dot(centered_train, alpha) - np.log(np.diag(prepared_filter.cholesky_factor)).sum() - 0.5 * training_indices.size * np.log(2.0 * np.pi))
+    parameters["injection_mode"] = "fixed_base_hyperparameters_and_operator"
+    return FittedGaussianProcessModel(prepared_filter.model_name, parameters, background_mean, prepared_filter.background_std.copy(), residuals, standardized, finite.copy(), prepared_filter.training_mask.copy(), log_marginal_likelihood, bool(prepared_filter.converged), int(prepared_filter.status), "filtered with fixed base GP hyperparameters")

@@ -73,3 +73,27 @@ def test_characterization_remains_compatible_with_old_six_pipeline_outputs():
     rates = analysis.aggregate_recovery_rates(injections).iloc[0]
     assert rates["raw_best_harmonic_recovery_rate"] == 0.0
     assert rates["arima_best_pipeline_lift"] == 1.0
+
+def test_main_medium_search_resolution_overrides_high_defaults():
+    runner = load_script("run_multistar_challenger_benchmark_medium", "scripts/run_multistar_challenger_benchmark.py")
+    args = runner.parse_args(["--profile", "main", "--search-resolution", "medium"])
+    assert args.search_resolution == "medium"
+    assert args.n_periods == 5000
+    assert args.n_coarse_periods == 2000
+    assert args.n_refinement_regions == 18
+    assert args.bls_oversample == 5
+    assert args.kalman_injection_mode == "filter"
+    assert args.gp_injection_mode == "filter"
+
+def test_calibration_inherits_saved_benchmark_resolution(tmp_path):
+    runner = load_script("run_multistar_challenger_benchmark_saved_config", "scripts/run_multistar_challenger_benchmark.py")
+    args = runner.parse_args(["--profile", "main", "--search-resolution", "medium", "--output-dir", str(tmp_path)])
+    runner.write_benchmark_config(args)
+    calibration = load_script("calibrate_multistar_challenger_benchmark_saved_config", "scripts/calibrate_multistar_challenger_benchmark.py")
+    calibration_args = calibration.parse_args(["--profile", "main", "--benchmark-dir", str(tmp_path)])
+    assert calibration_args.search_resolution == "medium"
+    assert calibration_args.n_periods == 5000
+    assert calibration_args.n_coarse_periods == 2000
+    assert calibration_args.pipelines == args.pipelines
+    assert calibration_args.kalman_injection_mode == "filter"
+    assert calibration_args.gp_injection_mode == "filter"

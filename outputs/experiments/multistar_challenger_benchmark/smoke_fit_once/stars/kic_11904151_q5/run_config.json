@@ -1,0 +1,63 @@
+{
+  "config_signature": {
+    "profile": "smoke",
+    "pipelines": [
+      "raw_bls",
+      "raw_tcf",
+      "arima_bls",
+      "arima_tcf",
+      "kalman_bls",
+      "kalman_tcf",
+      "gp_bls",
+      "gp_tcf"
+    ],
+    "quality_policy": "default",
+    "require_finite_flux_error": false,
+    "test_fraction": 0.2,
+    "arima_order": [
+      1,
+      1,
+      0
+    ],
+    "fit_maxiter": 200,
+    "arima_injection_mode": "filter",
+    "kalman_injection_mode": "filter",
+    "kalman_maxiter": 100,
+    "kalman_burn_in": 1,
+    "gp_injection_mode": "filter",
+    "gp_max_train_points": 192,
+    "gp_length_scale_days": 3.0,
+    "gp_min_length_scale_days": 1.0,
+    "gp_max_length_scale_days": 30.0,
+    "gp_measurement_noise_fraction": 0.2,
+    "gp_n_restarts_optimizer": 0,
+    "gp_optimize_kernel": true,
+    "injection_period_grid": [
+      5.0
+    ],
+    "injection_duration_hours_grid": [
+      4.0
+    ],
+    "injection_depth_grid": [
+      0.001
+    ],
+    "epoch_phase_fraction_grid": [
+      0.45
+    ],
+    "min_period_days": 1.0,
+    "max_period_days": 15.0,
+    "search_resolution": "smoke",
+    "n_periods": 400,
+    "min_duration_hours": 1.5,
+    "max_duration_hours": 10.0,
+    "n_durations": 4,
+    "top_k": 3,
+    "search_mode": "coarse_to_fine",
+    "n_coarse_periods": 150,
+    "n_refinement_regions": 3,
+    "refinement_half_width_points": 8,
+    "bls_objective": "snr",
+    "bls_oversample": 3,
+    "period_match_tolerance_fraction": 0.02
+  }
+}

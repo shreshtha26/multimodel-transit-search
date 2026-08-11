@@ -25,8 +25,8 @@ from tqdm.auto import tqdm
 from adaptive_transit.data.kepler_io import load_kepler_pdcsap
 from adaptive_transit.detection.tcf import default_duration_grid, default_period_grid, fit_arima_innovations, harmonic_peak_rank, matching_peak_rank, period_match_fraction, run_tcf
 from adaptive_transit.injections.synthetic import inject_periodic_box_transit
-from adaptive_transit.noise_models.gp import fit_smooth_gp_background
-from adaptive_transit.noise_models.kalman import fit_kalman_local_level
+from adaptive_transit.noise_models.gp import apply_prepared_smooth_gp_filter, fit_smooth_gp_background, prepare_smooth_gp_filter
+from adaptive_transit.noise_models.kalman import apply_fitted_kalman_filter, fit_kalman_local_level
 from adaptive_transit.preprocessing.normalization import preprocess_pdcsap_light_curve
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", message="Warning: the tpfmodel submodule is not available.*", category=UserWarning)
@@ -39,18 +39,27 @@ EXISTING_ARIMA_CACHE_ROOT = PROJECT_ROOT / "outputs/experiments/multistar_bls_tc
 TQDM_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} ({percentage:3.0f}%) [{elapsed}<{remaining}, {rate_fmt}] {postfix}"
 DEFAULT_PIPELINES = ("raw_bls", "raw_tcf", "arima_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
 PIPELINE_DEFINITIONS = {"raw_bls": ("raw", "bls"), "raw_tcf": ("raw", "tcf"), "arima_bls": ("arima", "bls"), "arima_tcf": ("arima", "tcf"), "kalman_bls": ("kalman", "bls"), "kalman_tcf": ("kalman", "tcf"), "gp_bls": ("gp", "bls"), "gp_tcf": ("gp", "tcf")}
+SEARCH_RESOLUTION_PRESETS = {"pilot": {"n_periods": 3000, "top_k": 5, "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "bls_oversample": 5}, "medium": {"n_periods": 5000, "top_k": 5, "n_coarse_periods": 2000, "n_refinement_regions": 18, "refinement_half_width_points": 30, "bls_oversample": 5}, "high": {"n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}}
 
 def default_settings(profile="pilot"):
-    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False}
+    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_injection_mode": "filter", "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "search_resolution": "pilot", "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False}
     if profile == "main":
-        settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 50, "stratified_pilot": False, "injection_period_grid": (2.0, 5.0, 10.0), "injection_duration_hours_grid": (2.0, 4.0, 8.0), "injection_depth_grid": (0.0002, 0.0005, 0.001), "epoch_phase_fraction_grid": (0.15, 0.45, 0.75), "n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}
+        settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 50, "stratified_pilot": False, "injection_period_grid": (2.0, 5.0, 10.0), "injection_duration_hours_grid": (2.0, 4.0, 8.0), "injection_depth_grid": (0.0002, 0.0005, 0.001), "epoch_phase_fraction_grid": (0.15, 0.45, 0.75), "search_resolution": "high", "n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}
         )
     elif profile == "smoke":
-        settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 2, "strict_target_count": False, "stratified_pilot": False, "injection_period_grid": (5.0,), "injection_duration_hours_grid": (4.0,), "injection_depth_grid": (0.001,), "epoch_phase_fraction_grid": (0.45,), "n_periods": 400, "n_durations": 4, "top_k": 3, "n_coarse_periods": 150, "n_refinement_regions": 3, "refinement_half_width_points": 8, "bls_oversample": 3, "max_workers": 2, "gp_max_train_points": 192, "gp_optimize_kernel": False}
+        settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 2, "strict_target_count": False, "stratified_pilot": False, "injection_period_grid": (5.0,), "injection_duration_hours_grid": (4.0,), "injection_depth_grid": (0.001,), "epoch_phase_fraction_grid": (0.45,), "search_resolution": "smoke", "n_periods": 400, "n_durations": 4, "top_k": 3, "n_coarse_periods": 150, "n_refinement_regions": 3, "refinement_half_width_points": 8, "bls_oversample": 3, "max_workers": 2, "gp_max_train_points": 192, "gp_optimize_kernel": False}
         )
     elif profile != "pilot":
         raise ValueError("profile must be pilot, main, or smoke.")
     return SimpleNamespace(**settings)
+
+def apply_search_resolution(args, name):
+    if name not in SEARCH_RESOLUTION_PRESETS:
+        raise ValueError(f"Unknown search resolution: {name}")
+    for key, value in SEARCH_RESOLUTION_PRESETS[name].items():
+        setattr(args, key, value)
+    args.search_resolution = str(name)
+    return args
 
 def parse_float_grid(value):
     values = tuple(float(part.strip()) for part in str(value).split(",") if part.strip())
@@ -95,6 +104,7 @@ def parse_args(argv=None):
     parser.add_argument("--arima-order", type=parse_int_order)
     parser.add_argument("--fit-maxiter", type=int)
     parser.add_argument("--arima-injection-mode", choices=("filter", "refit"))
+    parser.add_argument("--kalman-injection-mode", choices=("filter", "refit"))
     parser.add_argument("--kalman-maxiter", type=int)
     parser.add_argument("--gp-max-train-points", type=int)
     parser.add_argument("--gp-length-scale-days", type=float)
@@ -102,11 +112,13 @@ def parse_args(argv=None):
     parser.add_argument("--gp-max-length-scale-days", type=float)
     parser.add_argument("--gp-measurement-noise-fraction", type=float)
     parser.add_argument("--gp-n-restarts-optimizer", type=int)
+    parser.add_argument("--gp-injection-mode", choices=("filter", "refit"))
     parser.add_argument("--gp-fixed-kernel", dest="gp_optimize_kernel", action="store_false")
     parser.add_argument("--injection-period-grid", type=parse_float_grid)
     parser.add_argument("--injection-duration-hours-grid", type=parse_float_grid)
     parser.add_argument("--injection-depth-grid", type=parse_float_grid)
     parser.add_argument("--epoch-phase-fraction-grid", type=parse_float_grid)
+    parser.add_argument("--search-resolution", choices=("pilot", "medium", "high"))
     parser.add_argument("--n-periods", type=int)
     parser.add_argument("--n-durations", type=int)
     parser.add_argument("--top-k", type=int)
@@ -126,8 +138,10 @@ def parse_args(argv=None):
     parser.add_argument("--save-regularized-inputs", action="store_true")
     parsed = parser.parse_args(argv)
     args = default_settings(parsed.profile)
+    if parsed.search_resolution is not None:
+        apply_search_resolution(args, parsed.search_resolution)
     for key, value in vars(parsed).items():
-        if key == "profile":
+        if key in ("profile", "search_resolution"):
             continue
         if value is not None:
             setattr(args, key, value)
@@ -156,8 +170,15 @@ def injection_cases(args):
     return list(product(args.injection_period_grid, args.injection_duration_hours_grid, args.injection_depth_grid, args.epoch_phase_fraction_grid))
 
 def config_signature(args):
-    keys = ("profile", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "period_match_tolerance_fraction")
+    keys = ("profile", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_injection_mode", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "search_resolution", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "period_match_tolerance_fraction")
     return {key: json_ready(getattr(args, key)) for key in keys}
+
+def write_benchmark_config(args):
+    path = Path(args.output_dir) / "benchmark_config.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"config_signature": json_ready(config_signature(args))}
+    path.write_text(json.dumps(payload, indent=2) + "\n")
+    return path
 
 def write_star_checkpoint(star_dir, target_id, quarter, status, stage, **extra):
     star_dir.mkdir(parents=True, exist_ok=True)
@@ -440,6 +461,17 @@ def filter_arima_innovations(flux, base_arima, args):
 def fit_gp(time, values, args):
     return fit_smooth_gp_background(time, values, max_train_points=args["gp_max_train_points"], length_scale_days=args["gp_length_scale_days"], min_length_scale_days=args["gp_min_length_scale_days"], max_length_scale_days=args["gp_max_length_scale_days"], measurement_noise_fraction=args["gp_measurement_noise_fraction"], n_restarts_optimizer=args["gp_n_restarts_optimizer"], random_seed=args["gp_random_seed"], optimize_kernel=args["gp_optimize_kernel"])
 
+def fit_base_kalman(flux, args):
+    started = perf_counter()
+    model = fit_kalman_local_level(flux, maxiter=args["kalman_maxiter"], burn_in=args["kalman_burn_in"])
+    return model, float(perf_counter() - started)
+
+def fit_base_gp(time, flux, args):
+    started = perf_counter()
+    model = fit_gp(time, flux, args)
+    prepared = prepare_smooth_gp_filter(time, model)
+    return model, prepared, float(perf_counter() - started)
+
 def top_peak_rank(peaks, target_period, tolerance_fraction):
     for fallback_rank, row in enumerate(peaks.to_dict(orient="records"), start=1):
         period = float(row.get("period_days", row.get("period", np.nan)))
@@ -484,7 +516,7 @@ def add_branch_diagnostics(row, branch, series, before, in_transit):
 def required_branches(pipelines):
     return sorted({PIPELINE_DEFINITIONS[pipeline][0] for pipeline in pipelines})
 
-def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, target_id, quarter, selection_group, args):
+def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args):
     injected_period, injected_duration_hours, injected_depth, epoch_phase_fraction = case
     finite = np.isfinite(time) & np.isfinite(flux)
     epoch = float(np.min(time[finite]) + float(epoch_phase_fraction) * float(injected_period))
@@ -511,9 +543,15 @@ def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duratio
     if "kalman" in required_branches(args["pipelines"]):
         try:
             started = perf_counter()
-            model = fit_kalman_local_level(injected_flux, maxiter=args["kalman_maxiter"], burn_in=args["kalman_burn_in"])
+            if args["kalman_injection_mode"] == "filter":
+                if base_kalman is None:
+                    raise ValueError("Base Kalman fit is unavailable for fixed-parameter filtering.")
+                model = apply_fitted_kalman_filter(injected_flux, base_kalman, burn_in=args["kalman_burn_in"])
+            else:
+                model = fit_kalman_local_level(injected_flux, maxiter=args["kalman_maxiter"], burn_in=args["kalman_burn_in"])
             branch_series["kalman"] = model.residuals
             row["kalman_model_runtime_seconds"] = float(perf_counter() - started)
+            row["kalman_injection_mode"] = str(args["kalman_injection_mode"])
             row["kalman_converged"] = bool(model.converged)
             row["kalman_log_likelihood"] = float(model.log_likelihood)
             row["kalman_process_variance"] = float(model.parameters["process_variance"])
@@ -525,9 +563,15 @@ def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duratio
     if "gp" in required_branches(args["pipelines"]):
         try:
             started = perf_counter()
-            model = fit_gp(time, injected_flux, args)
+            if args["gp_injection_mode"] == "filter":
+                if prepared_gp is None:
+                    raise ValueError("Prepared GP filter is unavailable for fixed-hyperparameter filtering.")
+                model = apply_prepared_smooth_gp_filter(injected_flux, prepared_gp)
+            else:
+                model = fit_gp(time, injected_flux, args)
             branch_series["gp"] = model.residuals
             row["gp_model_runtime_seconds"] = float(perf_counter() - started)
+            row["gp_injection_mode"] = str(args["gp_injection_mode"])
             row["gp_converged"] = bool(model.converged)
             row["gp_log_marginal_likelihood"] = float(model.log_marginal_likelihood)
             row["gp_training_point_count"] = int(model.parameters["training_point_count"])
@@ -592,7 +636,7 @@ def save_rows(path, rows):
     frame.to_csv(path, index=False)
     return frame
 
-def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, target_id, quarter, selection_group, args, progress_queue, resume_compatible=None):
+def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args, progress_queue, resume_compatible=None):
     rows, completed = load_existing_injection_rows(star_dir, cases, args, resume_compatible=resume_compatible)
     if completed:
         report_progress(progress_queue, target_id, quarter, "injections resumed", units=len(completed), detail=f"{len(completed)}/{len(cases)}")
@@ -602,7 +646,7 @@ def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, d
     for case_index, case in enumerate(cases):
         if case_index in completed:
             continue
-        rows.append(run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, target_id, quarter, selection_group, args))
+        rows.append(run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args))
         completed.add(case_index)
         unreported += 1
         if len(completed) % checkpoint_interval == 0 or len(completed) == len(cases):
@@ -643,12 +687,28 @@ def run_star_task(task):
             raise ValueError("Insufficient finite observations.")
         period_grid = default_period_grid(time, min_period_days=args["min_period_days"], max_period_days=args["max_period_days"], n_periods=args["n_periods"])
         duration_grid = default_duration_grid(args["min_duration_hours"], args["max_duration_hours"], args["n_durations"])
-        base_arima, base_arima_runtime, base_arima_source = load_or_fit_base_arima(star_dir, target_id, quarter, flux, args)
+        branches = required_branches(args["pipelines"])
+        base_arima = None
+        base_arima_runtime = 0.0
+        base_arima_source = "not_required"
+        if "arima" in branches:
+            base_arima, base_arima_runtime, base_arima_source = load_or_fit_base_arima(star_dir, target_id, quarter, flux, args)
+        base_kalman = None
+        base_kalman_runtime = 0.0
+        if "kalman" in branches and args["kalman_injection_mode"] == "filter":
+            report_progress(progress_queue, target_id, quarter, "base Kalman fit", detail="fit once")
+            base_kalman, base_kalman_runtime = fit_base_kalman(flux, args)
+        base_gp = None
+        prepared_gp = None
+        base_gp_runtime = 0.0
+        if "gp" in branches and args["gp_injection_mode"] == "filter":
+            report_progress(progress_queue, target_id, quarter, "base GP fit", detail="fit once + prepare operator")
+            base_gp, prepared_gp, base_gp_runtime = fit_base_gp(time, flux, args)
         cases = [tuple(case) for case in args["cases"]]
-        injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, target_id, quarter, selection_group, args, progress_queue, resume_compatible=resume_compatible)
+        injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args, progress_queue, resume_compatible=resume_compatible)
         successful = injections.copy()
         star_metrics = calculate_star_metrics(time, flux)
-        summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "status": "success", "profile": str(args["profile"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)), "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics}
+        summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "status": "success", "profile": str(args["profile"]), "search_resolution": str(args["search_resolution"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)) if base_arima is not None else None, "kalman_injection_mode": str(args["kalman_injection_mode"]), "base_kalman_runtime_seconds": float(base_kalman_runtime), "base_kalman_converged": bool(base_kalman.converged) if base_kalman is not None else None, "gp_injection_mode": str(args["gp_injection_mode"]), "base_gp_runtime_seconds": float(base_gp_runtime), "base_gp_converged": bool(base_gp.converged) if base_gp is not None else None, "base_gp_length_scale_days": float(base_gp.parameters["length_scale_days"]) if base_gp is not None else None, "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics}
         for pipeline in args["pipelines"]:
             column = f"{pipeline}_harmonic_rank1_matched"
             exact_column = f"{pipeline}_exact_rank1_matched"
@@ -861,7 +921,7 @@ def save_global_outputs(args, manifest, task_results, injections, star_summaries
         grouped_summary(injections, "injected_period_days", pipelines).to_csv(metrics_dir / "multistar_challenger_by_period.csv", index=False)
         grouped_summary(injections, "target_id", pipelines).to_csv(metrics_dir / "multistar_challenger_by_star.csv", index=False)
     all_harmonic = bool_union(injections, pipelines, "harmonic_rank1_matched") if not injections.empty else pd.Series(dtype=bool)
-    summary = {"profile": str(args.profile), "target_count": int(len(manifest)), "successful_target_count": int((pd.DataFrame(task_results)["status"] == "success").sum()) if task_results else 0, "failed_target_count": int((pd.DataFrame(task_results)["status"] != "success").sum()) if task_results else 0, "pipeline_count": int(len(pipelines)), "pipelines": list(pipelines), "injection_count": int(len(injections)), "injections_per_target": int(len(injection_cases(args))), "parallel_star_workers": int(resolve_worker_count(args, len(manifest))), "calibration_status": "rank-1 injection benchmark only; FAP calibration must be run separately for final false-alarm-controlled claims", "all_pipeline_harmonic_rank1_rate": float(all_harmonic.mean()) if len(all_harmonic) else float("nan")}
+    summary = {"profile": str(args.profile), "search_resolution": str(args.search_resolution), "kalman_injection_mode": str(args.kalman_injection_mode), "gp_injection_mode": str(args.gp_injection_mode), "target_count": int(len(manifest)), "successful_target_count": int((pd.DataFrame(task_results)["status"] == "success").sum()) if task_results else 0, "failed_target_count": int((pd.DataFrame(task_results)["status"] != "success").sum()) if task_results else 0, "pipeline_count": int(len(pipelines)), "pipelines": list(pipelines), "injection_count": int(len(injections)), "injections_per_target": int(len(injection_cases(args))), "parallel_star_workers": int(resolve_worker_count(args, len(manifest))), "calibration_status": "rank-1 injection benchmark only; FAP calibration must be run separately for final false-alarm-controlled claims", "all_pipeline_harmonic_rank1_rate": float(all_harmonic.mean()) if len(all_harmonic) else float("nan")}
     (metrics_dir / "multistar_challenger_summary.json").write_text(json.dumps(json_ready(summary), indent=2) + "\n")
     return metrics_dir, summary
 
@@ -869,6 +929,7 @@ def main(args=None):
     args = args or parse_args()
     manifest = load_manifest(args)
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    write_benchmark_config(args)
     task_results = []
     pending_rows = []
     for row in manifest.to_dict(orient="records"):
@@ -886,6 +947,9 @@ def main(args=None):
     print(f"Parallel star workers: {resolve_worker_count(args, len(manifest))}")
     print(f"Injections per star: {len(injection_cases(args))}")
     print(f"Pipelines: {', '.join(args.pipelines)}")
+    print(f"Search resolution: {args.search_resolution} (BLS periods={args.n_periods}, TCF coarse periods={args.n_coarse_periods}, refinements={args.n_refinement_regions}, BLS oversample={args.bls_oversample})")
+    print(f"Kalman injection mode: {args.kalman_injection_mode}")
+    print(f"GP injection mode: {args.gp_injection_mode}")
     prefetch_manifest_light_curves(pending_rows, args)
     worker_args = settings_to_worker_dict(args)
     task_results.extend(run_pending_rows(pending_rows, worker_args, args))

@@ -1,0 +1,6 @@
+target_id,quarter,selection_group,status,star_dir,runtime_seconds,error
+1026957,5,confirmed_planet_host,success,outputs/experiments/multistar_challenger_benchmark/runtime_test_medium/stars/kic_1026957_q5,5326.8619574171025,
+1161345,5,confirmed_planet_host,success,outputs/experiments/multistar_challenger_benchmark/runtime_test_medium/stars/kic_1161345_q5,5520.88037004089,
+1432789,5,confirmed_planet_host,success,outputs/experiments/multistar_challenger_benchmark/runtime_test_medium/stars/kic_1432789_q5,5593.092716166982,
+11904151,5,reference,success,outputs/experiments/multistar_challenger_benchmark/runtime_test_medium/stars/kic_11904151_q5,5676.0296549168415,
+757450,5,confirmed_planet_host,success,outputs/experiments/multistar_challenger_benchmark/runtime_test_medium/stars/kic_757450_q5,5710.88153662486,
