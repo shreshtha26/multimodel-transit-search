@@ -8,7 +8,7 @@ os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 import json
 import warnings
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, as_completed, wait
 from itertools import combinations as iter_combinations
 from itertools import product
 from multiprocessing import Manager, get_context
@@ -37,11 +37,11 @@ OUTPUT_ROOT = PROJECT_ROOT / "outputs/experiments/multistar_challenger_benchmark
 BACKGROUND_FEATURE_PATH = PROJECT_ROOT / "outputs/experiments/multistar_background_timescale/metrics/multistar_background_timescale_features.csv"
 EXISTING_ARIMA_CACHE_ROOT = PROJECT_ROOT / "outputs/experiments/multistar_bls_tcf/optimized/stars"
 TQDM_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} ({percentage:3.0f}%) [{elapsed}<{remaining}, {rate_fmt}] {postfix}"
-DEFAULT_PIPELINES = ("raw_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
-PIPELINE_DEFINITIONS = {"raw_bls": ("raw", "bls"), "arima_tcf": ("arima", "tcf"), "kalman_bls": ("kalman", "bls"), "kalman_tcf": ("kalman", "tcf"), "gp_bls": ("gp", "bls"), "gp_tcf": ("gp", "tcf")}
+DEFAULT_PIPELINES = ("raw_bls", "raw_tcf", "arima_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
+PIPELINE_DEFINITIONS = {"raw_bls": ("raw", "bls"), "raw_tcf": ("raw", "tcf"), "arima_bls": ("arima", "bls"), "arima_tcf": ("arima", "tcf"), "kalman_bls": ("kalman", "bls"), "kalman_tcf": ("kalman", "tcf"), "gp_bls": ("gp", "bls"), "gp_tcf": ("gp", "tcf")}
 
 def default_settings(profile="pilot"):
-    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 1, "resume": True, "rerun_failures": False, "save_regularized_inputs": False}
+    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False}
     if profile == "main":
         settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 50, "stratified_pilot": False, "injection_period_grid": (2.0, 5.0, 10.0), "injection_duration_hours_grid": (2.0, 4.0, 8.0), "injection_depth_grid": (0.0002, 0.0005, 0.001), "epoch_phase_fraction_grid": (0.15, 0.45, 0.75), "n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}
         )
@@ -120,6 +120,7 @@ def parse_args(argv=None):
     parser.add_argument("--download-max-attempts", type=int)
     parser.add_argument("--checkpoint-interval", type=int)
     parser.add_argument("--progress-interval", type=int)
+    parser.add_argument("--prefetch-workers", type=int)
     parser.add_argument("--no-resume", dest="resume", action="store_false")
     parser.add_argument("--rerun-failures", action="store_true")
     parser.add_argument("--save-regularized-inputs", action="store_true")
@@ -565,9 +566,10 @@ def star_config_matches(star_dir, args):
     except Exception:
         return False
 
-def load_existing_injection_rows(star_dir, cases, args):
+def load_existing_injection_rows(star_dir, cases, args, resume_compatible=None):
     path = Path(star_dir) / "injections.csv"
-    if not args.get("resume", True) or not path.exists() or not star_config_matches(star_dir, args):
+    compatible = star_config_matches(star_dir, args) if resume_compatible is None else bool(resume_compatible)
+    if not args.get("resume", True) or not path.exists() or not compatible:
         return [], set()
     frame = pd.read_csv(path)
     if "case_index" not in frame.columns:
@@ -590,20 +592,38 @@ def save_rows(path, rows):
     frame.to_csv(path, index=False)
     return frame
 
-def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, target_id, quarter, selection_group, args, progress_queue):
-    rows, completed = load_existing_injection_rows(star_dir, cases, args)
+def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, target_id, quarter, selection_group, args, progress_queue, resume_compatible=None):
+    rows, completed = load_existing_injection_rows(star_dir, cases, args, resume_compatible=resume_compatible)
     if completed:
         report_progress(progress_queue, target_id, quarter, "injections resumed", units=len(completed), detail=f"{len(completed)}/{len(cases)}")
+    unreported = 0
+    progress_interval = max(1, int(args.get("progress_interval", 1)))
+    checkpoint_interval = max(1, int(args.get("checkpoint_interval", 5)))
     for case_index, case in enumerate(cases):
         if case_index in completed:
             continue
         rows.append(run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, target_id, quarter, selection_group, args))
         completed.add(case_index)
-        if len(completed) % max(1, int(args["checkpoint_interval"])) == 0 or len(completed) == len(cases):
+        unreported += 1
+        if len(completed) % checkpoint_interval == 0 or len(completed) == len(cases):
             save_rows(Path(star_dir) / "injections.csv", rows)
             write_star_checkpoint(star_dir, target_id, quarter, "running", "injections", completed_injections=len(completed), requested_injections=len(cases))
-        report_progress(progress_queue, target_id, quarter, "injection", units=1, detail=f"{len(completed)}/{len(cases)}")
+        if unreported >= progress_interval or len(completed) == len(cases):
+            report_progress(progress_queue, target_id, quarter, "injection", units=unreported, detail=f"{len(completed)}/{len(cases)}")
+            unreported = 0
     return save_rows(Path(star_dir) / "injections.csv", rows)
+
+def prepare_star_run(star_dir, args):
+    star_dir = Path(star_dir)
+    star_dir.mkdir(parents=True, exist_ok=True)
+    compatible = star_config_matches(star_dir, args)
+    if not compatible:
+        for name in ("COMPLETE", "injections.csv", "star_summary.json", "failure.json"):
+            path = star_dir / name
+            if path.exists():
+                path.unlink()
+    (star_dir / "run_config.json").write_text(json.dumps({"config_signature": json_ready(config_signature(SimpleNamespace(**args) if isinstance(args, dict) else args))}, indent=2) + "\n")
+    return compatible
 
 def run_star_task(task):
     row, args, progress_queue = task
@@ -613,8 +633,7 @@ def run_star_task(task):
     star_dir = Path(args["output_dir"]) / "stars" / star_prefix(target_id, quarter)
     started = perf_counter()
     try:
-        star_dir.mkdir(parents=True, exist_ok=True)
-        (star_dir / "run_config.json").write_text(json.dumps({"config_signature": json_ready(config_signature(SimpleNamespace(**args)))}, indent=2) + "\n")
+        resume_compatible = prepare_star_run(star_dir, args)
         write_star_checkpoint(star_dir, target_id, quarter, "running", "started")
         light_curve_frame, cache_hit = load_light_curve_frame(target_id, quarter, args, progress_queue=progress_queue)
         regular, preprocessing = preprocess_pdcsap_light_curve(light_curve_frame, quality_policy=args["quality_policy"], require_finite_flux_error=args["require_finite_flux_error"], normalization_fit_fraction=1.0 - args["test_fraction"])
@@ -626,7 +645,7 @@ def run_star_task(task):
         duration_grid = default_duration_grid(args["min_duration_hours"], args["max_duration_hours"], args["n_durations"])
         base_arima, base_arima_runtime, base_arima_source = load_or_fit_base_arima(star_dir, target_id, quarter, flux, args)
         cases = [tuple(case) for case in args["cases"]]
-        injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, target_id, quarter, selection_group, args, progress_queue)
+        injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, target_id, quarter, selection_group, args, progress_queue, resume_compatible=resume_compatible)
         successful = injections.copy()
         star_metrics = calculate_star_metrics(time, flux)
         summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "status": "success", "profile": str(args["profile"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)), "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics}
@@ -700,6 +719,37 @@ def drain_progress_queue(progress_queue, progress):
             progress.update(units)
         progress.set_postfix_str(f"KIC {event.get('target_id')} Q{event.get('quarter')} {event.get('stage')} {event.get('detail', '')}".strip())
 
+def prefetch_light_curve_task(task):
+    row, args = task
+    target_id = normalize_target_id(row["target_id"])
+    quarter = int(row["quarter"])
+    _, cache_hit = load_light_curve_frame(target_id, quarter, args)
+    return {"target_id": target_id, "quarter": quarter, "cache_hit": bool(cache_hit)}
+
+def prefetch_manifest_light_curves(rows, args):
+    if not args.allow_download or int(args.prefetch_workers) <= 0:
+        return []
+    missing = [row for row in rows if not light_curve_cache_path({"cache_dir": str(args.cache_dir)}, row["target_id"], row["quarter"]).exists()]
+    if not missing:
+        return []
+    worker_count = max(1, min(int(args.prefetch_workers), len(missing)))
+    prefetch_args = {"cache_dir": str(args.cache_dir), "allow_download": True, "download_max_attempts": int(args.download_max_attempts), "download_initial_wait_seconds": float(args.download_initial_wait_seconds), "download_backoff_factor": float(args.download_backoff_factor)}
+    results = []
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_map = {executor.submit(prefetch_light_curve_task, (row, prefetch_args)): row for row in missing}
+        with tqdm(total=len(future_map), desc="Prefetch light curves", unit="star", dynamic_ncols=True, mininterval=0.25) as progress:
+            for future in as_completed(future_map):
+                row = future_map[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    result = {"target_id": normalize_target_id(row["target_id"]), "quarter": int(row["quarter"]), "error": f"{type(exc).__name__}: {exc}"}
+                    tqdm.write(f"Prefetch failed for KIC {result['target_id']} Q{result['quarter']}: {result['error']}")
+                results.append(result)
+                progress.set_postfix_str(f"KIC {result['target_id']} Q{result['quarter']}")
+                progress.update(1)
+    return results
+
 def run_pending_rows(pending_rows, worker_args, args):
     if not pending_rows:
         return []
@@ -712,7 +762,7 @@ def run_pending_rows(pending_rows, worker_args, args):
         with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
             future_map = {executor.submit(run_star_task, (row, worker_args, progress_queue)): row for row in pending_rows}
             pending = set(future_map)
-            with tqdm(total=len(future_map), desc="Stars", bar_format=TQDM_BAR_FORMAT, position=0) as star_progress, tqdm(total=total_cases, desc="Injection cases", bar_format=TQDM_BAR_FORMAT, position=1) as case_progress:
+            with tqdm(total=len(future_map), desc="Stars", unit="star", bar_format=TQDM_BAR_FORMAT, position=0, dynamic_ncols=True, mininterval=0.25) as star_progress, tqdm(total=total_cases, desc="Injection cases", unit="case", bar_format=TQDM_BAR_FORMAT, position=1, dynamic_ncols=True, mininterval=0.25) as case_progress:
                 while pending:
                     done, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
                     drain_progress_queue(progress_queue, case_progress)
@@ -724,6 +774,8 @@ def run_pending_rows(pending_rows, worker_args, args):
                         except Exception as exc:
                             result = {"target_id": normalize_target_id(row["target_id"]), "quarter": int(row["quarter"]), "selection_group": str(row.get("selection_group", "unspecified")), "status": "failed", "star_dir": "", "runtime_seconds": float("nan"), "error": f"{type(exc).__name__}: {exc}"}
                         results.append(result)
+                        if result["status"] != "success":
+                            tqdm.write(f"FAILED KIC {result['target_id']} Q{result['quarter']}: {result['error']}")
                         star_progress.set_postfix_str(f"{result['status']} KIC {result['target_id']} Q{result['quarter']}")
                         star_progress.update(1)
                 drain_progress_queue(progress_queue, case_progress)
@@ -834,6 +886,7 @@ def main(args=None):
     print(f"Parallel star workers: {resolve_worker_count(args, len(manifest))}")
     print(f"Injections per star: {len(injection_cases(args))}")
     print(f"Pipelines: {', '.join(args.pipelines)}")
+    prefetch_manifest_light_curves(pending_rows, args)
     worker_args = settings_to_worker_dict(args)
     task_results.extend(run_pending_rows(pending_rows, worker_args, args))
     injections, star_summaries = load_completed_outputs(task_results)

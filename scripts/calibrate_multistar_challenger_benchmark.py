@@ -44,6 +44,9 @@ def parse_args(argv=None):
     parser.add_argument("--null-block-size-cadences", type=int, default=24)
     parser.add_argument("--minimum-success-fraction", type=float, default=0.90)
     parser.add_argument("--max-workers", type=int)
+    parser.add_argument("--reserve-cpu-cores", type=int)
+    parser.add_argument("--checkpoint-interval", type=int)
+    parser.add_argument("--progress-interval", type=int)
     parser.add_argument("--pipelines", type=parse_pipelines)
     parser.add_argument("--no-download", dest="allow_download", action="store_false")
     parser.add_argument("--no-resume", dest="resume", action="store_false")
@@ -57,7 +60,10 @@ def parse_args(argv=None):
     args.fap_level = float(parsed.fap_level)
     args.null_block_size_cadences = int(parsed.null_block_size_cadences)
     args.minimum_success_fraction = float(parsed.minimum_success_fraction)
-    args.max_workers = int(parsed.max_workers) if parsed.max_workers is not None else int(args.max_workers)
+    args.max_workers = int(parsed.max_workers) if parsed.max_workers is not None else args.max_workers
+    args.reserve_cpu_cores = int(parsed.reserve_cpu_cores) if parsed.reserve_cpu_cores is not None else int(args.reserve_cpu_cores)
+    args.checkpoint_interval = int(parsed.checkpoint_interval) if parsed.checkpoint_interval is not None else int(args.checkpoint_interval)
+    args.progress_interval = int(parsed.progress_interval) if parsed.progress_interval is not None else int(args.progress_interval)
     args.pipelines = parsed.pipelines if parsed.pipelines is not None else tuple(DEFAULT_PIPELINES)
     args.allow_download = bool(parsed.allow_download)
     args.resume = bool(parsed.resume)
@@ -185,8 +191,8 @@ def threshold_rows(trials, args):
         rows.append({"pipeline": pipeline, "branch": PIPELINE_DEFINITIONS[pipeline][0], "detector": PIPELINE_DEFINITIONS[pipeline][1], "target_id": normalize_target_id(trials["target_id"].iloc[0]) if len(trials) else "", "quarter": int(trials["quarter"].iloc[0]) if len(trials) else -1, "fap_level": float(args["fap_level"]), "score_column": score_column, "score_threshold": threshold, "requested_null_trials": int(args["n_null_trials_per_star"]), "successful_null_trials": int(scores.size), "success_fraction": float(scores.size / int(args["n_null_trials_per_star"])) if int(args["n_null_trials_per_star"]) else float("nan"), "observed_exceedance_fraction": observed})
     return pd.DataFrame(rows)
 
-def load_completed_null_rows(path, seeds, args):
-    if not args.get("resume", True) or not Path(path).exists():
+def load_completed_null_rows(path, seeds, args, resume_compatible=True):
+    if not args.get("resume", True) or not bool(resume_compatible) or not Path(path).exists():
         return [], set()
     frame = pd.read_csv(path)
     if "trial" not in frame.columns or "trial_seed" not in frame.columns:
@@ -207,6 +213,18 @@ def save_null_rows(path, rows):
     frame.to_csv(path, index=False)
     return frame
 
+def prepare_calibration_run(calibration_dir, args):
+    calibration_dir = Path(calibration_dir)
+    calibration_dir.mkdir(parents=True, exist_ok=True)
+    compatible = star_calibration_config_matches(calibration_dir, args)
+    if not compatible:
+        for name in ("COMPLETE", "null_trials.csv", "fap_thresholds.csv", "calibration_summary.json", "failure.json"):
+            path = calibration_dir / name
+            if path.exists():
+                path.unlink()
+    (calibration_dir / "calibration_config.json").write_text(json.dumps({"calibration_signature": json_ready(calibration_signature(SimpleNamespace(**args) if isinstance(args, dict) else args))}, indent=2) + "\n")
+    return compatible
+
 def run_star_calibration(task):
     row, args, progress_queue = task
     target_id = normalize_target_id(row["target_id"])
@@ -217,10 +235,7 @@ def run_star_calibration(task):
     calibration_dir.mkdir(parents=True, exist_ok=True)
     started = perf_counter()
     try:
-        complete_path = calibration_dir / "COMPLETE"
-        if complete_path.exists():
-            complete_path.unlink()
-        (calibration_dir / "calibration_config.json").write_text(json.dumps({"calibration_signature": json_ready(calibration_signature(SimpleNamespace(**args)))}, indent=2) + "\n")
+        resume_compatible = prepare_calibration_run(calibration_dir, args)
         light_curve_frame, cache_hit = load_light_curve_frame(target_id, quarter, args, progress_queue=progress_queue)
         regular, preprocessing = preprocess_pdcsap_light_curve(light_curve_frame, quality_policy=args["quality_policy"], require_finite_flux_error=args["require_finite_flux_error"], normalization_fit_fraction=1.0 - args["test_fraction"])
         time = regular["time"].to_numpy(dtype=float)
@@ -230,16 +245,23 @@ def run_star_calibration(task):
         branch_series, model_fields = fit_branch_series(time, flux, star_dir, target_id, quarter, args)
         seeds = create_trial_seeds(args, target_id, quarter)
         null_path = calibration_dir / "null_trials.csv"
-        rows, completed = load_completed_null_rows(null_path, seeds, args)
+        rows, completed = load_completed_null_rows(null_path, seeds, args, resume_compatible=resume_compatible)
         if completed:
             report_progress(progress_queue, target_id, quarter, "nulls resumed", units=len(completed), detail=f"{len(completed)}/{len(seeds)}")
+        unreported = 0
+        progress_interval = max(1, int(args.get("progress_interval", 1)))
+        checkpoint_interval = max(1, int(args.get("checkpoint_interval", 5)))
         for trial, seed in enumerate(seeds):
             if trial in completed:
                 continue
             rows.append(run_one_null_trial(trial, seed, target_id, quarter, time, branch_series, period_grid, duration_grid, args))
             completed.add(trial)
-            save_null_rows(null_path, rows)
-            report_progress(progress_queue, target_id, quarter, "null trial", units=1, detail=f"{len(completed)}/{len(seeds)}")
+            unreported += 1
+            if len(completed) % checkpoint_interval == 0 or len(completed) == len(seeds):
+                save_null_rows(null_path, rows)
+            if unreported >= progress_interval or len(completed) == len(seeds):
+                report_progress(progress_queue, target_id, quarter, "null trial", units=unreported, detail=f"{len(completed)}/{len(seeds)}")
+                unreported = 0
         trials = save_null_rows(null_path, rows)
         thresholds = threshold_rows(trials, args)
         thresholds.to_csv(calibration_dir / "fap_thresholds.csv", index=False)
@@ -278,7 +300,8 @@ def failure_result(args, row):
 
 def resolve_worker_count(args, target_count):
     available = os.cpu_count() or 1
-    requested = int(args.max_workers) if args.max_workers is not None else max(1, available - 1)
+    reserve = max(0, int(getattr(args, "reserve_cpu_cores", 2)))
+    requested = int(args.max_workers) if args.max_workers is not None else max(1, available - reserve)
     return max(1, min(requested, available, int(target_count)))
 
 def settings_to_worker_dict(args):
@@ -315,7 +338,7 @@ def run_pending_rows(pending_rows, worker_args, args):
         with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
             future_map = {executor.submit(run_star_calibration, (row, worker_args, progress_queue)): row for row in pending_rows}
             pending = set(future_map)
-            with tqdm(total=len(future_map), desc="Calibration stars", bar_format=TQDM_BAR_FORMAT, position=0) as star_progress, tqdm(total=total_trials, desc="Null trials", bar_format=TQDM_BAR_FORMAT, position=1) as trial_progress:
+            with tqdm(total=len(future_map), desc="Calibration stars", unit="star", bar_format=TQDM_BAR_FORMAT, position=0, dynamic_ncols=True, mininterval=0.25) as star_progress, tqdm(total=total_trials, desc="Null trials", unit="trial", bar_format=TQDM_BAR_FORMAT, position=1, dynamic_ncols=True, mininterval=0.25) as trial_progress:
                 while pending:
                     done, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
                     drain_progress_queue(progress_queue, trial_progress)
@@ -326,6 +349,7 @@ def run_pending_rows(pending_rows, worker_args, args):
                             result = future.result()
                         except Exception as exc:
                             result = {"target_id": normalize_target_id(row["target_id"]), "quarter": int(row["quarter"]), "selection_group": str(row.get("selection_group", "unspecified")), "status": "failed", "calibration_dir": "", "runtime_seconds": float("nan"), "error": f"{type(exc).__name__}: {exc}"}
+                            tqdm.write(f"FAILED KIC {result['target_id']} Q{result['quarter']}: {result['error']}")
                         results.append(result)
                         star_progress.set_postfix_str(f"{result['status']} KIC {result['target_id']} Q{result['quarter']}")
                         star_progress.update(1)

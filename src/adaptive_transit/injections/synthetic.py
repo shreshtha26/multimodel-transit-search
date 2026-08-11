@@ -1,10 +1,8 @@
 """Single-event synthetic transit injection and preservation metrics."""
 
 from dataclasses import asdict, dataclass
-
 import numpy as np
 import pandas as pd
-
 from adaptive_transit.noise_models.scaling import robust_mad_scale
 from adaptive_transit.transit_models.box import box_transit_template
 from adaptive_transit.transit_models.periodic import periodic_box_transit_template
@@ -13,11 +11,9 @@ from adaptive_transit.transit_models.periodic import periodic_box_transit_templa
 @dataclass(frozen=True)
 class TransitInjection:
     """Definition of one box-shaped injected transit."""
-
     center_cadenceno: int
     duration_cadences: int
     depth: float
-
     def to_dict(self) -> dict[str, float | int]:
         return asdict(self)
 

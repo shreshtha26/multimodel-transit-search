@@ -3,7 +3,13 @@
 import argparse
 import json
 import os
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import get_context
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,7 +30,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_DIR = PROJECT_ROOT / "outputs/experiments/multistar_challenger_benchmark/pilot"
 CACHE_DIR = PROJECT_ROOT / "outputs/cache/kepler_light_curves"
 OUTPUT_DIR = BENCHMARK_DIR / "characterization_analysis"
-PIPELINES = ("raw_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
+PIPELINES = ("raw_bls", "raw_tcf", "arima_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
 FAMILIES = ("arima", "kalman", "gp")
 
 
@@ -174,10 +180,20 @@ def characterize_manifest(manifest, args):
     worker_count = resolve_worker_count(args.max_workers, args.reserve_cpu_cores, len(rows))
     worker_args = characterization_worker_args(args)
     results = []
-    with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        futures = [executor.submit(characterize_star_task, (row, worker_args)) for row in rows]
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Characterizing stars"):
-            results.append(future.result())
+    context = get_context("spawn")
+    with ProcessPoolExecutor(max_workers=worker_count, mp_context=context) as executor:
+        future_map = {executor.submit(characterize_star_task, (row, worker_args)): row for row in rows}
+        with tqdm(total=len(future_map), desc="Characterizing stars", unit="star", dynamic_ncols=True, mininterval=0.25) as progress:
+            for future in as_completed(future_map):
+                row = future_map[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    tqdm.write(f"FAILED KIC {normalize_target_id(row['target_id'])} Q{int(row['quarter'])}: {type(exc).__name__}: {exc}")
+                    raise
+                results.append(result)
+                progress.set_postfix_str(f"KIC {result['target_id']} Q{result['quarter']}")
+                progress.update(1)
     features = pd.DataFrame(results)
     features["target_id"] = features["target_id"].map(normalize_target_id)
     features["quarter"] = pd.to_numeric(features["quarter"], errors="raise").astype(int)
@@ -235,18 +251,21 @@ def aggregate_recovery_rates(injections):
             row[f"{pipeline}_exact_recovery_rate"] = _mean_bool(group, exact_column)
         rows.append(row)
     rates = pd.DataFrame(rows)
-    rates["arima_improvement"] = rates["arima_tcf_harmonic_recovery_rate"] - rates["raw_bls_harmonic_recovery_rate"]
-    rates["kalman_best_harmonic_recovery_rate"] = rates[["kalman_bls_harmonic_recovery_rate", "kalman_tcf_harmonic_recovery_rate"]].max(axis=1)
-    rates["gp_best_harmonic_recovery_rate"] = rates[["gp_bls_harmonic_recovery_rate", "gp_tcf_harmonic_recovery_rate"]].max(axis=1)
-    rates["kalman_improvement"] = rates["kalman_best_harmonic_recovery_rate"] - rates["raw_bls_harmonic_recovery_rate"]
-    rates["gp_improvement"] = rates["gp_best_harmonic_recovery_rate"] - rates["raw_bls_harmonic_recovery_rate"]
-    rates["best_challenger_harmonic_recovery_rate"] = rates[[
-        "arima_tcf_harmonic_recovery_rate",
-        "kalman_bls_harmonic_recovery_rate",
-        "kalman_tcf_harmonic_recovery_rate",
-        "gp_bls_harmonic_recovery_rate",
-        "gp_tcf_harmonic_recovery_rate",
-    ]].max(axis=1)
+    rates["raw_best_harmonic_recovery_rate"] = rates[["raw_bls_harmonic_recovery_rate", "raw_tcf_harmonic_recovery_rate"]].max(axis=1)
+    challenger_columns = []
+    for family in FAMILIES:
+        bls_column = f"{family}_bls_harmonic_recovery_rate"
+        tcf_column = f"{family}_tcf_harmonic_recovery_rate"
+        best_column = f"{family}_best_harmonic_recovery_rate"
+        rates[f"{family}_bls_lift"] = rates[bls_column] - rates["raw_bls_harmonic_recovery_rate"]
+        rates[f"{family}_tcf_lift"] = rates[tcf_column] - rates["raw_tcf_harmonic_recovery_rate"]
+        rates[best_column] = rates[[bls_column, tcf_column]].max(axis=1)
+        rates[f"{family}_best_pipeline_lift"] = rates[best_column] - rates["raw_best_harmonic_recovery_rate"]
+        rates[f"{family}_improvement"] = rates[f"{family}_best_pipeline_lift"]
+        challenger_columns.extend([bls_column, tcf_column])
+    rates["best_challenger_harmonic_recovery_rate"] = rates[challenger_columns].max(axis=1)
+    rates["raw_best_preferable_or_tied"] = rates["raw_best_harmonic_recovery_rate"] >= rates["best_challenger_harmonic_recovery_rate"]
+    rates["raw_best_strictly_preferable"] = rates["raw_best_harmonic_recovery_rate"] > rates["best_challenger_harmonic_recovery_rate"]
     rates["raw_bls_preferable_or_tied"] = rates["raw_bls_harmonic_recovery_rate"] >= rates["best_challenger_harmonic_recovery_rate"]
     rates["raw_bls_strictly_preferable"] = rates["raw_bls_harmonic_recovery_rate"] > rates["best_challenger_harmonic_recovery_rate"]
     return rates
@@ -273,18 +292,30 @@ def build_star_table(features, injections):
         "variance_drift",
         "gap_fraction",
         "raw_bls_harmonic_recovery_rate",
+        "raw_tcf_harmonic_recovery_rate",
+        "raw_best_harmonic_recovery_rate",
+        "arima_bls_harmonic_recovery_rate",
         "arima_tcf_harmonic_recovery_rate",
-        "arima_improvement",
+        "arima_bls_lift",
+        "arima_tcf_lift",
+        "arima_best_harmonic_recovery_rate",
+        "arima_best_pipeline_lift",
+        "kalman_bls_lift",
+        "kalman_tcf_lift",
         "kalman_best_harmonic_recovery_rate",
-        "kalman_improvement",
+        "kalman_best_pipeline_lift",
+        "gp_bls_lift",
+        "gp_tcf_lift",
         "gp_best_harmonic_recovery_rate",
-        "gp_improvement",
+        "gp_best_pipeline_lift",
         "arima_whitening_abs_acf1_reduction",
         "arima_median_snr_retention",
         "kalman_whitening_abs_acf1_reduction",
         "kalman_median_snr_retention",
         "gp_whitening_abs_acf1_reduction",
         "gp_median_snr_retention",
+        "raw_best_preferable_or_tied",
+        "raw_best_strictly_preferable",
         "raw_bls_preferable_or_tied",
         "raw_bls_strictly_preferable",
     ]
@@ -373,28 +404,28 @@ def question_summary(star_table, correlations):
         {
             "question": "Do high-ACF stars benefit more from ARIMA?",
             "feature": "acf_lag_1",
-            "outcome": "arima_improvement",
+            "outcome": "arima_best_pipeline_lift",
             "positive": "higher ACF stars show larger ARIMA lift",
             "negative": "higher ACF stars show lower ARIMA lift",
         },
         {
             "question": "Do smooth long-timescale stars benefit more from GP?",
             "feature": "integrated_positive_acf_days",
-            "outcome": "gp_improvement",
+            "outcome": "gp_best_pipeline_lift",
             "positive": "longer ACF timescale stars show larger GP lift",
             "negative": "longer ACF timescale stars show lower GP lift",
         },
         {
             "question": "Do state-space-like variance/drift stars benefit more from Kalman?",
             "feature": "rolling_variance_max_to_median",
-            "outcome": "kalman_improvement",
+            "outcome": "kalman_best_pipeline_lift",
             "positive": "higher variance drift stars show larger Kalman lift",
             "negative": "higher variance drift stars show lower Kalman lift",
         },
         {
             "question": "Does high spectral concentration predict GP success?",
             "feature": "spectral_strength",
-            "outcome": "gp_improvement",
+            "outcome": "gp_best_pipeline_lift",
             "positive": "higher spectral concentration tracks larger GP lift",
             "negative": "higher spectral concentration tracks lower GP lift",
         },
@@ -435,12 +466,12 @@ def question_summary(star_table, correlations):
                 "interpretation": interpretation_from_effect(effect, positive_label=item["positive"], negative_label=item["negative"]),
             }
         )
-    raw_count = int(star_table["raw_bls_preferable_or_tied"].fillna(False).astype(bool).sum()) if "raw_bls_preferable_or_tied" in star_table else 0
-    strict_raw_count = int(star_table["raw_bls_strictly_preferable"].fillna(False).astype(bool).sum()) if "raw_bls_strictly_preferable" in star_table else 0
+    raw_count = int(star_table["raw_best_preferable_or_tied"].fillna(False).astype(bool).sum()) if "raw_best_preferable_or_tied" in star_table else 0
+    strict_raw_count = int(star_table["raw_best_strictly_preferable"].fillna(False).astype(bool).sum()) if "raw_best_strictly_preferable" in star_table else 0
     rows.append(
         {
-            "question": "Are there stars for which raw BLS is preferable?",
-            "feature": "raw_bls_preferable_or_tied",
+            "question": "Are there stars for which an unprocessed raw pipeline is preferable?",
+            "feature": "raw_best_preferable_or_tied",
             "outcome": "best_challenger_harmonic_recovery_rate",
             "median_split_threshold": float("nan"),
             "low_feature_mean": float("nan"),
@@ -450,7 +481,7 @@ def question_summary(star_table, correlations):
             "high_n": int(raw_count),
             "spearman_correlation": float("nan"),
             "spearman_pvalue": float("nan"),
-            "interpretation": f"raw BLS was preferable or tied for {raw_count} stars; strictly preferable for {strict_raw_count} stars",
+            "interpretation": f"the best raw pipeline was preferable or tied for {raw_count} stars; strictly preferable for {strict_raw_count} stars",
         }
     )
     return pd.DataFrame(rows)
@@ -537,9 +568,15 @@ def build_outputs(args):
         "gp_whitening_abs_acf1_reduction",
     ]
     outcome_columns = [
-        "arima_improvement",
-        "kalman_improvement",
-        "gp_improvement",
+        "arima_bls_lift",
+        "arima_tcf_lift",
+        "arima_best_pipeline_lift",
+        "kalman_bls_lift",
+        "kalman_tcf_lift",
+        "kalman_best_pipeline_lift",
+        "gp_bls_lift",
+        "gp_tcf_lift",
+        "gp_best_pipeline_lift",
         "arima_median_snr_retention",
         "kalman_median_snr_retention",
         "gp_median_snr_retention",
@@ -547,6 +584,8 @@ def build_outputs(args):
         "kalman_whitening_abs_acf1_reduction",
         "gp_whitening_abs_acf1_reduction",
         "raw_bls_harmonic_recovery_rate",
+        "raw_tcf_harmonic_recovery_rate",
+        "raw_best_harmonic_recovery_rate",
     ]
     correlations = correlation_table(star_table, feature_columns, outcome_columns)
     questions = question_summary(star_table, correlations)
@@ -559,9 +598,9 @@ def build_outputs(args):
             "rolling_variance_max_to_median",
             "gap_fraction",
         ],
-        ["arima_improvement", "kalman_improvement", "gp_improvement", "raw_bls_harmonic_recovery_rate"],
+        ["arima_best_pipeline_lift", "kalman_best_pipeline_lift", "gp_best_pipeline_lift", "raw_best_harmonic_recovery_rate"],
     )
-    raw_preferable = star_table[star_table["raw_bls_preferable_or_tied"].fillna(False).astype(bool)].copy()
+    raw_preferable = star_table[star_table["raw_best_preferable_or_tied"].fillna(False).astype(bool)].copy()
     aggressive_whitening = star_table[
         (
             (star_table["arima_whitening_abs_acf1_reduction"] > star_table["arima_whitening_abs_acf1_reduction"].median())
@@ -587,7 +626,9 @@ def build_outputs(args):
         "characterization_workers": int(worker_count),
         "available_cpu_count": int(os.cpu_count() or 1),
         "reserve_cpu_cores": int(args.reserve_cpu_cores),
-        "raw_bls_preferable_or_tied_star_count": int(len(raw_preferable)),
+        "raw_best_preferable_or_tied_star_count": int(len(raw_preferable)),
+        "raw_best_strictly_preferable_star_count": int(star_table["raw_best_strictly_preferable"].fillna(False).astype(bool).sum()),
+        "raw_bls_preferable_or_tied_star_count": int(star_table["raw_bls_preferable_or_tied"].fillna(False).astype(bool).sum()),
         "raw_bls_strictly_preferable_star_count": int(star_table["raw_bls_strictly_preferable"].fillna(False).astype(bool).sum()),
         "aggressive_whitening_low_snr_star_count": int(len(aggressive_whitening)),
         "mean_arima_improvement": float(star_table["arima_improvement"].mean()),

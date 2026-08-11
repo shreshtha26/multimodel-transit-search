@@ -1,0 +1,13 @@
+{
+  "order": [
+    1,
+    1,
+    0
+  ],
+  "converged": false,
+  "aic": -55711.52441754313,
+  "bic": -55698.642929504625,
+  "finite_innovation_count": 4485,
+  "fit_maxiter": 200,
+  "flux_length": 4634
+}

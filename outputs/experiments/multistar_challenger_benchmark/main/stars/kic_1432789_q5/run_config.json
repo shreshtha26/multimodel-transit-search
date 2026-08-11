@@ -3,6 +3,8 @@
     "profile": "main",
     "pipelines": [
       "raw_bls",
+      "raw_tcf",
+      "arima_bls",
       "arima_tcf",
       "kalman_bls",
       "kalman_tcf",

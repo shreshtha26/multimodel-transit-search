@@ -4,7 +4,7 @@ This module converts loaded PDCSAP samples into an explicit cadence grid while p
 from dataclasses import asdict, dataclass
 import numpy as np
 import pandas as pd
-
+from lightkurve.utils import KeplerQualityFlags
 REQUIRED_PDCSAP_COLUMNS = ("time", "flux", "flux_error", "quality", "cadenceno")
 PERMISSIVE_QUALITY_BITMASK = 2 | 4 | 8 | 256 | 16384 | 32768 | 65536
 
@@ -61,7 +61,6 @@ def quality_rejection_bitmask(quality_policy):
     if policy == "permissive":
         return PERMISSIVE_QUALITY_BITMASK
     if policy in {"default", "hard", "hardest"}:
-        from lightkurve.utils import KeplerQualityFlags
         return int(KeplerQualityFlags.OPTIONS[policy])
     raise ValueError("quality_policy must be one of: strict, permissive, default, hard, hardest, none.")
 

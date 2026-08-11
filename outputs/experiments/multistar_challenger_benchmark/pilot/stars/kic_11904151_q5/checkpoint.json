@@ -1,7 +1,6 @@
 {
   "target_id": "11904151",
   "quarter": 5,
-  "status": "success",
-  "stage": "complete",
-  "runtime_seconds": 418.16047170897946
+  "status": "running",
+  "stage": "started"
 }
