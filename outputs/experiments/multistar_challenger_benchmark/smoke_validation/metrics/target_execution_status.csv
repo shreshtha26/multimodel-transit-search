@@ -1,0 +1,3 @@
+target_id,quarter,selection_group,status,star_dir,runtime_seconds,error
+757450,5,confirmed_planet_host,success,outputs/experiments/multistar_challenger_benchmark/smoke_validation/stars/kic_757450_q5,3.961134708020836,
+11904151,5,reference,success,outputs/experiments/multistar_challenger_benchmark/smoke_validation/stars/kic_11904151_q5,4.306939749978483,

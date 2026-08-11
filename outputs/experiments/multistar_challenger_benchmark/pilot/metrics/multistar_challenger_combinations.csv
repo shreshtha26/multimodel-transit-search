@@ -1,0 +1,6 @@
+combination,pipelines,injection_count,harmonic_rank1_count,harmonic_rank1_rate,exact_rank1_count,exact_rank1_rate
+raw_bls_union_gp_tcf,"raw_bls,gp_tcf",80,64,0.8,53,0.6625
+existing_bls_tcf,"raw_bls,arima_tcf",80,60,0.75,43,0.5375
+non_gp_union,"raw_bls,arima_tcf,kalman_bls,kalman_tcf",80,71,0.8875,66,0.825
+gp_union,"gp_bls,gp_tcf",80,64,0.8,62,0.775
+all_pipelines,"raw_bls,arima_tcf,kalman_bls,kalman_tcf,gp_bls,gp_tcf",80,73,0.9125,70,0.875

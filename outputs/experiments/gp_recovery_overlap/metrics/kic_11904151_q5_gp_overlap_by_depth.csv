@@ -1,0 +1,4 @@
+injected_depth,injection_count,raw_bls_recovery_rate,existing_tcf_recovery_rate,kalman_tcf_recovery_rate,gp_bls_recovery_rate,gp_tcf_recovery_rate,existing_without_gp_union_rate,all_six_union_rate,gp_tcf_only_vs_raw_bls_count,raw_bls_only_vs_gp_tcf_count,gp_tcf_unique_vs_existing_without_gp_count,median_gp_depth_retention_fraction,median_gp_snr_retention_fraction,median_gp_length_scale_days
+0.0002,27,0.48148148148148145,0.4074074074074074,0.48148148148148145,0.7037037037037037,0.14814814814814814,0.6666666666666666,0.8518518518518519,3,12,3,0.8938774565757804,1.7159662522361554,1.7505666327677647
+0.0005,27,1.0,0.9629629629629629,1.0,1.0,1.0,1.0,1.0,0,0,0,0.8767806417821367,1.538086752363033,1.0
+0.001,27,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0,0,0,0.8127474294434219,1.1387302083952444,1.0

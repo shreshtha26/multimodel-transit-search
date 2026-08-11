@@ -1,0 +1,34 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "input_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/gp_recovery_overlap/metrics/kic_11904151_q5_gp_recovery_overlap.csv",
+  "injection_count": 81,
+  "all_method_miss_count": 4,
+  "all_method_miss_fraction": 0.04938271604938271,
+  "miss_period_values": [
+    10.0
+  ],
+  "miss_duration_values_hours": [
+    2.0,
+    4.0
+  ],
+  "miss_depth_values": [
+    0.0002
+  ],
+  "miss_epoch_phase_values": [
+    0.15,
+    0.45,
+    0.75
+  ],
+  "method_columns": [
+    "raw_bls_recovered",
+    "existing_tcf_recovered",
+    "kalman_bls_recovered",
+    "kalman_tcf_recovered",
+    "gp_bls_recovered",
+    "gp_tcf_recovered"
+  ],
+  "median_gp_depth_retention_fraction_for_misses": 0.8547832265475763,
+  "median_gp_snr_retention_fraction_for_misses": 1.6637638155283911,
+  "interpretation": "The remaining misses are cases where every saved method fails after harmonic-aware matching and calibrated detector thresholds. High GP retention in these rows indicates candidate-generation/scoring failure rather than GP transit erasure."
+}

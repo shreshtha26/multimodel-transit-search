@@ -1,0 +1,38 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "quality_policy": "default",
+  "model": "smooth_anchor_gp",
+  "hypothesis": "GP advantage should increase when the GP background timescale is well separated from the transit duration, until the GP becomes too rigid to remove relevant background variability.",
+  "causal_test": "same light curve and same injection, fixed GP length scales varied relative to transit duration",
+  "not_fap_calibrated": true,
+  "fap_note": "Detector scores are reported without applying configuration-specific FAP thresholds; each GP length-scale setting would require its own null calibration for formal recovery at FAP.",
+  "injected_period_days": 5.0,
+  "injected_epoch_days": 444.51122690278135,
+  "epoch_phase_fraction": 0.2,
+  "injected_duration_hours": 4.0,
+  "injected_depth": 0.001,
+  "transit_duration_days": 0.16666666666666666,
+  "observed_depth_before_gp": 0.0009817587003493325,
+  "local_snr_before_gp": 96.14872746845657,
+  "configuration_count": 7,
+  "fixed_length_scale_factors": [
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    20.0
+  ],
+  "diagnostic_plot_configurations": [
+    "optimized_reference",
+    "fixed_l_over_duration_0.5",
+    "fixed_l_over_duration_1",
+    "fixed_l_over_duration_5",
+    "fixed_l_over_duration_20"
+  ],
+  "sorted_by": [
+    "snr_retention_fraction",
+    "depth_retention_fraction"
+  ]
+}

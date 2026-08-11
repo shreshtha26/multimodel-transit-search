@@ -1,0 +1,10 @@
+combination,methods,injection_count,recovered_count,recovery_rate,new_recoveries_over_existing_without_gp_count,new_recoveries_over_existing_without_gp_rate
+raw_bls,raw_bls_recovered,81,67,0.8271604938271605,0,0.0
+existing_tcf,existing_tcf_recovered,81,64,0.7901234567901234,0,0.0
+kalman_tcf,kalman_tcf_recovered,81,67,0.8271604938271605,0,0.0
+gp_tcf,gp_tcf_recovered,81,58,0.7160493827160493,3,0.037037037037037035
+existing_bls_tcf_union,raw_bls_recovered+existing_tcf_recovered,81,72,0.8888888888888888,0,0.0
+raw_bls_union_gp_tcf,raw_bls_recovered+gp_tcf_recovered,81,70,0.8641975308641975,3,0.037037037037037035
+existing_bls_tcf_union_gp_tcf,raw_bls_recovered+existing_tcf_recovered+gp_tcf_recovered,81,75,0.9259259259259259,3,0.037037037037037035
+existing_bls_tcf_kalman_tcf_union_gp_tcf,raw_bls_recovered+existing_tcf_recovered+kalman_tcf_recovered+gp_tcf_recovered,81,75,0.9259259259259259,3,0.037037037037037035
+all_six_union,raw_bls_recovered+existing_tcf_recovered+kalman_bls_recovered+kalman_tcf_recovered+gp_bls_recovered+gp_tcf_recovered,81,77,0.9506172839506173,5,0.06172839506172839

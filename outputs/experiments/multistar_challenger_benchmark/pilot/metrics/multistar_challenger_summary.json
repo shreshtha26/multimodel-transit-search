@@ -1,0 +1,20 @@
+{
+  "profile": "pilot",
+  "target_count": 10,
+  "successful_target_count": 10,
+  "failed_target_count": 0,
+  "pipeline_count": 6,
+  "pipelines": [
+    "raw_bls",
+    "arima_tcf",
+    "kalman_bls",
+    "kalman_tcf",
+    "gp_bls",
+    "gp_tcf"
+  ],
+  "injection_count": 80,
+  "injections_per_target": 8,
+  "parallel_star_workers": 6,
+  "calibration_status": "rank-1 injection benchmark only; FAP calibration must be run separately for final false-alarm-controlled claims",
+  "all_pipeline_harmonic_rank1_rate": 0.9125
+}

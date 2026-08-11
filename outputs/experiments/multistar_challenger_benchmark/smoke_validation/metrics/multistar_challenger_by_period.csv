@@ -1,0 +1,2 @@
+injected_period_days,injection_count,star_count,raw_bls_harmonic_rank1_rate,raw_bls_exact_rank1_rate,arima_tcf_harmonic_rank1_rate,arima_tcf_exact_rank1_rate,kalman_bls_harmonic_rank1_rate,kalman_bls_exact_rank1_rate,kalman_tcf_harmonic_rank1_rate,kalman_tcf_exact_rank1_rate,gp_bls_harmonic_rank1_rate,gp_bls_exact_rank1_rate,gp_tcf_harmonic_rank1_rate,gp_tcf_exact_rank1_rate
+5.0,2,2,0.5,0.5,0.0,0.0,0.5,0.5,0.0,0.0,0.5,0.5,0.0,0.0

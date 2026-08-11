@@ -1,0 +1,6 @@
+combination,pipelines,injection_count,harmonic_recovery_count_star_fap,harmonic_recovery_rate_star_fap,exact_recovery_count_star_fap,exact_recovery_rate_star_fap
+raw_bls_union_gp_tcf,"raw_bls,gp_tcf",80,49,0.6125,42,0.525
+existing_bls_tcf,"raw_bls,arima_tcf",80,53,0.6625,38,0.475
+non_gp_union,"raw_bls,arima_tcf,kalman_bls,kalman_tcf",80,63,0.7875,59,0.7375
+gp_union,"gp_bls,gp_tcf",80,52,0.65,51,0.6375
+all_pipelines,"raw_bls,arima_tcf,kalman_bls,kalman_tcf,gp_bls,gp_tcf",80,65,0.8125,64,0.8

@@ -1,0 +1,177 @@
+{
+  "input_injection_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/multistar_bls_tcf_injections.csv",
+  "input_manifest_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_bls_tcf/optimized/metrics/target_manifest_used.csv",
+  "target_count": 50,
+  "injection_count": 900,
+  "feature_policy": "ACF features are estimated on the longest contiguous usable normalized-flux segment after existing preprocessing; no gap interpolation is used.",
+  "primary_ratio": "background_tau_acf_e_days / transit_duration_days",
+  "harmonic_bls_recovery_rate": 0.5266666666666666,
+  "harmonic_tcf_recovery_rate": 0.17777777777777778,
+  "harmonic_union_recovery_rate": 0.6044444444444445,
+  "median_background_tau_acf_e_days": 0.020434626705537084,
+  "median_background_to_transit_acf_e": 0.24521525634918362,
+  "top_absolute_row_correlations": [
+    {
+      "level": "injection_row",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "harmonic_bls_recovered",
+      "n": 900,
+      "spearman_correlation": -0.6216219233111662,
+      "pearson_correlation": -0.4835769644514794
+    },
+    {
+      "level": "injection_row",
+      "feature": "background_to_transit_acf_half_days",
+      "outcome": "harmonic_bls_recovered",
+      "n": 900,
+      "spearman_correlation": -0.5976644378939715,
+      "pearson_correlation": -0.4891663834522389
+    },
+    {
+      "level": "injection_row",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "exact_union",
+      "n": 900,
+      "spearman_correlation": -0.5805814913020007,
+      "pearson_correlation": -0.43082154762066455
+    },
+    {
+      "level": "injection_row",
+      "feature": "background_to_transit_acf_e_days",
+      "outcome": "harmonic_bls_recovered",
+      "n": 900,
+      "spearman_correlation": -0.5553155259647745,
+      "pearson_correlation": -0.4775385952227328
+    },
+    {
+      "level": "injection_row",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "harmonic_neither",
+      "n": 900,
+      "spearman_correlation": 0.5538031407979926,
+      "pearson_correlation": 0.3837889629481527
+    },
+    {
+      "level": "injection_row",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "harmonic_union",
+      "n": 900,
+      "spearman_correlation": -0.5538031407979926,
+      "pearson_correlation": -0.3837889629481527
+    },
+    {
+      "level": "injection_row",
+      "feature": "background_tau_acf_half_days",
+      "outcome": "harmonic_bls_recovered",
+      "n": 900,
+      "spearman_correlation": -0.5320257096064311,
+      "pearson_correlation": -0.5646328065974566
+    },
+    {
+      "level": "injection_row",
+      "feature": "background_tau_acf_e_days",
+      "outcome": "harmonic_bls_recovered",
+      "n": 900,
+      "spearman_correlation": -0.5078146845605732,
+      "pearson_correlation": -0.5516589446862304
+    },
+    {
+      "level": "injection_row",
+      "feature": "background_to_transit_acf_half_days",
+      "outcome": "harmonic_bls_only",
+      "n": 900,
+      "spearman_correlation": -0.5045545909402117,
+      "pearson_correlation": -0.40142218441826166
+    },
+    {
+      "level": "injection_row",
+      "feature": "background_to_transit_integrated_positive_acf_days",
+      "outcome": "harmonic_bls_recovered",
+      "n": 900,
+      "spearman_correlation": -0.5033558779545582,
+      "pearson_correlation": -0.4711813964163288
+    }
+  ],
+  "top_absolute_star_correlations": [
+    {
+      "level": "star",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "exact_union_recovery_rate",
+      "n": 50,
+      "spearman_correlation": -0.831083257117598,
+      "pearson_correlation": -0.617201251655336
+    },
+    {
+      "level": "star",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "harmonic_union_recovery_rate",
+      "n": 50,
+      "spearman_correlation": -0.8242335427764458,
+      "pearson_correlation": -0.5656166149142972
+    },
+    {
+      "level": "star",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "harmonic_neither_rate",
+      "n": 50,
+      "spearman_correlation": 0.8242335427764458,
+      "pearson_correlation": 0.5656166149142972
+    },
+    {
+      "level": "star",
+      "feature": "robust_flux_scatter_ppm",
+      "outcome": "harmonic_bls_recovery_rate",
+      "n": 50,
+      "spearman_correlation": -0.7969850875360452,
+      "pearson_correlation": -0.6138220017513207
+    },
+    {
+      "level": "star",
+      "feature": "rolling_background_to_short_scatter_ratio",
+      "outcome": "harmonic_bls_only_rate",
+      "n": 50,
+      "spearman_correlation": -0.6750906794699609,
+      "pearson_correlation": -0.37213274796390294
+    },
+    {
+      "level": "star",
+      "feature": "rolling_background_to_short_scatter_ratio",
+      "outcome": "harmonic_tcf_only_rate",
+      "n": 50,
+      "spearman_correlation": 0.6040517292606821,
+      "pearson_correlation": 0.358013909623584
+    },
+    {
+      "level": "star",
+      "feature": "median_background_tau_acf_e_days",
+      "outcome": "harmonic_bls_recovery_rate",
+      "n": 50,
+      "spearman_correlation": -0.6012300959518514,
+      "pearson_correlation": -0.7002409597723908
+    },
+    {
+      "level": "star",
+      "feature": "median_background_to_transit_acf_e",
+      "outcome": "harmonic_bls_recovery_rate",
+      "n": 50,
+      "spearman_correlation": -0.6012300959518514,
+      "pearson_correlation": -0.7002409597723908
+    },
+    {
+      "level": "star",
+      "feature": "rolling_background_to_short_scatter_ratio",
+      "outcome": "harmonic_bls_recovery_rate",
+      "n": 50,
+      "spearman_correlation": -0.5908657377098845,
+      "pearson_correlation": -0.41006942621466014
+    },
+    {
+      "level": "star",
+      "feature": "median_background_tau_acf_e_days",
+      "outcome": "harmonic_bls_only_rate",
+      "n": 50,
+      "spearman_correlation": -0.5762448712395004,
+      "pearson_correlation": -0.6504987380840559
+    }
+  ]
+}

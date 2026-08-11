@@ -1,0 +1,3 @@
+injected_duration_hours,miss_count,median_gp_depth_retention_fraction,median_gp_snr_retention_fraction,median_kalman_depth_retention_fraction,median_kalman_snr_retention_fraction
+2.0,3,0.8581731512561503,1.6859542887908074,0.3550716645902173,0.695348533205775
+4.0,1,0.7961488210611736,1.5309055263100102,0.1793565147395556,0.3507338272960955

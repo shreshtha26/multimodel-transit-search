@@ -1,0 +1,11 @@
+target_id,quarter,selection_group,status,star_dir,runtime_seconds,error
+2581554,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_2581554_q5,395.76056987512857,
+2438513,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_2438513_q5,400.6648013750091,
+1026957,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_1026957_q5,405.3818801250309,
+11086270,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_11086270_q5,409.4589357089717,
+2692377,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_2692377_q5,410.21918058395386,
+11904151,5,reference,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_11904151_q5,418.16047170897946,
+2832589,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_2832589_q5,344.6018248749897,
+1161345,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_1161345_q5,343.45561850001104,
+2302548,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_2302548_q5,343.4996686661616,
+2442448,5,confirmed_planet_host,success,/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot/stars/kic_2442448_q5,348.3299610831309,

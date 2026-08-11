@@ -2,7 +2,7 @@
 
 `multimodel-transit-search` is a reproducible research prototype for benchmarking complementary approaches to exoplanet transit detection in Kepler light curves.
 
-The current implementation contains three detector/background branches and a candidate-level machine-learning reranker:
+The current implementation contains four detector/background branches and a candidate-level machine-learning reranker:
 
 ```text
 Kepler PDCSAP flux
@@ -15,9 +15,15 @@ Kepler PDCSAP flux
 │   ├── one-step-ahead innovations
 │   └── periodic Transit Comb Filter (TCF)
 │
-└── state-space challenger branch
-    ├── local-level Kalman background estimate
-    ├── one-step residuals
+├── state-space challenger branch
+│   ├── local-level Kalman background estimate
+│   ├── one-step residuals
+│   ├── residual BLS
+│   └── residual TCF
+│
+└── Gaussian Process challenger branch
+    ├── smooth anchor-point GP background estimate
+    ├── background-subtracted residuals
     ├── residual BLS
     └── residual TCF
              │
@@ -47,14 +53,15 @@ The longer-term goal is to benchmark statistical, probabilistic, machine-learnin
 
 ## Research Questions
 
-The current work is organized around six questions:
+The current work is organized around seven questions:
 
 1. Can an ARIMA-family model reduce predictable correlated variability while retaining transit information in a detectable form?
 2. How sensitive is ARIMA selection and transit preservation to the treatment of missing Kepler cadences?
 3. How does direct BLS detection compare with TCF detection on ARIMA-transformed light curves?
 4. Can a simple Kalman/state-space background model preserve transit evidence differently from the current ARIMA branch?
-5. Do BLS and TCF provide complementary candidate information across multiple stars and noise regimes?
-6. Can a leakage-audited candidate reranker combine those candidates while generalizing to previously unseen targets and maintaining an empirically calibrated false-alarm threshold?
+5. Can a smooth Gaussian Process background model remove correlated variability while preserving transit morphology better than ARIMA or Kalman?
+6. Do BLS and TCF provide complementary candidate information across multiple stars and noise regimes?
+7. Can a leakage-audited candidate reranker combine those candidates while generalizing to previously unseen targets and maintaining an empirically calibrated false-alarm threshold?
 
 ## Experimental Design
 
@@ -453,6 +460,117 @@ pairwise complementarity
 incremental ensemble value beyond the best existing union
 ```
 
+## Gaussian Process Branch
+
+The GP branch is a new probabilistic, covariance-based background model. It is not a transit detector and does not replace ARIMA, Kalman, BLS, TCF, or the frozen reranker.
+
+The first GP baseline estimates a smooth latent background:
+
+```text
+background(t) ~ GP(mean, covariance)
+normalized_flux_t = background(t) + measurement_noise_t
+```
+
+The implemented covariance is deliberately simple:
+
+```text
+constant_amplitude * RBF(time_length_scale)
+```
+
+The lower length-scale bound is longer than the injected transit durations in the 81-case benchmark, so the GP is discouraged from fitting individual transit dips. The detector input is the background-subtracted residual:
+
+```text
+residual_t = normalized_flux_t - GP_posterior_mean(time_t)
+```
+
+Because exact GP fitting on every cadence for every injection would be too expensive, the baseline uses a deterministic anchor-point approximation: it fits the GP on evenly spaced finite observed cadences and predicts the background on the full time grid. Missing flux values are not used for fitting and do not produce detector residuals.
+
+The null and injection-grid scripts use process-level parallelism for the expensive detector loops and cap BLAS/OpenMP thread pools to avoid CPU oversubscription.
+
+See [Gaussian Process Background Baseline](docs/gaussian_process_baseline.md) for the model assumptions and run sequence.
+
+Completed KIC 11904151 Quarter 5 GP outputs should be interpreted as a smooth anchor-point GP background experiment, not full exact GP regression on every cadence. Using 1,000 null surrogates, the calibrated 1% FAP thresholds were:
+
+| Pipeline | 1% FAP threshold |
+| -------- | ---------------: |
+| GP -> BLS |         0.001683 |
+| GP -> TCF |        15.774957 |
+
+On the matched 81-injection grid:
+
+| Metric | Result |
+| ------ | -----: |
+| GP -> BLS harmonic-aware recovery at 1% FAP | 73/81 = 90.1% |
+| GP -> TCF harmonic-aware recovery at 1% FAP | 58/81 = 71.6% |
+| GP -> BLS exact recovery at 1% FAP | 53/81 = 65.4% |
+| GP -> TCF exact recovery at 1% FAP | 23/81 = 28.4% |
+| Median depth retention | 85.1% |
+| Median SNR retention | 153.6% |
+
+The main ensemble result is that GP adds real unique recoveries beyond the existing non-GP union:
+
+| Combination | Recovery |
+| ----------- | -------: |
+| Raw BLS | 67/81 = 82.7% |
+| Existing TCF | 64/81 = 79.0% |
+| Kalman-TCF | 67/81 = 82.7% |
+| Existing BLS union TCF | 72/81 = 88.9% |
+| Existing BLS union TCF union GP-TCF | 75/81 = 92.6% |
+| All six methods | 77/81 = 95.1% |
+
+GP-TCF contributes 3 unique recoveries beyond the existing non-GP methods, and GP-BLS contributes 2 unique recoveries beyond the existing non-GP methods. The GP-TCF-only recoveries are all shallow 2-day, 2-hour, 200 ppm injections, while GP-BLS supplies the strongest standalone GP recovery rate on this benchmark.
+
+The current physical/statistical explanation should be treated as a hypothesis supported by the saved outputs, not yet as a demonstrated universal mechanism:
+
+```text
+transit duration << GP background time scale
+```
+
+To test this directly, `scripts/run_gp_timescale_sensitivity.py` varies the fixed GP RBF length scale relative to one injected transit duration while keeping the light curve, injection, and detector grids fixed. For the KIC 11904151 Quarter 5 5-day, 4-hour, 1000 ppm injection, the result is:
+
+| GP length scale / transit duration | Background absorption | Depth retention | SNR retention | BLS period | TCF period |
+| ---------------------------------: | --------------------: | --------------: | ------------: | ---------: | ---------: |
+| 0.5 | 62.8% | 35.5% | 69.0% | 4.994 d | 5.000 d |
+| 1.0 | 59.0% | 39.4% | 68.1% | 4.994 d | 5.000 d |
+| 2.0 | 34.0% | 63.4% | 103.1% | 4.994 d | 2.501 d |
+| 5.0 | 15.5% | 85.9% | 129.4% | 4.994 d | 2.501 d |
+| 10.0 | 8.7% | 95.7% | 146.6% | 4.994 d | 2.501 d |
+| 20.0 | 2.3% | 101.3% | 185.2% | 4.994 d | 2.501 d |
+
+This is consistent with the idea that very responsive GP backgrounds absorb transit morphology, while smoother backgrounds preserve short dips. The same table also shows the whitening-versus-preservation trade-off: residual autocorrelation remains substantial for the smoother high-retention configurations, so the result should not be reduced to "smoother GP is always better."
+
+The multi-duration version repeats the same controlled test for 2-hour, 4-hour, and 8-hour transits using the dimensionless ratio `ell_GP / transit_duration`. It is still a mechanism test, not a FAP-calibrated recovery experiment. Across 18 fixed-length-scale configurations:
+
+```text
+Spearman ratio vs depth retention:        +0.825
+Spearman ratio vs SNR retention:          +0.555
+Spearman ratio vs background absorption:  -0.837
+Spearman ratio vs residual ACF:           +0.724
+```
+
+Median behavior by ratio:
+
+| ell_GP / transit duration | Background absorption | Depth retention | SNR retention | Max residual ACF 1-24 |
+| ------------------------: | --------------------: | --------------: | ------------: | --------------------: |
+| 0.5 | 62.8% | 35.5% | 69.0% | 0.628 |
+| 1.0 | 59.0% | 39.4% | 68.1% | 0.649 |
+| 2.0 | 34.0% | 63.4% | 103.1% | 0.715 |
+| 5.0 | 15.4% | 86.7% | 129.4% | 0.771 |
+| 10.0 | 4.8% | 95.8% | 162.5% | 0.790 |
+| 20.0 | 1.7% | 100.1% | 172.9% | 0.803 |
+
+This strengthens the interpretation that time-scale separation is the controlling variable, while preserving the caveat that high-retention settings leave correlated structure in the residuals.
+
+The 4 cases missed by all six saved methods are:
+
+```text
+period: 10 days
+depth: 200 ppm
+duration: 2 hours for 3 cases, 4 hours for 1 case
+```
+
+Their median GP depth retention is 85.5% and median GP SNR retention is 166.4%, so the remaining failures are better interpreted as shallow long-period candidate-generation or scoring failures, not GP transit erasure.
+
 ## 50-Star BLS / ARIMA-TCF Pilot
 
 The multi-star experiment extends both detectors across 50 Kepler Quarter 5 target-quarter rows.
@@ -489,6 +607,174 @@ Using pooled null maxima across the 50 selected stars:
 Simple noise-quartile thresholds did not solve the cross-star calibration problem.
 
 This is one reason the project moved from direct detector-score comparison toward candidate-level reranking.
+
+### Background time-scale audit
+
+The first multi-star mechanism audit joins cheap stellar-background features onto the saved 50-star injection rows:
+
+```bash
+python scripts/analyze_multistar_background_timescales.py
+```
+
+The script estimates ACF-based background timescales on the longest contiguous usable segment of each preprocessed light curve, then evaluates whether background-to-transit time-scale ratios and other cheap features predict BLS-only, TCF-only, both, and neither outcomes. It does not rerun detectors.
+
+The strongest cheap predictor in the current audit is flux scatter:
+
+```text
+Spearman robust_flux_scatter_ppm vs harmonic BLS recovery:  -0.622
+Spearman robust_flux_scatter_ppm vs harmonic union recovery: -0.554
+Spearman robust_flux_scatter_ppm vs harmonic neither rate:   +0.554
+```
+
+The ACF e-folding ratio also carries signal:
+
+```text
+Spearman background_tau_acf_e / transit duration vs harmonic BLS recovery: -0.555
+Spearman background_tau_acf_e / transit duration vs harmonic TCF-only:     +0.341
+```
+
+By quartile of `background_tau_acf_e_days / transit_duration_days`:
+
+| Ratio bin | BLS recovery | TCF recovery | Union recovery | BLS-only | TCF-only | Neither |
+| --------- | -----------: | -----------: | -------------: | -------: | -------: | ------: |
+| lowest | 83.8% | 13.2% | 83.8% | 70.6% | 0.0% | 16.2% |
+| low-mid | 68.5% | 15.8% | 70.3% | 54.5% | 1.8% | 29.7% |
+| high-mid | 50.9% | 12.7% | 53.5% | 40.8% | 2.6% | 46.5% |
+| highest | 6.8% | 29.7% | 33.8% | 4.1% | 27.0% | 66.2% |
+
+This is the first multi-background evidence that cheap light-curve properties can explain detector outcome patterns. It supports adding physically meaningful background features to a later adaptive router, while also showing that high-ratio/high-scatter regimes increase the overall miss rate rather than simply switching cleanly from BLS to TCF.
+
+### Multi-background challenger benchmark
+
+The next multi-star runner is built for the 10-star pilot → 50-star main-benchmark sequence:
+
+```bash
+python scripts/run_multistar_challenger_benchmark.py --profile pilot
+python scripts/run_multistar_challenger_benchmark.py --profile main
+```
+
+The pilot profile runs 10 stratified targets with a reduced injection grid. If the background time-scale audit output exists, the pilot samples across quiet, high-scatter, long-ACF, and gap-heavy cases instead of simply taking the first 10 manifest rows.
+
+The main profile runs 50 targets with the full representative 81-case injection grid:
+
+```text
+50 stars × 81 injections = 4050 injected cases
+```
+
+The default challenger pipelines are:
+
+```text
+raw_bls
+arima_tcf
+kalman_bls
+kalman_tcf
+gp_bls
+gp_tcf
+```
+
+The runner parallelizes across stars using worker processes, caps numerical-library thread pools inside each worker, checkpoints every star to `stars/kic_<id>_q<quarter>/injections.csv`, and resumes completed compatible work by default.
+
+Current output namespace:
+
+```text
+outputs/experiments/multistar_challenger_benchmark/pilot/
+outputs/experiments/multistar_challenger_benchmark/main/
+```
+
+Key summary files:
+
+```text
+metrics/multistar_challenger_injections.csv
+metrics/multistar_challenger_pipeline_summary.csv
+metrics/multistar_challenger_pairwise_overlap.csv
+metrics/multistar_challenger_combinations.csv
+metrics/multistar_challenger_summary.json
+```
+
+This runner is a rank-1 injection benchmark. FAP-calibrated claims still require matched null calibration for the same multi-star challenger candidate-generation settings.
+
+Per-star branch-conditional FAP calibration is run as a second stage:
+
+```bash
+python scripts/calibrate_multistar_challenger_benchmark.py --profile pilot --n-null-trials-per-star 10
+```
+
+The current stored 10-star pilot calibration is a **10-null engineering calibration result, not an inferential 1% FAP result**:
+
+```text
+10 stars × 10 null trials/star = 100 star-conditional null rows
+```
+
+It does not reuse KIC 11904151's numeric thresholds. Each star and pipeline receives its own threshold from moving-block null surrogates of the relevant branch series.
+
+Current 10-null engineering-calibration recovery at the nominal star-level threshold:
+
+| Pipeline | Harmonic recovery | Exact recovery |
+| -------- | ----------------: | -------------: |
+| raw_bls | 24/80 = 30.0% | 24/80 = 30.0% |
+| arima_tcf | 53/80 = 66.2% | 28/80 = 35.0% |
+| kalman_bls | 53/80 = 66.2% | 53/80 = 66.2% |
+| kalman_tcf | 62/80 = 77.5% | 35/80 = 43.8% |
+| gp_bls | 50/80 = 62.5% | 50/80 = 62.5% |
+| gp_tcf | 50/80 = 62.5% | 33/80 = 41.2% |
+| all pipelines | 70/80 = 87.5% | 68/80 = 85.0% |
+
+The calibrated master table is:
+
+```text
+outputs/experiments/multistar_challenger_benchmark/pilot/metrics/multistar_challenger_master_results.csv
+```
+
+The convergence analyzer tracks threshold movement and recovery-label changes as more null trials become available:
+
+```bash
+python scripts/analyze_multistar_calibration_convergence.py --profile pilot
+```
+
+The analyzer uses nested prefixes of the same stored null sequence:
+
+```text
+10-null estimate   = trials 0-9
+50-null estimate   = trials 0-49
+100-null estimate  = trials 0-99
+250-null estimate  = trials 0-249
+500-null estimate  = trials 0-499
+1000-null estimate = trials 0-999
+```
+
+It reports threshold movement, bootstrap threshold uncertainty, per-pipeline recovery-label changes, union-label changes, and unique-recovery-label changes. The default threshold bootstrap uses 500 resamples of the stored null scores.
+
+To fill the pilot convergence grid incrementally:
+
+```bash
+python scripts/calibrate_multistar_challenger_benchmark.py --profile pilot --n-null-trials-per-star 50 --max-workers 6 --no-download
+python scripts/analyze_multistar_calibration_convergence.py --profile pilot
+python scripts/calibrate_multistar_challenger_benchmark.py --profile pilot --n-null-trials-per-star 100 --max-workers 6 --no-download
+python scripts/analyze_multistar_calibration_convergence.py --profile pilot
+python scripts/calibrate_multistar_challenger_benchmark.py --profile pilot --n-null-trials-per-star 250 --max-workers 6 --no-download
+python scripts/analyze_multistar_calibration_convergence.py --profile pilot
+python scripts/calibrate_multistar_challenger_benchmark.py --profile pilot --n-null-trials-per-star 500 --max-workers 6 --no-download
+python scripts/analyze_multistar_calibration_convergence.py --profile pilot
+python scripts/calibrate_multistar_challenger_benchmark.py --profile pilot --n-null-trials-per-star 1000 --max-workers 6 --no-download
+python scripts/analyze_multistar_calibration_convergence.py --profile pilot
+```
+
+The calibration command resumes prior null trials with the same deterministic seeds, so the later levels extend the same star-level null sequence rather than starting over.
+
+Current convergence files include:
+
+```text
+multistar_challenger_calibration_convergence_thresholds.csv
+multistar_challenger_calibration_convergence_labels.csv
+multistar_challenger_calibration_convergence_pipeline_summary.csv
+multistar_challenger_calibration_convergence_label_changes.csv
+multistar_challenger_calibration_convergence_union_summary.csv
+multistar_challenger_calibration_convergence_union_changes.csv
+multistar_challenger_calibration_convergence_unique_summary.csv
+multistar_challenger_calibration_convergence_unique_changes.csv
+multistar_challenger_calibration_convergence_trial_prefix.csv
+multistar_challenger_calibration_convergence_summary.json
+```
 
 ## Candidate Reranking
 
@@ -847,6 +1133,28 @@ Run the Kalman null calibration before the Kalman injection grid. The injection 
 
 The overlap comparison script does not rerun detectors. It joins the saved BLS, TCF, and Kalman injection grids on the exact injection parameter tuple and writes comparison-ready recovery-overlap tables.
 
+### Gaussian Process Background Challenger
+
+```bash
+python scripts/run_gp_baseline.py
+python scripts/run_gp_null_calibration.py
+python scripts/run_gp_injection_grid.py
+python scripts/compare_gp_recovery_overlap.py
+python scripts/run_gp_timescale_sensitivity.py
+python scripts/run_gp_multiduration_timescale_sensitivity.py
+python scripts/analyze_gp_remaining_misses.py
+```
+
+Run the GP null calibration before the GP injection grid. The injection grid reads the GP-specific BLS and TCF 1% FAP thresholds.
+
+The GP null and injection scripts run worker processes for expensive detector evaluations and cap numerical library thread pools inside each worker.
+
+Both scripts checkpoint completed rows to their final CSV outputs and resume by default when rerun with the same settings.
+
+The GP time-scale sensitivity script is not a new FAP-calibrated recovery experiment. It is a controlled mechanism test that varies the GP background length scale relative to a fixed injected transit duration and reports transit retention, residual diagnostics, and detector scores.
+
+The multi-duration sensitivity script repeats that mechanism test for 2-hour, 4-hour, and 8-hour transits and aggregates results against the dimensionless ratio `ell_GP / transit_duration`. The remaining-miss analyzer reads the saved overlap table and does not rerun any detectors.
+
 ### BLS / TCF comparison
 
 ```bash
@@ -858,6 +1166,11 @@ python scripts/compare_bls_tcf.py
 ```bash
 python scripts/run_multistar_bls_tcf.py
 python scripts/analyze_multistar_regime_calibration.py
+python scripts/analyze_multistar_background_timescales.py
+python scripts/run_multistar_challenger_benchmark.py --profile pilot
+python scripts/calibrate_multistar_challenger_benchmark.py --profile pilot --n-null-trials-per-star 10
+python scripts/analyze_multistar_calibration_convergence.py --profile pilot
+python scripts/run_multistar_challenger_benchmark.py --profile main
 python scripts/build_multistar_candidate_dataset.py
 ```
 
@@ -939,6 +1252,30 @@ outputs/experiments/kalman_recovery_overlap/metrics/kic_11904151_q5_kalman_combi
 outputs/experiments/kalman_recovery_overlap/metrics/kic_11904151_q5_kalman_recovery_overlap_summary.json
 ```
 
+### Gaussian Process
+
+```text
+outputs/experiments/gp_baseline/metrics/kic_11904151_q5_gp_summary.json
+outputs/experiments/gp_baseline/metrics/kic_11904151_q5_gp_model_diagnostics.csv
+outputs/experiments/gp_null_calibration/metrics/kic_11904151_q5_gp_fap_thresholds.csv
+outputs/experiments/gp_null_calibration/metrics/kic_11904151_q5_gp_null_calibration_summary.json
+outputs/experiments/gp_injection_grid/metrics/kic_11904151_q5_gp_injection_grid.csv
+outputs/experiments/gp_injection_grid/metrics/kic_11904151_q5_gp_injection_grid_summary.json
+outputs/experiments/gp_recovery_overlap/metrics/kic_11904151_q5_gp_recovery_overlap.csv
+outputs/experiments/gp_recovery_overlap/metrics/kic_11904151_q5_gp_pairwise_overlap.csv
+outputs/experiments/gp_recovery_overlap/metrics/kic_11904151_q5_gp_combination_overlap.csv
+outputs/experiments/gp_recovery_overlap/metrics/kic_11904151_q5_gp_recovery_overlap_summary.json
+outputs/experiments/gp_timescale_sensitivity/metrics/kic_11904151_q5_gp_timescale_sensitivity_summary.csv
+outputs/experiments/gp_timescale_sensitivity/metrics/kic_11904151_q5_gp_timescale_sensitivity_by_ratio.csv
+outputs/experiments/gp_timescale_sensitivity/processed/kic_11904151_q5_gp_timescale_transit_window_samples.csv
+outputs/experiments/gp_timescale_sensitivity/figures/kic_11904151_q5_gp_timescale_transit_window_diagnostics.png
+outputs/experiments/gp_multiduration_timescale_sensitivity/metrics/kic_11904151_q5_gp_multiduration_timescale_sensitivity.csv
+outputs/experiments/gp_multiduration_timescale_sensitivity/metrics/kic_11904151_q5_gp_multiduration_timescale_by_ratio.csv
+outputs/experiments/gp_multiduration_timescale_sensitivity/figures/kic_11904151_q5_gp_multiduration_timescale_ratio_collapse.png
+outputs/experiments/gp_recovery_overlap/metrics/kic_11904151_q5_gp_remaining_all_method_misses.csv
+outputs/experiments/gp_recovery_overlap/metrics/kic_11904151_q5_gp_remaining_all_method_misses_summary.json
+```
+
 ### Multi-star benchmark and reranker
 
 ```text
@@ -950,6 +1287,11 @@ outputs/experiments/multistar_bls_tcf/optimized/metrics/candidate_reranker_locke
 outputs/experiments/multistar_bls_tcf/optimized/models/clean_reranker_v1_metadata.json
 outputs/experiments/multistar_bls_tcf/optimized/models/clean_reranker_v1_feature_columns.txt
 outputs/experiments/multistar_bls_tcf/optimized/models/clean_reranker_v1_xgboost_classifier.joblib
+outputs/experiments/multistar_background_timescale/metrics/multistar_background_timescale_features.csv
+outputs/experiments/multistar_background_timescale/metrics/multistar_injections_with_background_timescales.csv
+outputs/experiments/multistar_background_timescale/metrics/multistar_background_feature_correlations.csv
+outputs/experiments/multistar_background_timescale/metrics/multistar_background_timescale_summary.json
+outputs/experiments/multistar_background_timescale/figures/multistar_background_ratio_bin_recovery.png
 ```
 
 ### Top-k reranker calibration
@@ -1012,6 +1354,16 @@ Kalman-TCF
 → pairwise-complementary with raw BLS
 → no added union recovery beyond the existing BLS-TCF union in the current saved outputs
 
+GP-BLS / GP-TCF
+→ smooth anchor-point covariance-background challenger branch
+→ GP-BLS recovers 90.1% at calibrated 1% FAP on the 81-case benchmark
+→ GP-TCF contributes 3 unique recoveries beyond the existing non-GP union
+→ all six current methods reach 95.1% union recovery on KIC 11904151 Quarter 5
+
+multi-star background features
+→ flux scatter and ACF time-scale ratios predict detector outcome patterns
+→ support a future adaptive router as a scientific hypothesis, not a decorative model layer
+
 BLS + TCF candidate set
 → higher recovery ceiling than either detector alone
 
@@ -1031,3 +1383,6 @@ At the same time, ARIMA convergence, limited population size, restricted injecti
 * [Phase 1: Single-Target ARIMA Prototype](docs/phase1_single_target_arima.md)
 * [Kepler Dataset Strategy](docs/kepler_dataset_strategy.md)
 * [Kalman State-Space Baseline](docs/kalman_state_space_baseline.md)
+* [Gaussian Process Background Baseline](docs/gaussian_process_baseline.md)
+* [Multi-Star Background Time-Scale Audit](docs/multistar_background_timescale_audit.md)
+* [Multi-Star Challenger Benchmark](docs/multistar_challenger_benchmark.md)

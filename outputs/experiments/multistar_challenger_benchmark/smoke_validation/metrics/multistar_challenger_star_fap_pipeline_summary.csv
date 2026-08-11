@@ -1,0 +1,7 @@
+pipeline,branch,detector,injection_count,detection_count_star_fap,detection_rate_star_fap,harmonic_recovery_count_star_fap,harmonic_recovery_rate_star_fap,exact_recovery_count_star_fap,exact_recovery_rate_star_fap,median_score_over_star_fap_threshold
+raw_bls,raw,bls,2,2,1.0,1,0.5,1,0.5,4.0242168416385775
+arima_tcf,arima,tcf,2,2,1.0,0,0.0,0,0.0,4.898928968621603
+kalman_bls,kalman,bls,2,2,1.0,1,0.5,1,0.5,4.288131517764357
+kalman_tcf,kalman,tcf,2,2,1.0,0,0.0,0,0.0,4.6192462327462565
+gp_bls,gp,bls,2,2,1.0,1,0.5,1,0.5,3.5916463915289416
+gp_tcf,gp,tcf,2,2,1.0,0,0.0,0,0.0,3.9041674778369235

@@ -1,0 +1,42 @@
+{
+  "benchmark_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/experiments/multistar_challenger_benchmark/pilot",
+  "requested_levels": [
+    10,
+    50,
+    100,
+    250,
+    500,
+    1000
+  ],
+  "available_complete_levels": [
+    10,
+    50,
+    100,
+    250,
+    500
+  ],
+  "missing_levels": [
+    1000
+  ],
+  "level_policy": "nested_prefix_trials_0_to_level_minus_1",
+  "fap_level": 0.01,
+  "bootstrap_iterations": 500,
+  "pipeline_count": 6,
+  "pipelines": [
+    "raw_bls",
+    "arima_tcf",
+    "kalman_bls",
+    "kalman_tcf",
+    "gp_bls",
+    "gp_tcf"
+  ],
+  "threshold_rows": 300,
+  "label_rows": 2400,
+  "label_change_rows": 24,
+  "union_summary_rows": 25,
+  "union_change_rows": 20,
+  "unique_summary_rows": 30,
+  "unique_change_rows": 24,
+  "trial_prefix_rows_included": 50,
+  "interpretation": "Only nested prefix levels present for every calibrated star are included. A stable protocol requires threshold, recovery-label, union, and unique-recovery changes to become materially small across increasing null counts."
+}

@@ -1,0 +1,3 @@
+target_id,injection_count,star_count,raw_bls_harmonic_rank1_rate,raw_bls_exact_rank1_rate,arima_tcf_harmonic_rank1_rate,arima_tcf_exact_rank1_rate,kalman_bls_harmonic_rank1_rate,kalman_bls_exact_rank1_rate,kalman_tcf_harmonic_rank1_rate,kalman_tcf_exact_rank1_rate,gp_bls_harmonic_rank1_rate,gp_bls_exact_rank1_rate,gp_tcf_harmonic_rank1_rate,gp_tcf_exact_rank1_rate
+11904151,1,1,1.0,1.0,0.0,0.0,1.0,1.0,0.0,0.0,1.0,1.0,0.0,0.0
+757450,1,1,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

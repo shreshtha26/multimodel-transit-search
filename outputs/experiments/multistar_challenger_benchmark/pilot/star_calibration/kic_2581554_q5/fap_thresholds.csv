@@ -1,0 +1,7 @@
+pipeline,branch,detector,target_id,quarter,fap_level,score_column,score_threshold,requested_null_trials,successful_null_trials,success_fraction,observed_exceedance_fraction
+raw_bls,raw,bls,2581554,5,0.01,raw_bls_score,5.048629595899485,500,500,1.0,0.01
+arima_tcf,arima,tcf,2581554,5,0.01,arima_tcf_score,12.054690536445277,500,500,1.0,0.01
+kalman_bls,kalman,bls,2581554,5,0.01,kalman_bls_score,5.89500698887696,500,500,1.0,0.01
+kalman_tcf,kalman,tcf,2581554,5,0.01,kalman_tcf_score,13.488706481611365,500,500,1.0,0.01
+gp_bls,gp,bls,2581554,5,0.01,gp_bls_score,4.849430574183373,500,500,1.0,0.01
+gp_tcf,gp,tcf,2581554,5,0.01,gp_tcf_score,6.756644627722954,500,500,1.0,0.01

@@ -1,0 +1,31 @@
+{
+  "target_id": "11904151",
+  "quarter": 5,
+  "model": "smooth_anchor_gp",
+  "hypothesis": "If time-scale separation controls GP transit preservation, rows with the same ell_GP / transit_duration should show similar absorption and retention across transit durations.",
+  "not_fap_calibrated": true,
+  "fap_note": "Detector scores are not formal FAP-calibrated recovery metrics because each fixed GP configuration would require its own null calibration.",
+  "injected_period_days": 5.0,
+  "injected_depth": 0.001,
+  "epoch_phase_fraction": 0.2,
+  "duration_grid_hours": [
+    2.0,
+    4.0,
+    8.0
+  ],
+  "length_scale_factors": [
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    20.0
+  ],
+  "configuration_count": 18,
+  "fixed_configuration_count": 18,
+  "spearman_ratio_depth_retention": 0.8245162330280156,
+  "spearman_ratio_snr_retention": 0.5549025598705656,
+  "spearman_ratio_background_absorption": -0.8370564038725481,
+  "spearman_ratio_residual_acf": 0.7241948662717551,
+  "ratio_table_rows": 6
+}
