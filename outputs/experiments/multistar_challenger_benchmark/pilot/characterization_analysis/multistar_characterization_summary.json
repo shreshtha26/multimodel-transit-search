@@ -1,0 +1,223 @@
+{
+  "benchmark_dir": "outputs/experiments/multistar_challenger_benchmark/pilot",
+  "benchmark_injection_source": "outputs/experiments/multistar_challenger_benchmark/pilot/metrics/multistar_challenger_master_results.csv",
+  "target_count": 10,
+  "injection_count": 80,
+  "recovery_metric": "per-star 1% FAP harmonic recovery",
+  "characterization_workers": 8,
+  "available_cpu_count": 10,
+  "reserve_cpu_cores": 2,
+  "raw_bls_preferable_or_tied_star_count": 3,
+  "raw_bls_strictly_preferable_star_count": 0,
+  "aggressive_whitening_low_snr_star_count": 0,
+  "mean_arima_improvement": 0.275,
+  "mean_kalman_improvement": 0.425,
+  "mean_gp_improvement": 0.3375,
+  "top_absolute_correlations": [
+    {
+      "feature": "acf_lag_1",
+      "outcome": "arima_whitening_abs_acf1_reduction",
+      "n": 10,
+      "spearman_correlation": 0.9393939393939393,
+      "spearman_pvalue": 5.484052998513666e-05,
+      "pearson_correlation": 0.9629463508171153,
+      "pearson_pvalue": 7.886042778954799e-06
+    },
+    {
+      "feature": "max_abs_acf_1_n",
+      "outcome": "arima_whitening_abs_acf1_reduction",
+      "n": 10,
+      "spearman_correlation": 0.9393939393939393,
+      "spearman_pvalue": 5.484052998513666e-05,
+      "pearson_correlation": 0.9675193305801043,
+      "pearson_pvalue": 4.682189889911229e-06
+    },
+    {
+      "feature": "integrated_positive_acf_days",
+      "outcome": "kalman_improvement",
+      "n": 10,
+      "spearman_correlation": 0.9042371383961892,
+      "spearman_pvalue": 0.0003273141338350214,
+      "pearson_correlation": 0.7943528453970043,
+      "pearson_pvalue": 0.006054359141339246
+    },
+    {
+      "feature": "arima_whitening_abs_acf1_reduction",
+      "outcome": "gp_median_snr_retention",
+      "n": 10,
+      "spearman_correlation": 0.8909090909090909,
+      "spearman_pvalue": 0.0005421442248338665,
+      "pearson_correlation": 0.7063299768825809,
+      "pearson_pvalue": 0.02241701236757769
+    },
+    {
+      "feature": "arima_whitening_abs_acf1_reduction",
+      "outcome": "arima_median_snr_retention",
+      "n": 10,
+      "spearman_correlation": 0.8909090909090909,
+      "spearman_pvalue": 0.0005421442248338665,
+      "pearson_correlation": 0.6036506552779107,
+      "pearson_pvalue": 0.06461600771022273
+    },
+    {
+      "feature": "flux_robust_scale",
+      "outcome": "arima_whitening_abs_acf1_reduction",
+      "n": 10,
+      "spearman_correlation": 0.8787878787878788,
+      "spearman_pvalue": 0.0008138621117322101,
+      "pearson_correlation": 0.6292004041033762,
+      "pearson_pvalue": 0.051289488258481
+    },
+    {
+      "feature": "integrated_positive_acf_days",
+      "outcome": "arima_improvement",
+      "n": 10,
+      "spearman_correlation": 0.8501886852920228,
+      "spearman_pvalue": 0.0018317500821556894,
+      "pearson_correlation": 0.851706744884172,
+      "pearson_pvalue": 0.0017620161967440231
+    },
+    {
+      "feature": "gp_whitening_abs_acf1_reduction",
+      "outcome": "kalman_whitening_abs_acf1_reduction",
+      "n": 10,
+      "spearman_correlation": 0.8424242424242423,
+      "spearman_pvalue": 0.0022200312259168407,
+      "pearson_correlation": 0.5689259486078977,
+      "pearson_pvalue": 0.08609652619801625
+    },
+    {
+      "feature": "kalman_whitening_abs_acf1_reduction",
+      "outcome": "gp_whitening_abs_acf1_reduction",
+      "n": 10,
+      "spearman_correlation": 0.8424242424242423,
+      "spearman_pvalue": 0.0022200312259168407,
+      "pearson_correlation": 0.5689259486078977,
+      "pearson_pvalue": 0.08609652619801625
+    },
+    {
+      "feature": "flux_robust_scale",
+      "outcome": "arima_median_snr_retention",
+      "n": 10,
+      "spearman_correlation": 0.8060606060606059,
+      "spearman_pvalue": 0.004862061101964606,
+      "pearson_correlation": 0.624620257599766,
+      "pearson_pvalue": 0.05353008613060043
+    }
+  ],
+  "question_summary": [
+    {
+      "question": "Do high-ACF stars benefit more from ARIMA?",
+      "feature": "acf_lag_1",
+      "outcome": "arima_improvement",
+      "median_split_threshold": 0.9949179497950431,
+      "low_feature_mean": -0.025,
+      "high_feature_mean": 0.575,
+      "high_minus_low": 0.6,
+      "low_n": 5,
+      "high_n": 5,
+      "spearman_correlation": 0.7584417048648262,
+      "spearman_pvalue": 0.01099759810924253,
+      "interpretation": "higher ACF stars show larger ARIMA lift"
+    },
+    {
+      "question": "Do smooth long-timescale stars benefit more from GP?",
+      "feature": "integrated_positive_acf_days",
+      "outcome": "gp_improvement",
+      "median_split_threshold": 2.413552280473465,
+      "low_feature_mean": 0.1,
+      "high_feature_mean": 0.575,
+      "high_minus_low": 0.475,
+      "low_n": 5,
+      "high_n": 5,
+      "spearman_correlation": 0.6210590034081187,
+      "spearman_pvalue": 0.055316406954262994,
+      "interpretation": "longer ACF timescale stars show larger GP lift"
+    },
+    {
+      "question": "Do state-space-like variance/drift stars benefit more from Kalman?",
+      "feature": "rolling_variance_max_to_median",
+      "outcome": "kalman_improvement",
+      "median_split_threshold": 8.229767808553827,
+      "low_feature_mean": 0.325,
+      "high_feature_mean": 0.525,
+      "high_minus_low": 0.2,
+      "low_n": 5,
+      "high_n": 5,
+      "spearman_correlation": 0.17341534161022806,
+      "spearman_pvalue": 0.6318575995375453,
+      "interpretation": "higher variance drift stars show larger Kalman lift"
+    },
+    {
+      "question": "Does high spectral concentration predict GP success?",
+      "feature": "spectral_strength",
+      "outcome": "gp_improvement",
+      "median_split_threshold": 0.36980541730865796,
+      "low_feature_mean": 0.35,
+      "high_feature_mean": 0.325,
+      "high_minus_low": -0.024999999999999967,
+      "low_n": 5,
+      "high_n": 5,
+      "spearman_correlation": 0.2634795772034443,
+      "spearman_pvalue": 0.4620112396376017,
+      "interpretation": "no clear split effect"
+    },
+    {
+      "question": "Does whitening improve ACF while damaging ARIMA transit SNR?",
+      "feature": "arima_whitening_abs_acf1_reduction",
+      "outcome": "arima_median_snr_retention",
+      "median_split_threshold": 0.9415668329084264,
+      "low_feature_mean": 0.8146651071588614,
+      "high_feature_mean": 3.548815598533582,
+      "high_minus_low": 2.7341504913747205,
+      "low_n": 5,
+      "high_n": 5,
+      "spearman_correlation": 0.8909090909090909,
+      "spearman_pvalue": 0.0005421442248338665,
+      "interpretation": "larger ARIMA ACF reduction tracks higher transit SNR retention"
+    },
+    {
+      "question": "Does whitening improve ACF while damaging GP transit SNR?",
+      "feature": "gp_whitening_abs_acf1_reduction",
+      "outcome": "gp_median_snr_retention",
+      "median_split_threshold": 0.08222959043717876,
+      "low_feature_mean": 6.767233194472027,
+      "high_feature_mean": 10.875658735695051,
+      "high_minus_low": 4.108425541223024,
+      "low_n": 5,
+      "high_n": 5,
+      "spearman_correlation": 0.43030303030303024,
+      "spearman_pvalue": 0.21449233253280775,
+      "interpretation": "larger GP ACF reduction tracks higher transit SNR retention"
+    },
+    {
+      "question": "Does whitening improve ACF while damaging Kalman transit SNR?",
+      "feature": "kalman_whitening_abs_acf1_reduction",
+      "outcome": "kalman_median_snr_retention",
+      "median_split_threshold": 0.8944523477722137,
+      "low_feature_mean": 0.9769600123730131,
+      "high_feature_mean": 4.660521120662295,
+      "high_minus_low": 3.6835611082892825,
+      "low_n": 5,
+      "high_n": 5,
+      "spearman_correlation": 0.7939393939393938,
+      "spearman_pvalue": 0.0060999233136969115,
+      "interpretation": "larger Kalman ACF reduction tracks higher transit SNR retention"
+    },
+    {
+      "question": "Are there stars for which raw BLS is preferable?",
+      "feature": "raw_bls_preferable_or_tied",
+      "outcome": "best_challenger_harmonic_recovery_rate",
+      "median_split_threshold": null,
+      "low_feature_mean": null,
+      "high_feature_mean": null,
+      "high_minus_low": null,
+      "low_n": 0,
+      "high_n": 3,
+      "spearman_correlation": null,
+      "spearman_pvalue": null,
+      "interpretation": "raw BLS was preferable or tied for 3 stars; strictly preferable for 0 stars"
+    }
+  ],
+  "benchmark_star_summary_rows": 10
+}

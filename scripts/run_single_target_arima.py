@@ -31,6 +31,7 @@ from adaptive_transit.noise_models.arima import (
     evaluate_arima_candidates,
     fit_arima_model,
     generate_arima_orders)
+from adaptive_transit.noise_models.characterization import structural_diagnostic_comparison
 from adaptive_transit.noise_models.scaling import (
     standardize_innovations,
     trailing_robust_scale)
@@ -1677,6 +1678,16 @@ def main(args=None):
         regular=regular,
         innovations=innovations,
     )
+    structural_diagnostics = structural_diagnostic_comparison(
+        {
+            "raw_flux": selected_frame["normalized_flux"].to_numpy(dtype=float),
+            "arima_innovation": innovations["innovation"].to_numpy(dtype=float),
+            "arima_standardized_innovation": innovations["standardized_innovation"].to_numpy(dtype=float),
+        },
+        time=selected_frame["time"].to_numpy(dtype=float),
+        cadence_days=float(summary_by_policy[selected_quality_policy]["median_cadence_days"]),
+        acf_lags=args.acf_lags,
+    )
 
     prefix = f"kic_{str(args.target_id).replace('KIC', '').strip()}_q{args.quarter}"
     results_path = metrics_dir / f"{prefix}_arima_candidates.csv"
@@ -1695,6 +1706,7 @@ def main(args=None):
     multi_injection_summary_path = metrics_dir / f"{prefix}_multi_injection_recovery_summary.json"
     phase1_completion_path = metrics_dir / f"{prefix}_phase1_completion.json"
     preservation_by_candidate_path = metrics_dir / f"{prefix}_transit_preservation_by_candidate.csv"
+    structural_diagnostics_path = metrics_dir / f"{prefix}_arima_structural_diagnostics.csv"
     regular_path = processed_dir / f"{prefix}_regularized_light_curve.parquet"
     innovations_path = processed_dir / f"{prefix}_innovations.parquet"
 
@@ -1726,6 +1738,7 @@ def main(args=None):
     template_scan.to_csv(template_scan_path, index=False)
     pd.DataFrame([template_scan_summary]).to_csv(template_scan_summary_path, index=False)
     multi_injection_recovery.to_csv(multi_injection_path, index=False)
+    structural_diagnostics.to_csv(structural_diagnostics_path, index=False)
     multi_injection_summary_path.write_text(json.dumps(multi_injection_summary, indent=2) + "\n")
     phase1_completion_path.write_text(json.dumps(phase1_report, indent=2) + "\n")
 
@@ -1789,6 +1802,7 @@ def main(args=None):
     print(f"Multi-injection summary: {multi_injection_summary_path}")
     print(f"Phase 1 completion report: {phase1_completion_path}")
     print(f"Transit preservation by candidate: {preservation_by_candidate_path}")
+    print(f"ARIMA structural diagnostics: {structural_diagnostics_path}")
     print(f"Regularized light curve: {regular_path}")
     print(f"Innovations: {innovations_path}")
     print(f"Phase 1 engineering complete: {phase1_report['phase1_engineering_complete']}")

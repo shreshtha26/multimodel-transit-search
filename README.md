@@ -7,6 +7,14 @@ The current implementation contains four detector/background branches and a cand
 ```text
 Kepler PDCSAP flux
 │
+├── statistical characterization
+│   ├── sampling/gap diagnostics
+│   ├── ADF/KPSS stationarity tests
+│   ├── ACF/Ljung-Box temporal-dependence metrics
+│   ├── rolling mean/variance drift
+│   ├── Lomb-Scargle spectral structure
+│   └── distribution and quality-flag summaries
+│
 ├── direct normalized-flux branch
 │   └── Box Least Squares (BLS)
 │

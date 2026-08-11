@@ -48,6 +48,7 @@ def selected_targets(config, target_ids=None, limit=None):
 
 def target_summary_row(target, record):
     stages = record.get("stages", {})
+    characterization = stages.get("characterization", {}).get("summary", {})
     phase1 = stages.get("single_target_arima", {}).get("summary", {})
     gap = stages.get("gap_mode_comparison", {}).get("summary", {})
     injection = stages.get("gap_mode_injection", {}).get("summary", {})
@@ -57,6 +58,13 @@ def target_summary_row(target, record):
         "name": target.get("name", ""),
         "quarter": int(target.get("quarter", 5)),
         "experiment_success": record.get("success"),
+        "characterization_n_usable_observations": characterization.get("n_usable_observations"),
+        "characterization_gap_fraction": characterization.get("gap_fraction"),
+        "characterization_stationarity_conclusion": characterization.get("stationarity_conclusion"),
+        "characterization_minimum_ljung_box_p": characterization.get("minimum_ljung_box_p"),
+        "characterization_acf_decay_e_days": characterization.get("acf_decay_e_days"),
+        "characterization_dominant_period_days": characterization.get("dominant_period_days"),
+        "characterization_spectral_entropy": characterization.get("spectral_entropy"),
         "phase1_engineering_complete": phase1.get("phase1_engineering_complete"),
         "phase1_scientific_ready_for_phase2": phase1.get("phase1_scientific_ready_for_phase2"),
         "selected_quality_policy": phase1.get("selected_quality_policy"),

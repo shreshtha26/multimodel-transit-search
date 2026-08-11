@@ -13,14 +13,14 @@ QUARTER = 5
 CONFIG_PATH = Path("configs/phase2.yaml")
 OUTPUT_DIR = Path("outputs/experiments")
 # STAGES = None
-STAGES = ["bls_baseline"]
+STAGES = ["characterization", "bls_baseline"]
 SKIP_STAGES = ()
 CONTINUE_ON_ERROR = False
 DRY_RUN = False
-STAGE_ORDER = ("single_target_arima", "gap_mode_comparison", "gap_mode_injection", "bls_baseline")
-STAGE_SPECS = {"single_target_arima": {"script": "run_single_target_arima.py", "output_subdir": "single_target"}, "gap_mode_comparison": {"script": "run_gap_mode_comparison.py", "output_subdir": "gap_modes"}, "gap_mode_injection": {"script": "run_gap_mode_injection_experiment.py", "output_subdir": "injections"}, "bls_baseline": {"script": "run_bls_baseline.py", "output_subdir": "bls_baseline"}}
+STAGE_ORDER = ("characterization", "single_target_arima", "gap_mode_comparison", "gap_mode_injection", "bls_baseline")
+STAGE_SPECS = {"characterization": {"script": "run_light_curve_characterization.py", "output_subdir": "characterization"}, "single_target_arima": {"script": "run_single_target_arima.py", "output_subdir": "single_target"}, "gap_mode_comparison": {"script": "run_gap_mode_comparison.py", "output_subdir": "gap_modes"}, "gap_mode_injection": {"script": "run_gap_mode_injection_experiment.py", "output_subdir": "injections"}, "bls_baseline": {"script": "run_bls_baseline.py", "output_subdir": "bls_baseline"}}
 BASE_DEFAULTS = {"orders": None, "test_fraction": 0.20, "acf_lags": 80, "transit_lag_min": 3, "transit_lag_max": 24, "stationarity_alpha": 0.05, "stationarity_min_observations": 24, "adf_regression": "c", "adf_autolag": "AIC", "kpss_regression": "c", "kpss_nlags": "auto", "fit_maxiter": 200, "require_finite_flux_error": False}
-STAGE_DEFAULTS = {"single_target_arima": {"expanded_arima_grid": False, "max_p": 5, "max_d": 1, "max_q": 5, "max_total_order": None, "quality_policies": None, "stability_folds": 3, "stability_segments": 3, "scale_window": 96, "injection_depth": 0.001, "injection_duration_cadences": 6, "injection_depth_grid": None, "injection_duration_grid": None, "injection_centers_per_duration": 3, "injection_max_segments": 3, "injection_local_half_width_cadences": 24, "scan_stride": 10, "scan_max_centers": 250}, "gap_mode_comparison": {"quality_policies": None, "gap_modes": None, "correlogram_lags": 24, "interpolation_method": "linear", "max_interpolated_gap_cadences": 12, "edge_extrapolation": False}, "gap_mode_injection": {"quality_policy": "default", "gap_modes": None, "short_acf_lags": 24, "interpolation_method": "linear", "max_interpolated_gap_cadences": 12, "edge_extrapolation": False, "injection_depth_grid": (0.0005, 0.001, 0.002), "injection_duration_grid": (6,), "centers_per_duration": 3, "local_half_width_cadences": 24, "scan_stride": 20, "scan_max_centers": 120, "scale_window": 96, "false_alarm_rates": (0.10, 0.05, 0.01)}, "bls_baseline": {"quality_policy": "default", "injection_period_days": 5.0, "injection_epoch_offset_days": 1.0, "injection_duration_hours": 4.0, "injection_depth": 0.001, "min_period_days": 1.0, "max_period_days": 15.0, "n_periods": 1000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "objective": "snr", "top_k": 10, "period_match_tolerance_fraction": 0.02, "n_null_trials": 200, "null_block_size_cadences": 24, "fap_levels": (0.01, 0.001), "random_seed": 123, "show_fap_progress": True}}
+STAGE_DEFAULTS = {"characterization": {"quality_policy": "default", "ljung_box_lags": (10, 20, 40), "rolling_window": 96, "outlier_sigma": 5.0, "spectral_frequencies": 2000}, "single_target_arima": {"expanded_arima_grid": False, "max_p": 5, "max_d": 1, "max_q": 5, "max_total_order": None, "quality_policies": None, "stability_folds": 3, "stability_segments": 3, "scale_window": 96, "injection_depth": 0.001, "injection_duration_cadences": 6, "injection_depth_grid": None, "injection_duration_grid": None, "injection_centers_per_duration": 3, "injection_max_segments": 3, "injection_local_half_width_cadences": 24, "scan_stride": 10, "scan_max_centers": 250}, "gap_mode_comparison": {"quality_policies": None, "gap_modes": None, "correlogram_lags": 24, "interpolation_method": "linear", "max_interpolated_gap_cadences": 12, "edge_extrapolation": False}, "gap_mode_injection": {"quality_policy": "default", "gap_modes": None, "short_acf_lags": 24, "interpolation_method": "linear", "max_interpolated_gap_cadences": 12, "edge_extrapolation": False, "injection_depth_grid": (0.0005, 0.001, 0.002), "injection_duration_grid": (6,), "centers_per_duration": 3, "local_half_width_cadences": 24, "scan_stride": 20, "scan_max_centers": 120, "scale_window": 96, "false_alarm_rates": (0.10, 0.05, 0.01)}, "bls_baseline": {"quality_policy": "default", "injection_period_days": 5.0, "injection_epoch_offset_days": 1.0, "injection_duration_hours": 4.0, "injection_depth": 0.001, "min_period_days": 1.0, "max_period_days": 15.0, "n_periods": 1000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "objective": "snr", "top_k": 10, "period_match_tolerance_fraction": 0.02, "n_null_trials": 200, "null_block_size_cadences": 24, "fap_levels": (0.01, 0.001), "random_seed": 123, "show_fap_progress": True}}
 ALIASES = {"single_target_arima": {"quality_policy": "quality_policies"}, "gap_mode_comparison": {"quality_policy": "quality_policies"}}
 
 
@@ -102,6 +102,8 @@ def read_json(path):
 
 def stage_output_paths(stage, output_dir, prefix):
     metrics = Path(output_dir) / "metrics"
+    if stage == "characterization":
+        return {"diagnostics_json": str(metrics / f"{prefix}_light_curve_diagnostics.json"), "diagnostics_csv": str(metrics / f"{prefix}_light_curve_diagnostics.csv")}
     if stage == "single_target_arima":
         return {"phase1_completion": str(metrics / f"{prefix}_phase1_completion.json"), "recovery_summary": str(metrics / f"{prefix}_multi_injection_recovery_summary.json")}
     if stage == "gap_mode_comparison":
@@ -115,6 +117,9 @@ def stage_output_paths(stage, output_dir, prefix):
 
 def summarize_stage(stage, output_dir, prefix):
     metrics = Path(output_dir) / "metrics"
+    if stage == "characterization":
+        diagnostics = read_json(metrics / f"{prefix}_light_curve_diagnostics.json")
+        return {"n_usable_observations": diagnostics.get("n_usable_observations"), "gap_fraction": diagnostics.get("gap_fraction"), "stationarity_conclusion": diagnostics.get("original_series_stationarity_conclusion"), "minimum_ljung_box_p": diagnostics.get("minimum_ljung_box_p"), "acf_decay_e_days": diagnostics.get("acf_decay_e_days"), "dominant_period_days": diagnostics.get("dominant_period_days"), "spectral_entropy": diagnostics.get("spectral_entropy"), "quality_flag_fraction_observed": diagnostics.get("quality_flag_fraction_observed")}
     if stage == "single_target_arima":
         phase1 = read_json(metrics / f"{prefix}_phase1_completion.json")
         recovery = read_json(metrics / f"{prefix}_multi_injection_recovery_summary.json")

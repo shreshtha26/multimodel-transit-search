@@ -31,11 +31,27 @@ def test_run_experiment_builds_stage_settings(tmp_path):
 
 def test_run_experiment_respects_requested_and_skipped_stages():
     runner = load_script("run_experiment", "scripts/run_experiment.py")
-    config = {"stages": {"single_target_arima": {"enabled": True}, "gap_mode_comparison": {"enabled": False}, "gap_mode_injection": {"enabled": True}, "bls_baseline": {"enabled": False}}}
+    config = {"stages": {"characterization": {"enabled": False}, "single_target_arima": {"enabled": True}, "gap_mode_comparison": {"enabled": False}, "gap_mode_injection": {"enabled": True}, "bls_baseline": {"enabled": False}}}
 
     stages = runner.selected_stages(config, stages=None, skip_stages=["single_target_arima"])
 
     assert stages == ["gap_mode_injection"]
+
+
+def test_run_experiment_summarizes_characterization_stage(tmp_path):
+    runner = load_script("run_experiment", "scripts/run_experiment.py")
+    metrics = tmp_path / "metrics"
+    metrics.mkdir()
+    (metrics / "kic_11904151_q5_light_curve_diagnostics.json").write_text(
+        '{"n_usable_observations": 4486, "gap_fraction": 0.031, "original_series_stationarity_conclusion": "stationary_supported", "minimum_ljung_box_p": 0.001}\n'
+    )
+
+    summary = runner.summarize_stage("characterization", tmp_path, "kic_11904151_q5")
+
+    assert summary["n_usable_observations"] == 4486
+    assert summary["gap_fraction"] == 0.031
+    assert summary["stationarity_conclusion"] == "stationary_supported"
+    assert summary["minimum_ljung_box_p"] == 0.001
 
 
 def test_run_experiment_summarizes_bls_stage(tmp_path):

@@ -4,6 +4,19 @@ description: >
   benchmark preparation rather than ML, deep learning, or pixel vetting.
 
 stages:
+  characterization:
+    enabled: true
+    output_subdir: characterization
+    options:
+      quality_policy: default
+      acf_lags: 80
+      ljung_box_lags:
+        - 10
+        - 20
+        - 40
+      rolling_window: 96
+      spectral_frequencies: 2000
+
   single_target_arima:
     enabled: true
     output_subdir: single_target
@@ -74,4 +87,3 @@ stages:
         - 0.001
       random_seed: 123
       show_fap_progress: true
-

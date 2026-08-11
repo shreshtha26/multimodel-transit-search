@@ -14,6 +14,7 @@ from adaptive_transit.detection.tcf import default_period_grid as tcf_period_gri
 from adaptive_transit.detection.tcf import period_match_fraction as tcf_period_error
 from adaptive_transit.detection.tcf import run_tcf
 from adaptive_transit.injections.synthetic import inject_periodic_box_transit
+from adaptive_transit.noise_models.characterization import structural_diagnostic_comparison
 from adaptive_transit.noise_models.diagnostics import residual_diagnostics
 from adaptive_transit.noise_models.kalman import fit_kalman_local_level
 from adaptive_transit.preprocessing.normalization import preprocess_pdcsap_light_curve
@@ -104,7 +105,12 @@ def run_experiment(args):
     summary = {"target_id": str(args.target_id), "quarter": int(args.quarter), "quality_policy": args.quality_policy, "model_name": "local_level_kalman", "injected_period_days": float(args.injection_period_days), "injected_epoch_days": epoch, "injected_duration_hours": float(args.injection_duration_hours), "injected_depth": float(args.injection_depth), "observable_transit_count": int(len(centers)), **retention, "original_model": original_model.summary(), "injected_model": injected_model.summary(), "original_residual_diagnostics": original_diagnostics, "injected_residual_diagnostics": injected_diagnostics, "kalman_bls_recovered_period_days": float(injected_bls["summary"]["period"]), "kalman_bls_recovered_power": float(injected_bls["summary"]["power"]), "kalman_bls_period_error_fraction": float(bls_error), "kalman_bls_period_matched": bool(np.isfinite(bls_error) and bls_error <= args.period_match_tolerance_fraction), "kalman_tcf_recovered_period_days": float(injected_tcf["summary"]["period"]), "kalman_tcf_recovered_score": float(injected_tcf["summary"]["score"]), "kalman_tcf_period_error_fraction": float(tcf_error), "kalman_tcf_period_matched": bool(np.isfinite(tcf_error) and tcf_error <= args.period_match_tolerance_fraction), "original_kalman_bls_best_period_days": float(original_bls["summary"]["period"]), "original_kalman_bls_max_power": float(original_bls["summary"]["power"]), "original_kalman_tcf_best_period_days": float(original_tcf["summary"]["period"]), "original_kalman_tcf_max_score": float(original_tcf["summary"]["score"]), "n_observations": int(finite.sum()), "bls_n_periods": int(args.bls_n_periods), "tcf_n_periods": int(args.tcf_n_periods), "n_durations": int(args.n_durations)}
     residual_table = pd.DataFrame({"time": time, "cadenceno": regular["cadenceno"].to_numpy(), "normalized_flux": flux, "injected_flux": injected_flux, "injected_template": template, "in_transit": in_transit, "original_kalman_background": original_model.predicted_background, "original_kalman_residual": original_model.residuals, "original_kalman_standardized_residual": original_model.standardized_residuals, "injected_kalman_background": injected_model.predicted_background, "injected_kalman_residual": injected_model.residuals, "injected_kalman_standardized_residual": injected_model.standardized_residuals})
     model_rows = pd.DataFrame([{**{"series": "original"}, **original_model.summary(), **original_diagnostics}, {**{"series": "injected"}, **injected_model.summary(), **injected_diagnostics}])
-    return regular, residual_table, model_rows, original_bls, original_tcf, injected_bls, injected_tcf, summary
+    structural_rows = structural_diagnostic_comparison(
+        {"raw_flux": flux, "kalman_residual": original_model.residuals, "injected_kalman_residual": injected_model.residuals},
+        time=time,
+        cadence_days=preprocessing.median_cadence_days,
+    )
+    return regular, residual_table, model_rows, structural_rows, original_bls, original_tcf, injected_bls, injected_tcf, summary
 
 def main(args=None):
     args = args or default_settings()
@@ -112,7 +118,7 @@ def main(args=None):
     processed_dir = Path(args.output_dir) / "processed"
     metrics_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
-    regular, residual_table, model_rows, original_bls, original_tcf, injected_bls, injected_tcf, summary = run_experiment(args)
+    regular, residual_table, model_rows, structural_rows, original_bls, original_tcf, injected_bls, injected_tcf, summary = run_experiment(args)
     prefix = f"kic_{str(args.target_id).replace('KIC', '').strip()}_q{args.quarter}"
     injected_bls["periodogram"].to_csv(metrics_dir / f"{prefix}_kalman_bls_injected_periodogram.csv", index=False)
     injected_bls["top_peaks"].to_csv(metrics_dir / f"{prefix}_kalman_bls_injected_top_peaks.csv", index=False)
@@ -122,12 +128,14 @@ def main(args=None):
     original_tcf["periodogram"].to_csv(metrics_dir / f"{prefix}_kalman_tcf_original_periodogram.csv", index=False)
     original_tcf["top_peaks"].to_csv(metrics_dir / f"{prefix}_kalman_tcf_original_top_peaks.csv", index=False)
     model_rows.to_csv(metrics_dir / f"{prefix}_kalman_model_diagnostics.csv", index=False)
+    structural_rows.to_csv(metrics_dir / f"{prefix}_kalman_structural_diagnostics.csv", index=False)
     regular.to_parquet(processed_dir / f"{prefix}_kalman_baseline_input.parquet", index=False)
     residual_table.to_parquet(processed_dir / f"{prefix}_kalman_residuals.parquet", index=False)
     summary_path = metrics_dir / f"{prefix}_kalman_summary.json"
     summary_path.write_text(json.dumps(json_ready(summary), indent=2) + "\n")
     print(f"Kalman summary: {summary_path}")
     print(f"Kalman model diagnostics: {metrics_dir / f'{prefix}_kalman_model_diagnostics.csv'}")
+    print(f"Kalman structural diagnostics: {metrics_dir / f'{prefix}_kalman_structural_diagnostics.csv'}")
     print(f"Kalman residuals: {processed_dir / f'{prefix}_kalman_residuals.parquet'}")
     print(f"BLS recovered period: {summary['kalman_bls_recovered_period_days']:.6f} days")
     print(f"BLS period matched: {summary['kalman_bls_period_matched']}")
