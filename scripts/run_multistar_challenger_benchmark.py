@@ -31,18 +31,23 @@ from adaptive_transit.preprocessing.normalization import preprocess_pdcsap_light
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", message="Warning: the tpfmodel submodule is not available.*", category=UserWarning)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MANIFEST_PATH = PROJECT_ROOT / "configs/kepler_50_star_manifest.csv"
+LEGACY_MANIFEST_PATH = PROJECT_ROOT / "configs/kepler_50_star_manifest.csv"
+CLEAN_MANIFEST_PATH = PROJECT_ROOT / "configs/kepler_clean_background_manifest.csv"
+MANIFEST_PATH = CLEAN_MANIFEST_PATH
 CACHE_DIR = PROJECT_ROOT / "outputs/cache/kepler_light_curves"
 OUTPUT_ROOT = PROJECT_ROOT / "outputs/experiments/multistar_challenger_benchmark"
-BACKGROUND_FEATURE_PATH = PROJECT_ROOT / "outputs/experiments/multistar_background_timescale/metrics/multistar_background_timescale_features.csv"
+BACKGROUND_FEATURE_PATH = PROJECT_ROOT / "outputs/target_selection/kepler_catalog_clean_candidate_features.csv"
 EXISTING_ARIMA_CACHE_ROOT = PROJECT_ROOT / "outputs/experiments/multistar_bls_tcf/optimized/stars"
 TQDM_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} ({percentage:3.0f}%) [{elapsed}<{remaining}, {rate_fmt}] {postfix}"
 DEFAULT_PIPELINES = ("raw_bls", "raw_tcf", "arima_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
+CLEAN_SELECTION_GROUP = "catalog_clean_background"
+CATALOG_FLAG_COLUMNS = ("koi_flag", "tce_flag", "confirmed_planet_flag", "eb_flag")
+BENCHMARK_SCHEMA_VERSION = 2
 PIPELINE_DEFINITIONS = {"raw_bls": ("raw", "bls"), "raw_tcf": ("raw", "tcf"), "arima_bls": ("arima", "bls"), "arima_tcf": ("arima", "tcf"), "kalman_bls": ("kalman", "bls"), "kalman_tcf": ("kalman", "tcf"), "gp_bls": ("gp", "bls"), "gp_tcf": ("gp", "tcf")}
 SEARCH_RESOLUTION_PRESETS = {"pilot": {"n_periods": 3000, "top_k": 5, "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "bls_oversample": 5}, "medium": {"n_periods": 5000, "top_k": 5, "n_coarse_periods": 2000, "n_refinement_regions": 18, "refinement_half_width_points": 30, "bls_oversample": 5}, "high": {"n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}}
 
 def default_settings(profile="pilot"):
-    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_injection_mode": "filter", "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "search_resolution": "pilot", "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False}
+    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "selection_group": CLEAN_SELECTION_GROUP, "require_catalog_clean": True, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_injection_mode": "filter", "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "search_resolution": "pilot", "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False, "benchmark_schema_version": BENCHMARK_SCHEMA_VERSION}
     if profile == "main":
         settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 50, "stratified_pilot": False, "injection_period_grid": (2.0, 5.0, 10.0), "injection_duration_hours_grid": (2.0, 4.0, 8.0), "injection_depth_grid": (0.0002, 0.0005, 0.001), "epoch_phase_fraction_grid": (0.15, 0.45, 0.75), "search_resolution": "high", "n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}
         )
@@ -99,6 +104,8 @@ def parse_args(argv=None):
     parser.add_argument("--target-limit", type=int)
     parser.add_argument("--allow-partial-target-count", dest="strict_target_count", action="store_false")
     parser.add_argument("--target-ids", type=parse_target_ids)
+    parser.add_argument("--selection-group", type=str)
+    parser.add_argument("--allow-contaminated-cohort", dest="require_catalog_clean", action="store_false", default=None, help="Explicitly allow known-signal/legacy cohorts. Clean injection benchmarking is the default.")
     parser.add_argument("--no-stratified-pilot", dest="stratified_pilot", action="store_false")
     parser.add_argument("--pipelines", type=parse_pipelines)
     parser.add_argument("--arima-order", type=parse_int_order)
@@ -170,7 +177,7 @@ def injection_cases(args):
     return list(product(args.injection_period_grid, args.injection_duration_hours_grid, args.injection_depth_grid, args.epoch_phase_fraction_grid))
 
 def config_signature(args):
-    keys = ("profile", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_injection_mode", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "search_resolution", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "period_match_tolerance_fraction")
+    keys = ("benchmark_schema_version", "profile", "selection_group", "require_catalog_clean", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_injection_mode", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "search_resolution", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "period_match_tolerance_fraction")
     return {key: json_ready(getattr(args, key)) for key in keys}
 
 def write_benchmark_config(args):
@@ -239,11 +246,18 @@ def load_manifest(args):
     if "selection_group" not in manifest.columns:
         manifest["selection_group"] = "unspecified"
     manifest["selection_group"] = manifest["selection_group"].fillna("unspecified").astype(str)
+    if "sample_stratum" not in manifest.columns:
+        manifest["sample_stratum"] = "unspecified"
+    manifest["sample_stratum"] = manifest["sample_stratum"].fillna("unspecified").astype(str)
     manifest = manifest.drop_duplicates(["target_id", "quarter"], keep="first").reset_index(drop=True)
+    if getattr(args, "selection_group", None):
+        manifest = manifest[manifest["selection_group"] == str(args.selection_group)].reset_index(drop=True)
     if args.target_ids:
         wanted = {normalize_target_id(target_id) for target_id in args.target_ids}
         manifest = manifest[manifest["target_id"].isin(wanted)].reset_index(drop=True)
-    if args.stratified_pilot and str(args.profile) == "pilot" and Path(args.background_feature_path).exists():
+    if len(manifest) > int(args.target_limit) and "sample_stratum" in manifest.columns and manifest["sample_stratum"].nunique() > 1:
+        manifest = balanced_stratum_manifest(manifest, int(args.target_limit))
+    elif args.stratified_pilot and str(args.profile) == "pilot" and Path(args.background_feature_path).exists():
         manifest = stratified_pilot_manifest(manifest, args)
     else:
         manifest = manifest.head(int(args.target_limit)).copy()
@@ -251,7 +265,65 @@ def load_manifest(args):
         raise ValueError(f"Expected exactly {args.target_limit} target-quarter rows but found {len(manifest)}.")
     if manifest.empty:
         raise ValueError("Manifest contains no usable rows.")
+    validate_manifest_cohort(manifest, args)
     return manifest.reset_index(drop=True)
+
+
+def truthy_catalog_flag(series):
+    normalized = series.fillna(False).astype(str).str.strip().str.lower()
+    return normalized.isin({"1", "1.0", "true", "t", "yes", "y"})
+
+def validate_manifest_cohort(manifest, args):
+    if not bool(getattr(args, "require_catalog_clean", True)):
+        return
+    if "selection_group" not in manifest.columns:
+        raise ValueError("Clean injection benchmark requires a selection_group column.")
+    bad_group = manifest[manifest["selection_group"] != CLEAN_SELECTION_GROUP]
+    if not bad_group.empty:
+        examples = bad_group[["target_id", "quarter", "selection_group"]].head(10).to_dict(orient="records")
+        raise ValueError(
+            f"Clean injection benchmark contains non-clean selection groups. Expected only {CLEAN_SELECTION_GROUP!r}; examples: {examples}. "
+            "Use --allow-contaminated-cohort only for an explicitly labelled stress-test/known-signal run."
+        )
+    missing = [column for column in CATALOG_FLAG_COLUMNS if column not in manifest.columns]
+    if missing:
+        raise ValueError(
+            "Clean injection benchmark is missing catalog contamination flags: "
+            f"{missing}. Build the manifest with scripts/build_clean_kepler_manifest.py before running injections."
+        )
+    contaminated = pd.Series(False, index=manifest.index)
+    for column in CATALOG_FLAG_COLUMNS:
+        contaminated = contaminated | truthy_catalog_flag(manifest[column])
+    if contaminated.any():
+        columns = ["target_id", "quarter", "selection_group", *CATALOG_FLAG_COLUMNS]
+        examples = manifest.loc[contaminated, columns].head(10).to_dict(orient="records")
+        raise ValueError(
+            "Clean injection benchmark contains cataloged KOI/TCE/confirmed-planet/EB hosts; "
+            f"examples: {examples}."
+        )
+
+
+def balanced_stratum_manifest(manifest, target_limit):
+    """Deterministically round-robin across preassigned sampling strata."""
+    groups = []
+    for stratum in sorted(manifest["sample_stratum"].dropna().astype(str).unique()):
+        group = manifest.loc[manifest["sample_stratum"].astype(str) == stratum].sort_values(["target_id", "quarter"]).reset_index(drop=True)
+        if not group.empty:
+            groups.append(group)
+    selected = []
+    depth = 0
+    while len(selected) < int(target_limit) and groups:
+        added = False
+        for group in groups:
+            if depth < len(group):
+                selected.append(group.iloc[depth].to_dict())
+                added = True
+                if len(selected) >= int(target_limit):
+                    break
+        if not added:
+            break
+        depth += 1
+    return pd.DataFrame(selected)
 
 def add_target(selected, selected_keys, row, reason):
     key = (normalize_target_id(row["target_id"]), int(row["quarter"]))
@@ -489,12 +561,27 @@ def match_fields(period, injected_period, tolerance):
     exact_error = float(abs(float(period) - float(injected_period)) / float(injected_period))
     return harmonic_error, exact_error, bool(harmonic_error <= float(tolerance)), bool(exact_error <= float(tolerance))
 
-def detector_result_fields(pipeline, result, detector, injected_period, args, runtime):
+def detector_result_fields(pipeline, result, detector, injected_period, args, runtime, base_rank1_period=None):
     summary = result["summary"]
     peaks = result["top_peaks"]
     period = float(summary["period_days"] if detector == "bls" else summary["period"])
     harmonic_error, exact_error, harmonic_matched, exact_matched = match_fields(period, injected_period, args["period_match_tolerance_fraction"])
-    fields = {f"{pipeline}_success": True, f"{pipeline}_runtime_seconds": float(runtime), f"{pipeline}_recovered_period_days": period, f"{pipeline}_period_error_fraction": harmonic_error, f"{pipeline}_exact_period_error_fraction": exact_error, f"{pipeline}_harmonic_rank1_matched": harmonic_matched, f"{pipeline}_exact_rank1_matched": exact_matched, f"{pipeline}_exact_rank_topk": top_peak_rank(peaks, injected_period, args["period_match_tolerance_fraction"]), f"{pipeline}_half_period_rank_topk": harmonic_rank(peaks, injected_period, 0.5, args["period_match_tolerance_fraction"]), f"{pipeline}_double_period_rank_topk": harmonic_rank(peaks, injected_period, 2.0, args["period_match_tolerance_fraction"]), f"{pipeline}_top_periods_json": json.dumps([float(row.get("period_days", row.get("period", np.nan))) for row in peaks.to_dict(orient="records")])}
+    exact_rank = top_peak_rank(peaks, injected_period, args["period_match_tolerance_fraction"])
+    half_rank = harmonic_rank(peaks, injected_period, 0.5, args["period_match_tolerance_fraction"])
+    double_rank = harmonic_rank(peaks, injected_period, 2.0, args["period_match_tolerance_fraction"])
+    harmonic_topk = any(rank is not None for rank in (exact_rank, half_rank, double_rank))
+    base_rank1_period = float(base_rank1_period) if base_rank1_period is not None and np.isfinite(base_rank1_period) else float("nan")
+    base_rank1_error = abs(period - base_rank1_period) / base_rank1_period if np.isfinite(base_rank1_period) and base_rank1_period > 0 else float("nan")
+    matches_base_rank1 = bool(np.isfinite(base_rank1_error) and base_rank1_error <= float(args["period_match_tolerance_fraction"]))
+    if harmonic_matched:
+        failure_mode = "rank1_recovery"
+    elif harmonic_topk:
+        failure_mode = "ranking_failure"
+    elif matches_base_rank1:
+        failure_mode = "base_rank1_competition"
+    else:
+        failure_mode = "candidate_generation_failure"
+    fields = {f"{pipeline}_success": True, f"{pipeline}_runtime_seconds": float(runtime), f"{pipeline}_recovered_period_days": period, f"{pipeline}_period_error_fraction": harmonic_error, f"{pipeline}_exact_period_error_fraction": exact_error, f"{pipeline}_harmonic_rank1_matched": harmonic_matched, f"{pipeline}_exact_rank1_matched": exact_matched, f"{pipeline}_harmonic_topk_matched": harmonic_topk, f"{pipeline}_exact_rank_topk": exact_rank, f"{pipeline}_half_period_rank_topk": half_rank, f"{pipeline}_double_period_rank_topk": double_rank, f"{pipeline}_base_rank1_period_days": base_rank1_period, f"{pipeline}_base_rank1_error_fraction": base_rank1_error, f"{pipeline}_matches_base_rank1": matches_base_rank1, f"{pipeline}_failure_mode": failure_mode, f"{pipeline}_top_periods_json": json.dumps([float(row.get("period_days", row.get("period", np.nan))) for row in peaks.to_dict(orient="records")])}
     if detector == "bls":
         fields.update({f"{pipeline}_score": float(summary["sde"]), f"{pipeline}_power": float(summary["power"]), f"{pipeline}_duration_hours": float(summary["duration_days"] * 24.0), f"{pipeline}_transit_time": float(summary["transit_time"]), f"{pipeline}_depth": float(summary["depth"]), f"{pipeline}_top_scores_json": json.dumps([float(value) for value in peaks["sde"].to_numpy(dtype=float)])})
     else:
@@ -502,7 +589,7 @@ def detector_result_fields(pipeline, result, detector, injected_period, args, ru
     return fields
 
 def empty_pipeline_fields(pipeline, error):
-    return {f"{pipeline}_success": False, f"{pipeline}_error": str(error), f"{pipeline}_runtime_seconds": float("nan"), f"{pipeline}_recovered_period_days": float("nan"), f"{pipeline}_score": float("nan"), f"{pipeline}_period_error_fraction": float("nan"), f"{pipeline}_exact_period_error_fraction": float("nan"), f"{pipeline}_harmonic_rank1_matched": False, f"{pipeline}_exact_rank1_matched": False, f"{pipeline}_exact_rank_topk": None, f"{pipeline}_half_period_rank_topk": None, f"{pipeline}_double_period_rank_topk": None}
+    return {f"{pipeline}_success": False, f"{pipeline}_error": str(error), f"{pipeline}_runtime_seconds": float("nan"), f"{pipeline}_recovered_period_days": float("nan"), f"{pipeline}_score": float("nan"), f"{pipeline}_period_error_fraction": float("nan"), f"{pipeline}_exact_period_error_fraction": float("nan"), f"{pipeline}_harmonic_rank1_matched": False, f"{pipeline}_exact_rank1_matched": False, f"{pipeline}_harmonic_topk_matched": False, f"{pipeline}_exact_rank_topk": None, f"{pipeline}_half_period_rank_topk": None, f"{pipeline}_double_period_rank_topk": None, f"{pipeline}_base_rank1_period_days": float("nan"), f"{pipeline}_base_rank1_error_fraction": float("nan"), f"{pipeline}_matches_base_rank1": False, f"{pipeline}_failure_mode": "pipeline_error"}
 
 def add_branch_diagnostics(row, branch, series, before, in_transit):
     after = periodic_depth_and_snr(series, in_transit)
@@ -516,14 +603,51 @@ def add_branch_diagnostics(row, branch, series, before, in_transit):
 def required_branches(pipelines):
     return sorted({PIPELINE_DEFINITIONS[pipeline][0] for pipeline in pipelines})
 
-def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args):
+
+def base_candidate_rows(time, branch_series, period_grid, duration_grid, target_id, quarter, selection_group, sample_stratum, args):
+    rows = []
+    rank1 = {}
+    for pipeline in args["pipelines"]:
+        branch, detector = PIPELINE_DEFINITIONS[pipeline]
+        if branch not in branch_series:
+            rows.append({"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "sample_stratum": str(sample_stratum), "pipeline": pipeline, "branch": branch, "detector": detector, "success": False, "rank": 0, "period_days": np.nan, "score": np.nan, "error": "branch unavailable"})
+            rank1[pipeline] = np.nan
+            continue
+        try:
+            result = run_bls_search(time, branch_series[branch], period_grid, duration_grid, args) if detector == "bls" else run_tcf_search(time, branch_series[branch], period_grid, duration_grid, args)
+            peaks = result["top_peaks"]
+            rank1[pipeline] = float(result["summary"]["period_days"] if detector == "bls" else result["summary"]["period"])
+            for fallback_rank, peak in enumerate(peaks.to_dict(orient="records"), start=1):
+                period = float(peak.get("period_days", peak.get("period", np.nan)))
+                score = float(peak.get("sde", peak.get("score", np.nan)))
+                duration = float(peak.get("duration_days", peak.get("duration", np.nan)))
+                rows.append({"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "sample_stratum": str(sample_stratum), "pipeline": pipeline, "branch": branch, "detector": detector, "success": True, "rank": int(peak.get("rank", fallback_rank)), "period_days": period, "score": score, "duration_hours": duration * 24.0 if np.isfinite(duration) else np.nan, "error": ""})
+        except Exception as exc:
+            rank1[pipeline] = np.nan
+            rows.append({"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "sample_stratum": str(sample_stratum), "pipeline": pipeline, "branch": branch, "detector": detector, "success": False, "rank": 0, "period_days": np.nan, "score": np.nan, "error": f"{type(exc).__name__}: {exc}"})
+    return pd.DataFrame(rows), rank1
+
+def base_branch_series(flux, base_arima, base_kalman, base_gp, pipelines):
+    branches = required_branches(pipelines)
+    values = {}
+    if "raw" in branches:
+        values["raw"] = np.asarray(flux, dtype=float)
+    if "arima" in branches and base_arima is not None:
+        values["arima"] = np.asarray(base_arima["innovations"], dtype=float)
+    if "kalman" in branches and base_kalman is not None:
+        values["kalman"] = np.asarray(base_kalman.residuals, dtype=float)
+    if "gp" in branches and base_gp is not None:
+        values["gp"] = np.asarray(base_gp.residuals, dtype=float)
+    return values
+
+def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args):
     injected_period, injected_duration_hours, injected_depth, epoch_phase_fraction = case
     finite = np.isfinite(time) & np.isfinite(flux)
     epoch = float(np.min(time[finite]) + float(epoch_phase_fraction) * float(injected_period))
     duration_days = float(injected_duration_hours) / 24.0
     injected_flux, template, in_transit = inject_periodic_box_transit(time, flux, injected_period, epoch, duration_days, injected_depth)
     before = periodic_depth_and_snr(injected_flux, in_transit)
-    row = {"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "case_index": int(case_index), "injected_period_days": float(injected_period), "injected_epoch_days": epoch, "epoch_phase_fraction": float(epoch_phase_fraction), "injected_duration_hours": float(injected_duration_hours), "injected_depth": float(injected_depth), "in_transit_observation_count": int(np.isfinite(flux[in_transit]).sum()), "observed_depth_before_model": float(before["depth"]), "local_snr_before_model": float(before["snr"])}
+    row = {"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "sample_stratum": str(sample_stratum), "case_index": int(case_index), "injected_period_days": float(injected_period), "injected_epoch_days": epoch, "epoch_phase_fraction": float(epoch_phase_fraction), "injected_duration_hours": float(injected_duration_hours), "injected_depth": float(injected_depth), "in_transit_observation_count": int(np.isfinite(flux[in_transit]).sum()), "observed_depth_before_model": float(before["depth"]), "local_snr_before_model": float(before["snr"])}
     branch_series = {}
     branch_errors = {}
     if "raw" in required_branches(args["pipelines"]):
@@ -589,7 +713,7 @@ def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duratio
         try:
             started = perf_counter()
             result = run_bls_search(time, branch_series[branch], bls_periods, duration_grid, args) if detector == "bls" else run_tcf_search(time, branch_series[branch], tcf_periods, duration_grid, args)
-            row.update(detector_result_fields(pipeline, result, detector, injected_period, args, perf_counter() - started))
+            row.update(detector_result_fields(pipeline, result, detector, injected_period, args, perf_counter() - started, base_rank1_period=base_rank1_periods.get(pipeline)))
             row[f"{pipeline}_error"] = ""
         except Exception as exc:
             row.update(empty_pipeline_fields(pipeline, f"{type(exc).__name__}: {exc}"))
@@ -636,7 +760,7 @@ def save_rows(path, rows):
     frame.to_csv(path, index=False)
     return frame
 
-def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args, progress_queue, resume_compatible=None):
+def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args, progress_queue, resume_compatible=None):
     rows, completed = load_existing_injection_rows(star_dir, cases, args, resume_compatible=resume_compatible)
     if completed:
         report_progress(progress_queue, target_id, quarter, "injections resumed", units=len(completed), detail=f"{len(completed)}/{len(cases)}")
@@ -646,7 +770,7 @@ def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, d
     for case_index, case in enumerate(cases):
         if case_index in completed:
             continue
-        rows.append(run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args))
+        rows.append(run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args))
         completed.add(case_index)
         unreported += 1
         if len(completed) % checkpoint_interval == 0 or len(completed) == len(cases):
@@ -662,7 +786,7 @@ def prepare_star_run(star_dir, args):
     star_dir.mkdir(parents=True, exist_ok=True)
     compatible = star_config_matches(star_dir, args)
     if not compatible:
-        for name in ("COMPLETE", "injections.csv", "star_summary.json", "failure.json"):
+        for name in ("COMPLETE", "injections.csv", "base_light_curve_candidates.csv", "star_summary.json", "failure.json"):
             path = star_dir / name
             if path.exists():
                 path.unlink()
@@ -674,6 +798,7 @@ def run_star_task(task):
     target_id = normalize_target_id(row["target_id"])
     quarter = int(row["quarter"])
     selection_group = str(row.get("selection_group", "unspecified"))
+    sample_stratum = str(row.get("sample_stratum", "unspecified"))
     star_dir = Path(args["output_dir"]) / "stars" / star_prefix(target_id, quarter)
     started = perf_counter()
     try:
@@ -695,34 +820,42 @@ def run_star_task(task):
             base_arima, base_arima_runtime, base_arima_source = load_or_fit_base_arima(star_dir, target_id, quarter, flux, args)
         base_kalman = None
         base_kalman_runtime = 0.0
-        if "kalman" in branches and args["kalman_injection_mode"] == "filter":
-            report_progress(progress_queue, target_id, quarter, "base Kalman fit", detail="fit once")
+        if "kalman" in branches:
+            report_progress(progress_queue, target_id, quarter, "base Kalman fit", detail="fit once for base-candidate diagnostics")
             base_kalman, base_kalman_runtime = fit_base_kalman(flux, args)
         base_gp = None
         prepared_gp = None
         base_gp_runtime = 0.0
-        if "gp" in branches and args["gp_injection_mode"] == "filter":
-            report_progress(progress_queue, target_id, quarter, "base GP fit", detail="fit once + prepare operator")
-            base_gp, prepared_gp, base_gp_runtime = fit_base_gp(time, flux, args)
+        if "gp" in branches:
+            report_progress(progress_queue, target_id, quarter, "base GP fit", detail="fit once for base-candidate diagnostics")
+            base_gp, prepared_base_gp, base_gp_runtime = fit_base_gp(time, flux, args)
+            if args["gp_injection_mode"] == "filter":
+                prepared_gp = prepared_base_gp
+        base_series = base_branch_series(flux, base_arima, base_kalman, base_gp, args["pipelines"])
+        base_candidates, base_rank1_periods = base_candidate_rows(time, base_series, period_grid, duration_grid, target_id, quarter, selection_group, sample_stratum, args)
+        base_candidates.to_csv(star_dir / "base_light_curve_candidates.csv", index=False)
         cases = [tuple(case) for case in args["cases"]]
-        injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, args, progress_queue, resume_compatible=resume_compatible)
+        injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args, progress_queue, resume_compatible=resume_compatible)
         successful = injections.copy()
         star_metrics = calculate_star_metrics(time, flux)
-        summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "status": "success", "profile": str(args["profile"]), "search_resolution": str(args["search_resolution"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)) if base_arima is not None else None, "kalman_injection_mode": str(args["kalman_injection_mode"]), "base_kalman_runtime_seconds": float(base_kalman_runtime), "base_kalman_converged": bool(base_kalman.converged) if base_kalman is not None else None, "gp_injection_mode": str(args["gp_injection_mode"]), "base_gp_runtime_seconds": float(base_gp_runtime), "base_gp_converged": bool(base_gp.converged) if base_gp is not None else None, "base_gp_length_scale_days": float(base_gp.parameters["length_scale_days"]) if base_gp is not None else None, "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics}
+        summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "sample_stratum": sample_stratum, "status": "success", "profile": str(args["profile"]), "search_resolution": str(args["search_resolution"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)) if base_arima is not None else None, "kalman_injection_mode": str(args["kalman_injection_mode"]), "base_kalman_runtime_seconds": float(base_kalman_runtime), "base_kalman_converged": bool(base_kalman.converged) if base_kalman is not None else None, "gp_injection_mode": str(args["gp_injection_mode"]), "base_gp_runtime_seconds": float(base_gp_runtime), "base_gp_converged": bool(base_gp.converged) if base_gp is not None else None, "base_gp_length_scale_days": float(base_gp.parameters["length_scale_days"]) if base_gp is not None else None, "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics}
         for pipeline in args["pipelines"]:
             column = f"{pipeline}_harmonic_rank1_matched"
             exact_column = f"{pipeline}_exact_rank1_matched"
             summary[f"{pipeline}_success_count"] = int(successful[f"{pipeline}_success"].astype(bool).sum()) if f"{pipeline}_success" in successful.columns else 0
+            topk_column = f"{pipeline}_harmonic_topk_matched"
             summary[f"{pipeline}_harmonic_rank1_rate"] = float(successful[column].astype(bool).mean()) if column in successful.columns and len(successful) else float("nan")
+            summary[f"{pipeline}_harmonic_topk_rate"] = float(successful[topk_column].astype(bool).mean()) if topk_column in successful.columns and len(successful) else float("nan")
+            summary[f"{pipeline}_ranking_gap_rate"] = float((successful[topk_column].astype(bool) & ~successful[column].astype(bool)).mean()) if topk_column in successful.columns and column in successful.columns and len(successful) else float("nan")
             summary[f"{pipeline}_exact_rank1_rate"] = float(successful[exact_column].astype(bool).mean()) if exact_column in successful.columns and len(successful) else float("nan")
         (star_dir / "star_summary.json").write_text(json.dumps(json_ready(summary), indent=2) + "\n")
         if args["save_regularized_inputs"]:
             regular.to_parquet(star_dir / "regularized_light_curve.parquet", index=False)
         (star_dir / "COMPLETE").write_text("complete\n")
         write_star_checkpoint(star_dir, target_id, quarter, "success", "complete", runtime_seconds=summary["runtime_seconds"])
-        return {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "status": "success", "star_dir": str(star_dir), "runtime_seconds": summary["runtime_seconds"], "error": ""}
+        return {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "sample_stratum": sample_stratum, "status": "success", "star_dir": str(star_dir), "runtime_seconds": summary["runtime_seconds"], "error": ""}
     except Exception as exc:
-        failure = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "status": "failed", "star_dir": str(star_dir), "runtime_seconds": float(perf_counter() - started), "error": f"{type(exc).__name__}: {exc}"}
+        failure = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "sample_stratum": sample_stratum, "status": "failed", "star_dir": str(star_dir), "runtime_seconds": float(perf_counter() - started), "error": f"{type(exc).__name__}: {exc}"}
         star_dir.mkdir(parents=True, exist_ok=True)
         (star_dir / "failure.json").write_text(json.dumps(json_ready(failure), indent=2) + "\n")
         write_star_checkpoint(star_dir, target_id, quarter, "failed", "failed", error=failure["error"], runtime_seconds=failure["runtime_seconds"])
@@ -736,7 +869,7 @@ def completed_result(output_dir, row):
     quarter = int(row["quarter"])
     star_dir = Path(output_dir) / "stars" / star_prefix(target_id, quarter)
     summary = json.loads((star_dir / "star_summary.json").read_text())
-    return {"target_id": target_id, "quarter": quarter, "selection_group": str(row.get("selection_group", "unspecified")), "status": "success", "star_dir": str(star_dir), "runtime_seconds": float(summary.get("runtime_seconds", np.nan)), "error": ""}
+    return {"target_id": target_id, "quarter": quarter, "selection_group": str(row.get("selection_group", "unspecified")), "sample_stratum": str(row.get("sample_stratum", "unspecified")), "status": "success", "star_dir": str(star_dir), "runtime_seconds": float(summary.get("runtime_seconds", np.nan)), "error": ""}
 
 def failure_result(output_dir, row):
     target_id = normalize_target_id(row["target_id"])
@@ -746,7 +879,7 @@ def failure_result(output_dir, row):
         failure = json.loads((star_dir / "failure.json").read_text())
     except Exception:
         failure = {}
-    return {"target_id": target_id, "quarter": quarter, "selection_group": str(row.get("selection_group", "unspecified")), "status": "failed", "star_dir": str(star_dir), "runtime_seconds": float(failure.get("runtime_seconds", np.nan)), "error": str(failure.get("error", "Existing failure.json"))}
+    return {"target_id": target_id, "quarter": quarter, "selection_group": str(row.get("selection_group", "unspecified")), "sample_stratum": str(row.get("sample_stratum", "unspecified")), "status": "failed", "star_dir": str(star_dir), "runtime_seconds": float(failure.get("runtime_seconds", np.nan)), "error": str(failure.get("error", "Existing failure.json"))}
 
 def resolve_worker_count(args, target_count):
     available = os.cpu_count() or 1
@@ -832,7 +965,7 @@ def run_pending_rows(pending_rows, worker_args, args):
                         try:
                             result = future.result()
                         except Exception as exc:
-                            result = {"target_id": normalize_target_id(row["target_id"]), "quarter": int(row["quarter"]), "selection_group": str(row.get("selection_group", "unspecified")), "status": "failed", "star_dir": "", "runtime_seconds": float("nan"), "error": f"{type(exc).__name__}: {exc}"}
+                            result = {"target_id": normalize_target_id(row["target_id"]), "quarter": int(row["quarter"]), "selection_group": str(row.get("selection_group", "unspecified")), "sample_stratum": str(row.get("sample_stratum", "unspecified")), "status": "failed", "star_dir": "", "runtime_seconds": float("nan"), "error": f"{type(exc).__name__}: {exc}"}
                         results.append(result)
                         if result["status"] != "success":
                             tqdm.write(f"FAILED KIC {result['target_id']} Q{result['quarter']}: {result['error']}")
@@ -844,13 +977,21 @@ def run_pending_rows(pending_rows, worker_args, args):
 def load_completed_outputs(task_results):
     injections = []
     summaries = []
+    base_candidates = []
     for result in task_results:
         if result["status"] != "success":
             continue
         star_dir = Path(result["star_dir"])
         injections.append(pd.read_csv(star_dir / "injections.csv", dtype={"target_id": str}))
         summaries.append(json.loads((star_dir / "star_summary.json").read_text()))
-    return pd.concat(injections, ignore_index=True) if injections else pd.DataFrame(), pd.DataFrame(summaries)
+        base_path = star_dir / "base_light_curve_candidates.csv"
+        if base_path.exists():
+            base_candidates.append(pd.read_csv(base_path, dtype={"target_id": str}))
+    return (
+        pd.concat(injections, ignore_index=True) if injections else pd.DataFrame(),
+        pd.DataFrame(summaries),
+        pd.concat(base_candidates, ignore_index=True) if base_candidates else pd.DataFrame(),
+    )
 
 def metric_row(name, values):
     values = pd.Series(values).fillna(False).astype(bool)
@@ -861,10 +1002,11 @@ def metric_row(name, values):
 def pipeline_summary(injections, pipelines):
     rows = []
     for pipeline in pipelines:
-        success = injections[f"{pipeline}_success"].astype(bool)
-        harmonic = injections[f"{pipeline}_harmonic_rank1_matched"].astype(bool)
-        exact = injections[f"{pipeline}_exact_rank1_matched"].astype(bool)
-        rows.append({"pipeline": pipeline, "branch": PIPELINE_DEFINITIONS[pipeline][0], "detector": PIPELINE_DEFINITIONS[pipeline][1], "injection_count": int(len(injections)), "success_count": int(success.sum()), "success_rate": float(success.mean()), "harmonic_rank1_count": int(harmonic.sum()), "harmonic_rank1_rate": float(harmonic.mean()), "exact_rank1_count": int(exact.sum()), "exact_rank1_rate": float(exact.mean()), "median_score": float(pd.to_numeric(injections[f"{pipeline}_score"], errors="coerce").median()), "median_runtime_seconds": float(pd.to_numeric(injections[f"{pipeline}_runtime_seconds"], errors="coerce").median())})
+        success = injections[f"{pipeline}_success"].fillna(False).astype(bool)
+        harmonic = injections[f"{pipeline}_harmonic_rank1_matched"].fillna(False).astype(bool)
+        exact = injections[f"{pipeline}_exact_rank1_matched"].fillna(False).astype(bool)
+        harmonic_topk = injections[f"{pipeline}_harmonic_topk_matched"].fillna(False).astype(bool)
+        rows.append({"pipeline": pipeline, "branch": PIPELINE_DEFINITIONS[pipeline][0], "detector": PIPELINE_DEFINITIONS[pipeline][1], "injection_count": int(len(injections)), "success_count": int(success.sum()), "success_rate": float(success.mean()), "harmonic_rank1_count": int(harmonic.sum()), "harmonic_rank1_rate": float(harmonic.mean()), "harmonic_topk_count": int(harmonic_topk.sum()), "harmonic_topk_rate": float(harmonic_topk.mean()), "ranking_gap_count": int((harmonic_topk & ~harmonic).sum()), "ranking_gap_rate": float((harmonic_topk & ~harmonic).mean()), "exact_rank1_count": int(exact.sum()), "exact_rank1_rate": float(exact.mean()), "base_rank1_competition_count": int((injections[f"{pipeline}_failure_mode"] == "base_rank1_competition").sum()), "candidate_generation_failure_count": int((injections[f"{pipeline}_failure_mode"] == "candidate_generation_failure").sum()), "median_score": float(pd.to_numeric(injections[f"{pipeline}_score"], errors="coerce").median()), "median_runtime_seconds": float(pd.to_numeric(injections[f"{pipeline}_runtime_seconds"], errors="coerce").median())})
     return pd.DataFrame(rows)
 
 def bool_union(injections, pipelines, suffix):
@@ -882,8 +1024,9 @@ def combination_summary(injections, pipelines):
         if not members:
             continue
         harmonic = bool_union(injections, members, "harmonic_rank1_matched")
+        harmonic_topk = bool_union(injections, members, "harmonic_topk_matched")
         exact = bool_union(injections, members, "exact_rank1_matched")
-        rows.append({"combination": name, "pipelines": ",".join(members), "injection_count": int(len(injections)), "harmonic_rank1_count": int(harmonic.sum()), "harmonic_rank1_rate": float(harmonic.mean()), "exact_rank1_count": int(exact.sum()), "exact_rank1_rate": float(exact.mean())})
+        rows.append({"combination": name, "pipelines": ",".join(members), "injection_count": int(len(injections)), "harmonic_rank1_count": int(harmonic.sum()), "harmonic_rank1_rate": float(harmonic.mean()), "harmonic_topk_count": int(harmonic_topk.sum()), "harmonic_topk_rate": float(harmonic_topk.mean()), "ranking_gap_count": int((harmonic_topk & ~harmonic).sum()), "ranking_gap_rate": float((harmonic_topk & ~harmonic).mean()), "exact_rank1_count": int(exact.sum()), "exact_rank1_rate": float(exact.mean())})
     return pd.DataFrame(rows)
 
 def pairwise_overlap(injections, pipelines, suffix):
@@ -898,30 +1041,67 @@ def grouped_summary(injections, column, pipelines):
     aggregations = {"injection_count": ("target_id", "size"), "star_count": ("target_id", "nunique")}
     for pipeline in pipelines:
         aggregations[f"{pipeline}_harmonic_rank1_rate"] = (f"{pipeline}_harmonic_rank1_matched", "mean")
+        aggregations[f"{pipeline}_harmonic_topk_rate"] = (f"{pipeline}_harmonic_topk_matched", "mean")
         aggregations[f"{pipeline}_exact_rank1_rate"] = (f"{pipeline}_exact_rank1_matched", "mean")
     return injections.groupby(column, dropna=False, as_index=False).agg(**aggregations)
 
-def save_global_outputs(args, manifest, task_results, injections, star_summaries):
+def failure_mode_summary(injections, pipelines):
+    rows = []
+    for pipeline in pipelines:
+        counts = injections[f"{pipeline}_failure_mode"].fillna("unknown").value_counts(dropna=False)
+        for mode, count in counts.items():
+            rows.append({"pipeline": pipeline, "branch": PIPELINE_DEFINITIONS[pipeline][0], "detector": PIPELINE_DEFINITIONS[pipeline][1], "failure_mode": str(mode), "count": int(count), "rate": float(count / len(injections)) if len(injections) else float("nan")})
+    return pd.DataFrame(rows)
+
+def save_global_outputs(args, manifest, task_results, injections, star_summaries, base_candidates):
     metrics_dir = Path(args.output_dir) / "metrics"
     metrics_dir.mkdir(parents=True, exist_ok=True)
     pipelines = tuple(args.pipelines)
     pipe_summary = pipeline_summary(injections, pipelines) if not injections.empty else pd.DataFrame()
     combo_summary = combination_summary(injections, pipelines) if not injections.empty else pd.DataFrame()
-    pairwise = pd.concat([pairwise_overlap(injections, pipelines, "harmonic_rank1_matched"), pairwise_overlap(injections, pipelines, "exact_rank1_matched")], ignore_index=True) if not injections.empty else pd.DataFrame()
+    pairwise = pd.concat([pairwise_overlap(injections, pipelines, "harmonic_rank1_matched"), pairwise_overlap(injections, pipelines, "harmonic_topk_matched"), pairwise_overlap(injections, pipelines, "exact_rank1_matched")], ignore_index=True) if not injections.empty else pd.DataFrame()
+    failures = failure_mode_summary(injections, pipelines) if not injections.empty else pd.DataFrame()
     manifest.to_csv(metrics_dir / "target_manifest_used.csv", index=False)
     pd.DataFrame(task_results).to_csv(metrics_dir / "target_execution_status.csv", index=False)
     injections.to_csv(metrics_dir / "multistar_challenger_injections.csv", index=False)
     star_summaries.to_csv(metrics_dir / "multistar_challenger_star_summary.csv", index=False)
+    base_candidates.to_csv(metrics_dir / "multistar_challenger_base_candidates.csv", index=False)
     pipe_summary.to_csv(metrics_dir / "multistar_challenger_pipeline_summary.csv", index=False)
     combo_summary.to_csv(metrics_dir / "multistar_challenger_combinations.csv", index=False)
     pairwise.to_csv(metrics_dir / "multistar_challenger_pairwise_overlap.csv", index=False)
+    failures.to_csv(metrics_dir / "multistar_challenger_failure_modes.csv", index=False)
     if not injections.empty:
         grouped_summary(injections, "injected_depth", pipelines).to_csv(metrics_dir / "multistar_challenger_by_depth.csv", index=False)
         grouped_summary(injections, "injected_duration_hours", pipelines).to_csv(metrics_dir / "multistar_challenger_by_duration.csv", index=False)
         grouped_summary(injections, "injected_period_days", pipelines).to_csv(metrics_dir / "multistar_challenger_by_period.csv", index=False)
         grouped_summary(injections, "target_id", pipelines).to_csv(metrics_dir / "multistar_challenger_by_star.csv", index=False)
+        if "sample_stratum" in injections.columns:
+            grouped_summary(injections, "sample_stratum", pipelines).to_csv(metrics_dir / "multistar_challenger_by_stratum.csv", index=False)
     all_harmonic = bool_union(injections, pipelines, "harmonic_rank1_matched") if not injections.empty else pd.Series(dtype=bool)
-    summary = {"profile": str(args.profile), "search_resolution": str(args.search_resolution), "kalman_injection_mode": str(args.kalman_injection_mode), "gp_injection_mode": str(args.gp_injection_mode), "target_count": int(len(manifest)), "successful_target_count": int((pd.DataFrame(task_results)["status"] == "success").sum()) if task_results else 0, "failed_target_count": int((pd.DataFrame(task_results)["status"] != "success").sum()) if task_results else 0, "pipeline_count": int(len(pipelines)), "pipelines": list(pipelines), "injection_count": int(len(injections)), "injections_per_target": int(len(injection_cases(args))), "parallel_star_workers": int(resolve_worker_count(args, len(manifest))), "calibration_status": "rank-1 injection benchmark only; FAP calibration must be run separately for final false-alarm-controlled claims", "all_pipeline_harmonic_rank1_rate": float(all_harmonic.mean()) if len(all_harmonic) else float("nan")}
+    all_harmonic_topk = bool_union(injections, pipelines, "harmonic_topk_matched") if not injections.empty else pd.Series(dtype=bool)
+    cohort_counts = manifest["selection_group"].value_counts().to_dict() if "selection_group" in manifest.columns else {}
+    summary = {
+        "benchmark_schema_version": int(BENCHMARK_SCHEMA_VERSION),
+        "profile": str(args.profile),
+        "scientific_cohort": str(args.selection_group) if getattr(args, "selection_group", None) else "mixed_or_unspecified",
+        "require_catalog_clean": bool(args.require_catalog_clean),
+        "cohort_counts": {str(key): int(value) for key, value in cohort_counts.items()},
+        "search_resolution": str(args.search_resolution),
+        "kalman_injection_mode": str(args.kalman_injection_mode),
+        "gp_injection_mode": str(args.gp_injection_mode),
+        "target_count": int(len(manifest)),
+        "successful_target_count": int((pd.DataFrame(task_results)["status"] == "success").sum()) if task_results else 0,
+        "failed_target_count": int((pd.DataFrame(task_results)["status"] != "success").sum()) if task_results else 0,
+        "pipeline_count": int(len(pipelines)),
+        "pipelines": list(pipelines),
+        "injection_count": int(len(injections)),
+        "injections_per_target": int(len(injection_cases(args))),
+        "parallel_star_workers": int(resolve_worker_count(args, len(manifest))),
+        "calibration_status": "injection benchmark only; FAP calibration must be run separately for final false-alarm-controlled claims",
+        "all_pipeline_harmonic_rank1_rate": float(all_harmonic.mean()) if len(all_harmonic) else float("nan"),
+        "all_pipeline_harmonic_topk_rate": float(all_harmonic_topk.mean()) if len(all_harmonic_topk) else float("nan"),
+        "all_pipeline_ranking_gap_rate": float((all_harmonic_topk & ~all_harmonic).mean()) if len(all_harmonic) else float("nan"),
+    }
     (metrics_dir / "multistar_challenger_summary.json").write_text(json.dumps(json_ready(summary), indent=2) + "\n")
     return metrics_dir, summary
 
@@ -941,6 +1121,9 @@ def main(args=None):
         else:
             pending_rows.append(row)
     print(f"Profile: {args.profile}")
+    print(f"Manifest: {args.manifest_path}")
+    print(f"Selection group: {args.selection_group or 'mixed_or_unspecified'}")
+    print(f"Catalog-clean guard: {'ON' if args.require_catalog_clean else 'OFF (explicit contaminated/stress-test mode)'}")
     print(f"Targets requested: {len(manifest)}")
     print(f"Targets resumed: {len(task_results)}")
     print(f"Targets to run: {len(pending_rows)}")
@@ -953,10 +1136,11 @@ def main(args=None):
     prefetch_manifest_light_curves(pending_rows, args)
     worker_args = settings_to_worker_dict(args)
     task_results.extend(run_pending_rows(pending_rows, worker_args, args))
-    injections, star_summaries = load_completed_outputs(task_results)
-    metrics_dir, summary = save_global_outputs(args, manifest, task_results, injections, star_summaries)
+    injections, star_summaries, base_candidates = load_completed_outputs(task_results)
+    metrics_dir, summary = save_global_outputs(args, manifest, task_results, injections, star_summaries, base_candidates)
     print(f"Metrics directory: {metrics_dir}")
     print(f"All-pipeline harmonic rank-1 union: {summary['all_pipeline_harmonic_rank1_rate']:.3f}")
+    print(f"All-pipeline harmonic top-k union: {summary['all_pipeline_harmonic_topk_rate']:.3f}")
     return 0
 
 if __name__ == "__main__":

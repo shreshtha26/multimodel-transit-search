@@ -130,6 +130,10 @@ The current multi-star benchmark uses:
 
 The 50-star run completed successfully for all 50 requested targets.
 
+> **Cohort clarification:** `configs/kepler_50_star_manifest.csv` is a legacy engineering/stress-test cohort (one reference target plus rows labelled primarily as `confirmed_planet_host`), not a catalog-clean background sample. Weak injected signals in that cohort can compete with pre-existing astrophysical transit/eclipse signals. Its aggregate injection-recovery rates therefore must not be presented as clean-background recovery rates. The manifest and historical outputs are retained unchanged for reproducibility.
+
+A separate catalog-clean workflow is now defined in [`docs/clean_injection_benchmark.md`](docs/clean_injection_benchmark.md). It excludes cataloged KOI/TCE/confirmed-planet/EB associations before light-curve characterization, freezes a separate `configs/kepler_clean_background_manifest.csv`, and keeps known-signal systems for dedicated positive-control/stress-test analyses.
+
 The reduced multi-star injection grid is an engineering pilot designed to test generalization, calibration, and candidate combination. It is not intended to approximate the full Kepler planet population.
 
 ## Data and Preprocessing
@@ -654,14 +658,19 @@ This is the first multi-background evidence that cheap light-curve properties ca
 
 ### Multi-background challenger benchmark
 
-The next multi-star runner is built for the 10-star pilot → 50-star main-benchmark sequence:
+The next multi-star runner is built for a staged clean-background 5 → 10 → 50-star benchmark. The default manifest is `configs/kepler_clean_background_manifest.csv`, and the runner fails closed unless the selected rows are explicitly `catalog_clean_background` with false KOI/TCE/confirmed-planet/EB flags. Build and freeze that manifest first; see [`docs/clean_injection_benchmark.md`](docs/clean_injection_benchmark.md).
+
+Example main run after the clean manifest has been built:
 
 ```bash
-python scripts/run_multistar_challenger_benchmark.py --profile pilot
-python scripts/run_multistar_challenger_benchmark.py --profile main
+python scripts/run_multistar_challenger_benchmark.py \
+  --profile main \
+  --manifest-path configs/kepler_clean_background_manifest.csv \
+  --selection-group catalog_clean_background \
+  --target-limit 50
 ```
 
-The pilot profile runs 10 stratified targets with a reduced injection grid. If the background time-scale audit output exists, the pilot samples across quiet, high-scatter, long-ACF, and gap-heavy cases instead of simply taking the first 10 manifest rows.
+Known-planet/EB or other contaminated cohorts require the explicit `--allow-contaminated-cohort` opt-out and should use a separate output directory.
 
 The main profile runs 50 targets with the full representative 81-case injection grid:
 
@@ -673,6 +682,8 @@ The default challenger pipelines are:
 
 ```text
 raw_bls
+raw_tcf
+arima_bls
 arima_tcf
 kalman_bls
 kalman_tcf
@@ -693,13 +704,16 @@ Key summary files:
 
 ```text
 metrics/multistar_challenger_injections.csv
+metrics/multistar_challenger_base_candidates.csv
 metrics/multistar_challenger_pipeline_summary.csv
 metrics/multistar_challenger_pairwise_overlap.csv
 metrics/multistar_challenger_combinations.csv
+metrics/multistar_challenger_failure_modes.csv
+metrics/multistar_challenger_by_stratum.csv
 metrics/multistar_challenger_summary.json
 ```
 
-This runner is a rank-1 injection benchmark. FAP-calibrated claims still require matched null calibration for the same multi-star challenger candidate-generation settings.
+This runner reports both rank-1 and top-k injection recovery. It also searches each unmodified light curve before injection, stores each pipeline's base top-k candidates, and separates ranking failures from candidate-generation failures and preserved pre-existing rank-1 competition. FAP-calibrated claims still require matched null calibration for the same multi-star challenger candidate-generation settings.
 
 Per-star branch-conditional FAP calibration is run as a second stage:
 
@@ -987,7 +1001,7 @@ The repository does **not** yet demonstrate that:
 * the candidate reranker will generalize to the full Kepler population;
 * the current 1% threshold is precisely estimated in the distribution tail;
 * the model can distinguish planets from astrophysical false positives;
-* the model has been validated on confirmed Kepler planets;
+* the model has a dedicated known-planet recovery benchmark against cataloged periods/ephemerides;
 * the model handles realistic limb-darkened transit morphology;
 * performance is robust across quarters, cadence modes, stellar populations, or broad orbital-period distributions;
 * the pipeline is suitable for catalog production.
@@ -1002,8 +1016,8 @@ Important limitations include:
 * only 400 multi-star null realizations;
 * unresolved ARIMA non-convergence;
 * limited tail statistics for 1% FAP calibration;
-* no known-planet benchmark;
-* no eclipsing-binary or astrophysical false-positive benchmark;
+* no completed dedicated known-planet recovery benchmark against cataloged truth;
+* no completed dedicated eclipsing-binary or astrophysical false-positive benchmark;
 * no external population-scale validation set.
 
 ## Repository Structure
