@@ -528,7 +528,8 @@ def filter_arima_innovations(flux, base_arima, args):
     burn = int(getattr(filtered, "loglikelihood_burn", 0))
     if burn > 0:
         innovations[:burn] = np.nan
-    return {"innovations": innovations, "fit": filtered, "params": np.asarray(params, dtype=float), "summary": {"order": tuple(args["arima_order"]), "converged": True, "aic": float(filtered.aic), "bic": float(filtered.bic), "finite_innovation_count": int(np.isfinite(innovations).sum()), "mode": "filter_fixed_base_params"}}
+    base_summary = dict(base_arima.get("summary", {}))
+    return {"innovations": innovations, "fit": filtered, "params": np.asarray(params, dtype=float), "summary": {"order": tuple(args["arima_order"]), "converged": bool(base_summary.get("converged", True)), "base_fit_converged": bool(base_summary.get("converged", True)), "fit_performed_for_injection": False, "filter_succeeded": True, "aic": float(filtered.aic), "bic": float(filtered.bic), "finite_innovation_count": int(np.isfinite(innovations).sum()), "mode": "filter_fixed_base_params", "base_optimizer_warnflag": base_summary.get("optimizer_warnflag"), "base_optimizer_iterations": base_summary.get("optimizer_iterations"), "base_optimizer_function_calls": base_summary.get("optimizer_function_calls")}}
 
 def fit_gp(time, values, args):
     return fit_smooth_gp_background(time, values, max_train_points=args["gp_max_train_points"], length_scale_days=args["gp_length_scale_days"], min_length_scale_days=args["gp_min_length_scale_days"], max_length_scale_days=args["gp_max_length_scale_days"], measurement_noise_fraction=args["gp_measurement_noise_fraction"], n_restarts_optimizer=args["gp_n_restarts_optimizer"], random_seed=args["gp_random_seed"], optimize_kernel=args["gp_optimize_kernel"])
@@ -659,7 +660,14 @@ def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duratio
             arima = filter_arima_innovations(injected_flux, base_arima, args) if args["arima_injection_mode"] == "filter" else fit_arima_innovations(injected_flux, order=tuple(args["arima_order"]), maxiter=args["fit_maxiter"])
             branch_series["arima"] = arima["innovations"]
             row["arima_model_runtime_seconds"] = float(perf_counter() - started)
+            row["arima_injection_mode"] = str(args["arima_injection_mode"])
             row["arima_converged"] = bool(arima["summary"].get("converged", True))
+            row["arima_fit_performed_for_injection"] = bool(args["arima_injection_mode"] != "filter")
+            row["arima_filter_succeeded"] = bool(args["arima_injection_mode"] == "filter")
+            row["arima_base_fit_converged"] = bool(base_arima["summary"].get("converged", True)) if base_arima is not None else np.nan
+            row["arima_base_optimizer_warnflag"] = base_arima["summary"].get("optimizer_warnflag") if base_arima is not None else None
+            row["arima_base_optimizer_iterations"] = base_arima["summary"].get("optimizer_iterations") if base_arima is not None else None
+            row["arima_base_optimizer_function_calls"] = base_arima["summary"].get("optimizer_function_calls") if base_arima is not None else None
             add_branch_diagnostics(row, "arima", arima["innovations"], before, in_transit)
         except Exception as exc:
             branch_errors["arima"] = f"{type(exc).__name__}: {exc}"
@@ -701,6 +709,17 @@ def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duratio
             row["gp_training_point_count"] = int(model.parameters["training_point_count"])
             row["gp_length_scale_days"] = float(model.parameters["length_scale_days"])
             row["gp_measurement_noise_variance"] = float(model.parameters["measurement_noise_variance"])
+            row["gp_fit_performed_for_injection"] = bool(args["gp_injection_mode"] != "filter")
+            row["gp_filter_succeeded"] = bool(args["gp_injection_mode"] == "filter")
+            row["gp_base_fit_converged"] = bool(prepared_gp.converged) if prepared_gp is not None else np.nan
+            row["gp_base_fit_status"] = int(prepared_gp.status) if prepared_gp is not None else np.nan
+            row["gp_base_fit_message"] = str(prepared_gp.message) if prepared_gp is not None else ""
+            row["gp_length_scale_at_lower_bound"] = bool(model.parameters.get("length_scale_at_lower_bound", False))
+            row["gp_length_scale_at_upper_bound"] = bool(model.parameters.get("length_scale_at_upper_bound", False))
+            row["gp_signal_variance_at_lower_bound"] = bool(model.parameters.get("signal_variance_at_lower_bound", False))
+            row["gp_signal_variance_at_upper_bound"] = bool(model.parameters.get("signal_variance_at_upper_bound", False))
+            row["gp_optimizer_warning_count"] = int(model.parameters.get("optimizer_warning_count", 0))
+            row["gp_optimizer_warning_message"] = str(model.parameters.get("optimizer_warning_message", ""))
             add_branch_diagnostics(row, "gp", model.residuals, before, in_transit)
         except Exception as exc:
             branch_errors["gp"] = f"{type(exc).__name__}: {exc}"
@@ -839,6 +858,7 @@ def run_star_task(task):
         successful = injections.copy()
         star_metrics = calculate_star_metrics(time, flux)
         summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "sample_stratum": sample_stratum, "status": "success", "profile": str(args["profile"]), "search_resolution": str(args["search_resolution"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)) if base_arima is not None else None, "kalman_injection_mode": str(args["kalman_injection_mode"]), "base_kalman_runtime_seconds": float(base_kalman_runtime), "base_kalman_converged": bool(base_kalman.converged) if base_kalman is not None else None, "gp_injection_mode": str(args["gp_injection_mode"]), "base_gp_runtime_seconds": float(base_gp_runtime), "base_gp_converged": bool(base_gp.converged) if base_gp is not None else None, "base_gp_length_scale_days": float(base_gp.parameters["length_scale_days"]) if base_gp is not None else None, "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics}
+        summary.update({"arima_injection_mode": str(args["arima_injection_mode"]), "base_arima_optimizer_warnflag": base_arima["summary"].get("optimizer_warnflag") if base_arima is not None else None, "base_arima_optimizer_iterations": base_arima["summary"].get("optimizer_iterations") if base_arima is not None else None, "base_arima_optimizer_function_calls": base_arima["summary"].get("optimizer_function_calls") if base_arima is not None else None, "base_gp_status": int(base_gp.status) if base_gp is not None else None, "base_gp_message": str(base_gp.message) if base_gp is not None else None, "base_gp_length_scale_at_lower_bound": bool(base_gp.parameters.get("length_scale_at_lower_bound", False)) if base_gp is not None else None, "base_gp_length_scale_at_upper_bound": bool(base_gp.parameters.get("length_scale_at_upper_bound", False)) if base_gp is not None else None, "base_gp_signal_variance_at_lower_bound": bool(base_gp.parameters.get("signal_variance_at_lower_bound", False)) if base_gp is not None else None, "base_gp_signal_variance_at_upper_bound": bool(base_gp.parameters.get("signal_variance_at_upper_bound", False)) if base_gp is not None else None, "base_gp_optimizer_warning_count": int(base_gp.parameters.get("optimizer_warning_count", 0)) if base_gp is not None else None, "base_gp_optimizer_warning_message": str(base_gp.parameters.get("optimizer_warning_message", "")) if base_gp is not None else None})
         for pipeline in args["pipelines"]:
             column = f"{pipeline}_harmonic_rank1_matched"
             exact_column = f"{pipeline}_exact_rank1_matched"

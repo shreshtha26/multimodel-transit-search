@@ -81,7 +81,10 @@ def fit_arima_innovations(flux, order=(1, 1, 0), maxiter=200):
         innovations[:burn] = np.nan
     mle_retvals = getattr(fitted, "mle_retvals", {})
     converged = bool(mle_retvals.get("converged", True))
-    summary = {"order": tuple(order), "converged": converged, "aic": float(fitted.aic), "bic": float(fitted.bic), "finite_innovation_count": int(np.isfinite(innovations).sum())}
+    warnflag = mle_retvals.get("warnflag")
+    iterations = mle_retvals.get("iterations")
+    function_calls = mle_retvals.get("fcalls")
+    summary = {"order": tuple(order), "converged": converged, "aic": float(fitted.aic), "bic": float(fitted.bic), "finite_innovation_count": int(np.isfinite(innovations).sum()), "optimizer_warnflag": int(warnflag) if warnflag is not None else None, "optimizer_iterations": int(iterations) if iterations is not None else None, "optimizer_function_calls": int(function_calls) if function_calls is not None else None}
     return {"innovations": innovations, "fit": fitted, "summary": summary}
 
 def score_period(time, innovations, period, duration_grid, scale, cadence, edge_width_cadences=0, min_edge_observations=4, min_transit_events=3, min_event_consistency_fraction=0.60):

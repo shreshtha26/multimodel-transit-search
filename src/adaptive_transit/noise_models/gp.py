@@ -31,10 +31,10 @@ class FittedGaussianProcessModel:
         return {"model_name": self.model_name, "kernel_family": "constant_times_rbf", "observation_equation": "normalized_flux_t = smooth_gp_background(time_t) + measurement_noise", "missing_cadence_policy": "train_and_residuals_only_on_finite_observations_no_interpolation", "background_policy": "two_sided_gp_posterior_mean", "anchor_point_approximation": True, "converged": bool(self.converged), "status": str(self.status), "message": str(self.message), "log_marginal_likelihood": float(self.log_marginal_likelihood), "aic": aic, "bic": bic, "finite_residual_count": finite_count, **{key: json_float(value) for key, value in self.parameters.items()}}
 
 def json_float(value):
-    if isinstance(value, (int, np.integer)):
-        return int(value)
     if isinstance(value, (bool, np.bool_)):
         return bool(value)
+    if isinstance(value, (int, np.integer)):
+        return int(value)
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -130,8 +130,14 @@ def fit_smooth_gp_background(time, values, max_train_points=512, length_scale_da
     usable_standardized = finite & np.isfinite(denominator) & (denominator > 0)
     standardized[usable_standardized] = residuals[usable_standardized] / denominator[usable_standardized]
     signal_variance, fitted_length_scale = kernel_parameter_summary(gp.kernel_)
+    bound_rtol = 1.0e-4
+    bound_atol = 1.0e-12
+    length_scale_at_lower_bound = bool(np.isclose(fitted_length_scale, float(min_length_scale_days), rtol=bound_rtol, atol=bound_atol))
+    length_scale_at_upper_bound = bool(np.isclose(fitted_length_scale, float(max_length_scale_days), rtol=bound_rtol, atol=bound_atol))
+    signal_variance_at_lower_bound = bool(np.isclose(signal_variance, float(signal_lower), rtol=bound_rtol, atol=bound_atol))
+    signal_variance_at_upper_bound = bool(np.isclose(signal_variance, float(signal_upper), rtol=bound_rtol, atol=bound_atol))
     estimated_parameter_count = 2 if optimize_kernel else 0
-    parameters = {"max_train_points": int(max_train_points), "training_point_count": int(anchor_indices.size), "time_origin_days": t0, "flux_offset": y_offset, "initial_signal_variance": signal_variance_start, "signal_variance": signal_variance, "initial_length_scale_days": float(length_scale_days), "length_scale_days": fitted_length_scale, "min_length_scale_days": float(min_length_scale_days), "max_length_scale_days": float(max_length_scale_days), "measurement_noise_variance": measurement_variance, "measurement_noise_fraction": float(measurement_noise_fraction), "optimize_kernel": bool(optimize_kernel), "estimated_parameter_count": estimated_parameter_count, "n_restarts_optimizer": int(n_restarts_optimizer)}
+    parameters = {"max_train_points": int(max_train_points), "training_point_count": int(anchor_indices.size), "time_origin_days": t0, "flux_offset": y_offset, "initial_signal_variance": signal_variance_start, "signal_variance": signal_variance, "signal_variance_lower_bound": float(signal_lower), "signal_variance_upper_bound": float(signal_upper), "signal_variance_at_lower_bound": signal_variance_at_lower_bound, "signal_variance_at_upper_bound": signal_variance_at_upper_bound, "initial_length_scale_days": float(length_scale_days), "length_scale_days": fitted_length_scale, "min_length_scale_days": float(min_length_scale_days), "max_length_scale_days": float(max_length_scale_days), "length_scale_at_lower_bound": length_scale_at_lower_bound, "length_scale_at_upper_bound": length_scale_at_upper_bound, "measurement_noise_variance": measurement_variance, "measurement_noise_fraction": float(measurement_noise_fraction), "optimize_kernel": bool(optimize_kernel), "estimated_parameter_count": estimated_parameter_count, "n_restarts_optimizer": int(n_restarts_optimizer), "optimizer_warning_count": int(len(warning_messages)), "optimizer_warning_message": " | ".join(warning_messages)}
     converged = len(warning_messages) == 0
     status = 0 if converged else 1
     message = "converged" if converged else "; ".join(warning_messages)
