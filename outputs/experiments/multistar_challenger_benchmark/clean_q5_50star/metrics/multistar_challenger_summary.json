@@ -1,0 +1,33 @@
+{
+  "benchmark_schema_version": 2,
+  "profile": "main",
+  "scientific_cohort": "catalog_clean_background",
+  "require_catalog_clean": true,
+  "cohort_counts": {
+    "catalog_clean_background": 50
+  },
+  "search_resolution": "high",
+  "kalman_injection_mode": "filter",
+  "gp_injection_mode": "filter",
+  "target_count": 50,
+  "successful_target_count": 50,
+  "failed_target_count": 0,
+  "pipeline_count": 8,
+  "pipelines": [
+    "raw_bls",
+    "raw_tcf",
+    "arima_bls",
+    "arima_tcf",
+    "kalman_bls",
+    "kalman_tcf",
+    "gp_bls",
+    "gp_tcf"
+  ],
+  "injection_count": 4050,
+  "injections_per_target": 81,
+  "parallel_star_workers": 8,
+  "calibration_status": "injection benchmark only; FAP calibration must be run separately for final false-alarm-controlled claims",
+  "all_pipeline_harmonic_rank1_rate": 0.8061728395061728,
+  "all_pipeline_harmonic_topk_rate": 0.9362962962962963,
+  "all_pipeline_ranking_gap_rate": 0.13012345679012347
+}

@@ -1,0 +1,16 @@
+{
+  "generated_utc": "2026-08-11T21:43:20.585657+00:00",
+  "definition": "No catalog match in KOI, DR25 TCE, confirmed Kepler names, or Kepler EB Revision 3 snapshots used by this script; not a claim of being planet-free.",
+  "sources": {
+    "kepler_stellar": "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+distinct+kepid+from+q1_q17_dr25_ks+where+kepid+is+not+null&format=csv",
+    "koi": "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+distinct+kepid+from+q1_q17_dr25_koi+where+kepid+is+not+null&format=csv",
+    "tce": "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+distinct+kepid+from+q1_q17_dr25_tce+where+kepid+is+not+null&format=csv",
+    "confirmed_kepler": "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=select+distinct+kepid+from+keplernames+where+kepid+is+not+null&format=csv",
+    "eclipsing_binary": "https://archive.stsci.edu/kepler/eclipsing_binaries.html"
+  },
+  "quarter_requested_for_follow-up": 5,
+  "stellar_target_count": 200038,
+  "catalog_clean_count": 181764,
+  "candidate_count": 250,
+  "seed": 123
+}
