@@ -35,6 +35,8 @@ def default_settings():
         stationarity_alpha=0.05,
         stationarity_min_observations=24,
         spectral_frequencies=2000,
+        variability_acf_lags=2000,
+        variability_spectral_frequencies=4000,
     )
 
 
@@ -61,6 +63,8 @@ def build_parser():
     parser.add_argument("--stationarity-alpha", type=float, default=defaults.stationarity_alpha)
     parser.add_argument("--stationarity-min-observations", type=int, default=defaults.stationarity_min_observations)
     parser.add_argument("--spectral-frequencies", type=int, default=defaults.spectral_frequencies)
+    parser.add_argument("--variability-acf-lags", type=int, default=defaults.variability_acf_lags)
+    parser.add_argument("--variability-spectral-frequencies", type=int, default=defaults.variability_spectral_frequencies)
     return parser
 
 
@@ -89,6 +93,8 @@ def run_experiment(args):
         stationarity_alpha=args.stationarity_alpha,
         stationarity_min_observations=args.stationarity_min_observations,
         spectral_frequencies=args.spectral_frequencies,
+        variability_acf_lags=args.variability_acf_lags,
+        variability_spectral_frequencies=args.variability_spectral_frequencies,
     )
     return regular, diagnostics
 
@@ -115,7 +121,10 @@ def main(args=None):
     print(f"Characterization input: {regular_path}")
     print(f"Stationarity: {diagnostics['original_series_stationarity_conclusion']}")
     print(f"Minimum Ljung-Box p: {diagnostics['minimum_ljung_box_p']}")
-    print(f"Dominant period: {diagnostics['dominant_period_days']} days")
+    print(f"Dominant period (v1): {diagnostics['dominant_period_days']} days")
+    print(f"Dominant period (v2): {diagnostics['v2_ls_dominant_period_days']} days")
+    print(f"LS screening FAP (v2): {diagnostics['v2_ls_fap']}")
+    print(f"Coherent periodic candidate (v2): {diagnostics['v2_coherent_periodic_candidate']}")
     return 0
 
 

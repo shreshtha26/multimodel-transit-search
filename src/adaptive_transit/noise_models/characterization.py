@@ -23,6 +23,7 @@ from adaptive_transit.noise_models.stationarity import (
     assess_stationarity,
     stationarity_report_fields,
 )
+from adaptive_transit.noise_models.stellar_variability import stellar_variability_summary
 
 
 DEFAULT_ACF_LAGS = 80
@@ -410,7 +411,8 @@ def characterize_light_curve(
     stationarity_alpha: float = 0.05,
     stationarity_min_observations: int = 24,
     spectral_frequencies: int = DEFAULT_SPECTRAL_FREQUENCIES,
-    
+    variability_acf_lags: int = 2000,
+    variability_spectral_frequencies: int = 4000,
 ) -> dict[str, object]:
     """Compute the Phase 1 statistical fingerprint for one light curve."""
 
@@ -445,6 +447,21 @@ def characterize_light_curve(
         contiguous_segment_used=False,
         series_representation="finite_usable_normalized_flux_sequence",
     )
+    # v1 fields are retained for backward compatibility with the existing
+    # dashboard / benchmark outputs.  The v2 block below is the scientifically
+    # preferred feature set for new model-selection work.
+    #
+    # IMPORTANT: v1 ACF/stationarity functions operate on the finite sequence.
+    # v2 ACF receives the full regular-grid flux array so a lag remains a true
+    # cadence separation even when observations are missing.
+    variability_v2 = stellar_variability_summary(
+        time,
+        values,
+        cadence_days=cadence_days,
+        acf_lags=variability_acf_lags,
+        spectral_frequencies=variability_spectral_frequencies,
+    )
+
     record: dict[str, object] = {
         "target_id": target_id,
         "quarter": int(quarter) if quarter is not None else None,
@@ -462,6 +479,7 @@ def characterize_light_curve(
             cadence_days=cadence_days,
             n_frequencies=spectral_frequencies,
         ),
+        **variability_v2,
     }
     record["light_curve_characterization_feature_count"] = int(len(record))
     return record
