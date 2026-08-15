@@ -410,6 +410,7 @@ def characterize_light_curve(
     stationarity_alpha: float = 0.05,
     stationarity_min_observations: int = 24,
     spectral_frequencies: int = DEFAULT_SPECTRAL_FREQUENCIES,
+    
 ) -> dict[str, object]:
     """Compute the Phase 1 statistical fingerprint for one light curve."""
 

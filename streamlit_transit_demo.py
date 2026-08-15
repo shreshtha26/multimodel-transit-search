@@ -19,7 +19,7 @@ import streamlit as st
 
 st.set_page_config(
     page_title="Multi-model Transit Search",
-    page_icon="🪐",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -1245,15 +1245,25 @@ def collect_star_summaries(run_dir_text: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def collect_calibration(run_dir_text: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load canonical global calibration outputs, falling back to resumable per-star checkpoints."""
     run_dir = Path(run_dir_text)
+    metrics_dir = run_dir / "metrics"
+
+    global_thresholds = metrics_dir / "multistar_challenger_star_fap_thresholds.csv"
+    global_nulls = metrics_dir / "multistar_challenger_star_null_trials.csv"
+    if global_thresholds.exists() and global_nulls.exists():
+        try:
+            return (
+                pd.read_csv(global_thresholds, dtype={"target_id": str}),
+                pd.read_csv(global_nulls, dtype={"target_id": str}),
+            )
+        except Exception:
+            pass
+
     thresholds = []
     nulls = []
-
-    # Most current layout
     star_cal = run_dir / "star_calibration"
     candidate_roots = [star_cal]
-
-    # Also allow nested calibration folders if the experiment layout changes.
     candidate_roots += [p for p in run_dir.glob("*calibration*") if p.is_dir() and p != star_cal]
 
     seen = set()
@@ -1339,6 +1349,66 @@ def harmonized_thresholds(thresholds: pd.DataFrame) -> pd.DataFrame:
     return t
 
 
+def calibration_coverage(
+    injections: pd.DataFrame,
+    thresholds: pd.DataFrame,
+    null_trials: pd.DataFrame,
+    pipelines: Iterable[str],
+) -> dict:
+    """Return calibration progress and require complete star × pipeline coverage for headline FAP metrics."""
+    pipelines = list(pipelines)
+    if injections.empty or not pipelines or "target_id" not in injections.columns:
+        return {
+            "complete": False, "threshold_pairs": 0, "expected_pairs": 0,
+            "threshold_pct": 0.0, "null_stars": 0, "expected_stars": 0,
+        }
+
+    inj = injections.copy()
+    inj["target_id"] = inj["target_id"].map(normalize_target_id)
+    if "quarter" not in inj.columns:
+        inj["quarter"] = 5
+    inj["quarter"] = pd.to_numeric(inj["quarter"], errors="coerce").astype("Int64")
+    star_keys = inj[["target_id", "quarter"]].dropna().drop_duplicates()
+    expected_stars = int(len(star_keys))
+    expected_pairs = expected_stars * len(pipelines)
+
+    t = harmonized_thresholds(thresholds)
+    threshold_pairs = 0
+    if not t.empty and "score_threshold" in t.columns:
+        t = t.copy()
+        if "quarter" not in t.columns:
+            t["quarter"] = 5
+        t["quarter"] = pd.to_numeric(t["quarter"], errors="coerce").astype("Int64")
+        t["score_threshold"] = pd.to_numeric(t["score_threshold"], errors="coerce")
+        t = t[t["pipeline"].isin(pipelines) & np.isfinite(t["score_threshold"])][
+            ["target_id", "quarter", "pipeline"]
+        ].drop_duplicates()
+        expected = star_keys.assign(_k=1).merge(
+            pd.DataFrame({"pipeline": pipelines, "_k": 1}), on="_k"
+        ).drop(columns="_k")
+        threshold_pairs = int(expected.merge(t, on=["target_id", "quarter", "pipeline"], how="inner").shape[0])
+
+    null_stars = 0
+    if not null_trials.empty and "target_id" in null_trials.columns:
+        n = null_trials.copy()
+        n["target_id"] = n["target_id"].map(normalize_target_id)
+        if "quarter" not in n.columns:
+            n["quarter"] = 5
+        n["quarter"] = pd.to_numeric(n["quarter"], errors="coerce").astype("Int64")
+        null_keys = n[["target_id", "quarter"]].dropna().drop_duplicates()
+        null_stars = int(star_keys.merge(null_keys, on=["target_id", "quarter"], how="inner").shape[0])
+
+    complete = expected_pairs > 0 and threshold_pairs == expected_pairs and null_stars == expected_stars
+    return {
+        "complete": bool(complete),
+        "threshold_pairs": threshold_pairs,
+        "expected_pairs": expected_pairs,
+        "threshold_pct": 100.0 * threshold_pairs / expected_pairs if expected_pairs else 0.0,
+        "null_stars": null_stars,
+        "expected_stars": expected_stars,
+    }
+
+
 def add_calibrated_columns(injections: pd.DataFrame, thresholds: pd.DataFrame, pipelines: Iterable[str]) -> pd.DataFrame:
     out = injections.copy()
     if out.empty:
@@ -1369,7 +1439,7 @@ def add_calibrated_columns(injections: pd.DataFrame, thresholds: pd.DataFrame, p
         if score_col in out.columns and harmonic_col in out.columns:
             score = pd.to_numeric(out[score_col], errors="coerce")
             thr = pd.to_numeric(out[thr_col], errors="coerce")
-            out[f"{p}_fap01_detected"] = score > thr
+            out[f"{p}_fap01_detected"] = score >= thr
             out[f"{p}_fap01_harmonic_recovered"] = (
                 out[harmonic_col].fillna(False).astype(bool) & out[f"{p}_fap01_detected"].fillna(False)
             )
@@ -1578,6 +1648,7 @@ def build_star_dependence_table(
         row.update({
             "Best numerical pipeline": pipeline_label(s["best_pipeline"]) if s["best_pipeline"] != "—" else "—",
             "Best recovery (%)": 100.0 * best_rate if np.isfinite(best_rate) else np.nan,
+            "Runner-up": pipeline_label(s["second_pipeline"]) if s["second_pipeline"] != "—" else "—",
             "Second-best (%)": 100.0 * second_rate if np.isfinite(second_rate) else np.nan,
             "Dominance margin (pp)": s["margin_pp"],
             "Meaningful preference": s["meaningful"],
@@ -1668,6 +1739,7 @@ def build_transit_dependence_table(
         row.update({
             "Best numerical pipeline": pipeline_label(s["best_pipeline"]) if s["best_pipeline"] != "—" else "—",
             "Best recovery (%)": 100.0 * best_rate if np.isfinite(best_rate) else np.nan,
+            "Runner-up": pipeline_label(s["second_pipeline"]) if s["second_pipeline"] != "—" else "—",
             "Second-best (%)": 100.0 * second_rate if np.isfinite(second_rate) else np.nan,
             "Dominance margin (pp)": s["margin_pp"],
             "Meaningful preference": s["meaningful"],
@@ -1724,8 +1796,12 @@ def build_interaction_dependence_table(
         for p, value in s["rates"].items():
             row[f"{pipeline_label(p)} recovery (%)"] = 100.0 * value
         best_rate = s["rates"].get(s["best_pipeline"], np.nan)
+        second_rate = s["rates"].get(s["second_pipeline"], np.nan)
         row.update({
             "Best numerical pipeline": pipeline_label(s["best_pipeline"]) if s["best_pipeline"] != "—" else "—",
+            "Best recovery (%)": 100.0 * best_rate if np.isfinite(best_rate) else np.nan,
+            "Runner-up": pipeline_label(s["second_pipeline"]) if s["second_pipeline"] != "—" else "—",
+            "Second-best (%)": 100.0 * second_rate if np.isfinite(second_rate) else np.nan,
             "Dominance margin (pp)": s["margin_pp"],
             "Meaningful preference": s["meaningful"],
             "Multi-model union (%)": 100.0 * s["union"] if np.isfinite(s["union"]) else np.nan,
@@ -1747,164 +1823,37 @@ def build_multimodel_gain_table(
     best_pipeline: str,
 ) -> pd.DataFrame:
     recovery_cols = _recovery_columns(df, pipelines, suffix)
-    if not recovery_cols or df.empty:
+    if not recovery_cols or df.empty or best_pipeline not in recovery_cols:
         return pd.DataFrame()
-    union_hit = pd.Series(False, index=df.index)
-    for c in recovery_cols.values():
-        union_hit |= df[c].fillna(False).astype(bool)
-    best_col = recovery_cols.get(best_pipeline)
-    best_hit = df[best_col].fillna(False).astype(bool) if best_col else pd.Series(False, index=df.index)
-    gain_mask = union_hit & ~best_hit
-    gain_n = int(gain_mask.sum())
+
+    best_hit = df[recovery_cols[best_pipeline]].fillna(False).astype(bool)
+    best_rate = float(best_hit.mean())
+    best_misses = ~best_hit
+    best_miss_n = int(best_misses.sum())
 
     rows = []
     for p, c in recovery_cols.items():
+        if p == best_pipeline:
+            continue
         hit = df[c].fillna(False).astype(bool)
-        others = pd.Series(False, index=df.index)
-        for op, oc in recovery_cols.items():
-            if op != p:
-                others |= df[oc].fillna(False).astype(bool)
-        raw = raw_baseline_for(p)
-        raw_col = recovery_cols.get(raw)
-        delta_raw = np.nan
-        if raw_col is not None:
-            delta_raw = 100.0 * (hit.mean() - df[raw_col].fillna(False).astype(bool).mean())
-        rescues_beyond_best = int((hit & ~best_hit).sum())
-        pairwise_uplift = 100.0 * float((best_hit | hit).mean() - best_hit.mean()) if len(df) else np.nan
+        rescued = int((hit & best_misses).sum())
+        pair_union = best_hit | hit
         rows.append({
-            "Pipeline": pipeline_label(p),
-            "Recovery (%)": 100.0 * float(hit.mean()),
-            "Exclusive recoveries": int((hit & ~others).sum()),
-            "Cases recovered when best fixed misses": rescues_beyond_best,
-            "Coverage of multi-model gain cases (%)": 100.0 * rescues_beyond_best / gain_n if gain_n else 0.0,
-            "Pairwise uplift over best fixed (pp)": pairwise_uplift,
-            "Δ vs detector-matched raw (pp)": delta_raw,
+            "Added branch": pipeline_label(p),
+            "Overall recovery (%)": 100.0 * float(hit.mean()),
+            "Rescued best-pipeline misses": rescued,
+            "% of best-pipeline misses rescued": 100.0 * rescued / best_miss_n if best_miss_n else 0.0,
+            "Pairwise uplift (pp)": 100.0 * (float(pair_union.mean()) - best_rate),
         })
     return pd.DataFrame(rows).sort_values(
-        ["Cases recovered when best fixed misses", "Exclusive recoveries"], ascending=[False, False]
+        ["Rescued best-pipeline misses", "Pairwise uplift (pp)"], ascending=[False, False]
     )
-
-
-def _compact_preference_counts(table: pd.DataFrame, unit_name: str) -> tuple[pd.DataFrame, int, int]:
-    """Condense a dependence table to at most five rows for the Overview page."""
-    if table.empty or "Meaningful preference" not in table.columns:
-        return pd.DataFrame(), 0, 0
-    total = int(len(table))
-    pref = table["Meaningful preference"].fillna("No meaningful preference").astype(str)
-    clear = pref[pref != "No meaningful preference"]
-    clear_n = int(len(clear))
-    rows = []
-    counts = clear.value_counts()
-    for name, n in counts.head(3).items():
-        rows.append({"Preference": name, unit_name: int(n), "% of total": 100.0 * n / total if total else np.nan})
-    if len(counts) > 3:
-        n_other = int(counts.iloc[3:].sum())
-        rows.append({"Preference": "Other clear preferences", unit_name: n_other, "% of total": 100.0 * n_other / total if total else np.nan})
-    no_pref = total - clear_n
-    rows.append({"Preference": "No meaningful preference", unit_name: no_pref, "% of total": 100.0 * no_pref / total if total else np.nan})
-    return pd.DataFrame(rows), clear_n, total
-
-
-def _compact_transit_rows(table: pd.DataFrame, max_rows: int = 4) -> pd.DataFrame:
-    """Most clearly separated transit morphologies, with only decision-relevant columns."""
-    if table.empty:
-        return pd.DataFrame()
-    t = table.copy()
-    if "Meaningful preference" in t.columns:
-        clear = t[t["Meaningful preference"] != "No meaningful preference"].copy()
-    else:
-        clear = pd.DataFrame()
-    if clear.empty:
-        return pd.DataFrame([{
-            "Transit morphology": "No clear preference",
-            "Preferred method": "—",
-            "Margin": "—",
-            "Union gain": "—",
-        }])
-    clear = clear.sort_values(["Dominance margin (pp)", "Multi-model gain (pp)"], ascending=[False, False]).head(max_rows)
-    rows = []
-    for _, r in clear.iterrows():
-        p = pd.to_numeric(pd.Series([r.get("Period (d)")]), errors="coerce").iloc[0]
-        d = pd.to_numeric(pd.Series([r.get("Duration (h)")]), errors="coerce").iloc[0]
-        dep = pd.to_numeric(pd.Series([r.get("Depth (ppm)")]), errors="coerce").iloc[0]
-        morphology = " · ".join([
-            f"{dep:.0f} ppm" if np.isfinite(dep) else "? ppm",
-            f"{d:g} h" if np.isfinite(d) else "? h",
-            f"{p:g} d" if np.isfinite(p) else "? d",
-        ])
-        rows.append({
-            "Transit morphology": morphology,
-            "Preferred method": r.get("Meaningful preference", "—"),
-            "Margin": f"{float(r.get('Dominance margin (pp)', np.nan)):.1f} pp" if pd.notna(r.get("Dominance margin (pp)")) else "—",
-            "Union gain": f"{float(r.get('Multi-model gain (pp)', np.nan)):.1f} pp" if pd.notna(r.get("Multi-model gain (pp)")) else "—",
-        })
-    return pd.DataFrame(rows)
-
-
-def _compact_interaction_rows(table: pd.DataFrame, max_rows: int = 4) -> pd.DataFrame:
-    """Most clearly separated background × transit combinations for the Overview page."""
-    if table.empty or "Background stratum" not in table.columns:
-        return pd.DataFrame()
-    strata = table["Background stratum"].fillna("Unknown").astype(str)
-    if strata.str.contains("unknown|unavailable", case=False, regex=True).all():
-        return pd.DataFrame()
-    clear = table[table["Meaningful preference"] != "No meaningful preference"].copy()
-    if clear.empty:
-        return pd.DataFrame([{
-            "Background × transit": "No clear interaction preference",
-            "Preferred method": "—",
-            "Margin": "—",
-            "Union gain": "—",
-        }])
-    clear = clear.sort_values(["Dominance margin (pp)", "Multi-model gain (pp)"], ascending=[False, False]).head(max_rows)
-    rows = []
-    for _, r in clear.iterrows():
-        p = pd.to_numeric(pd.Series([r.get("Period (d)")]), errors="coerce").iloc[0]
-        d = pd.to_numeric(pd.Series([r.get("Duration (h)")]), errors="coerce").iloc[0]
-        dep = pd.to_numeric(pd.Series([r.get("Depth (ppm)")]), errors="coerce").iloc[0]
-        label = f"{r.get('Background stratum', '—')} · {dep:.0f} ppm · {d:g} h · {p:g} d"
-        rows.append({
-            "Background × transit": label,
-            "Preferred method": r.get("Meaningful preference", "—"),
-            "Margin": f"{float(r.get('Dominance margin (pp)', np.nan)):.1f} pp" if pd.notna(r.get("Dominance margin (pp)")) else "—",
-            "Union gain": f"{float(r.get('Multi-model gain (pp)', np.nan)):.1f} pp" if pd.notna(r.get("Multi-model gain (pp)")) else "—",
-        })
-    return pd.DataFrame(rows)
-
-
-def _compact_gain_rows(gain_table: pd.DataFrame, best_label: str, max_rows: int = 4) -> pd.DataFrame:
-    """Show only the branches that recover the most cases missed by the best fixed pipeline."""
-    if gain_table.empty:
-        return pd.DataFrame()
-    g = gain_table.copy()
-    if best_label:
-        g = g[g["Pipeline"] != best_label]
-    g = g.sort_values(["Cases recovered when best fixed misses", "Pairwise uplift over best fixed (pp)"], ascending=[False, False]).head(max_rows)
-    out = pd.DataFrame({
-        "Added branch": g["Pipeline"],
-        "Rescued cases": g["Cases recovered when best fixed misses"].astype(int),
-        "Gain coverage": g["Coverage of multi-model gain cases (%)"].map(lambda x: f"{x:.0f}%"),
-        "Pairwise uplift": g["Pairwise uplift over best fixed (pp)"].map(lambda x: f"+{x:.1f} pp"),
-    })
-    return out.reset_index(drop=True)
-
-
-def _render_compact_summary_table(df: pd.DataFrame) -> None:
-    """Render a small light table with no horizontal or internal scrolling."""
-    if df.empty:
-        return
-    show = df.copy()
-    for c in show.columns:
-        if pd.api.types.is_float_dtype(show[c]):
-            show[c] = show[c].map(lambda x: "—" if pd.isna(x) else f"{x:.1f}")
-    html = show.to_html(index=False, border=0, classes="compact-summary-table", escape=True)
-    st.markdown(html, unsafe_allow_html=True)
 
 
 def _round_analysis_table(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     for c in out.columns:
-        if any(token in c for token in ("(%)", "(pp)")):
+        if any(token in c for token in ("%", "(pp)")):
             out[c] = pd.to_numeric(out[c], errors="ignore")
             if pd.api.types.is_numeric_dtype(out[c]):
                 out[c] = out[c].round(1)
@@ -2325,9 +2274,75 @@ def star_model_evidence_tables(
 
 
 def infer_metric_suffix(df: pd.DataFrame, pipelines: Iterable[str]) -> tuple[str, str, bool]:
-    if any(f"{p}_fap01_harmonic_recovered" in df.columns for p in pipelines):
-        return "fap01_harmonic_recovered", "Recovery @ calibrated 1% FAP", True
+    pipelines = list(pipelines)
+    if pipelines and all(f"{p}_fap01_harmonic_recovered" in df.columns for p in pipelines):
+        return "fap01_harmonic_recovered", "Strict rank-1 recovery @ calibrated 1% FAP", True
     return "harmonic_rank1_matched", "Harmonic-aware rank-1 period recovery (uncalibrated)", False
+
+
+
+
+def star_preference_summary(star_dep: pd.DataFrame) -> pd.DataFrame:
+    """Compact evidence table: how many stars truly separate, and by how much."""
+    if star_dep.empty or "Meaningful preference" not in star_dep.columns:
+        return pd.DataFrame()
+    rows = []
+    total = len(star_dep)
+    labels = list(star_dep["Meaningful preference"].fillna("No meaningful preference").unique())
+    labels = sorted(labels, key=lambda x: (x == "No meaningful preference", x))
+    for label in labels:
+        g = star_dep[star_dep["Meaningful preference"].fillna("No meaningful preference") == label]
+        rows.append({
+            "Weak-transit result": label,
+            "Stars": int(len(g)),
+            "% of stars": 100.0 * len(g) / total if total else np.nan,
+            "Mean best recovery (%)": pd.to_numeric(g.get("Best recovery (%)"), errors="coerce").mean(),
+            "Mean runner-up recovery (%)": pd.to_numeric(g.get("Second-best (%)"), errors="coerce").mean(),
+            "Mean advantage (pp)": pd.to_numeric(g.get("Dominance margin (pp)"), errors="coerce").mean(),
+        })
+    return pd.DataFrame(rows)
+
+
+def compact_transit_evidence(transit_dep: pd.DataFrame, limit: int = 6) -> pd.DataFrame:
+    """Always show the numerically strongest transit-only separations, even if none crosses the threshold."""
+    if transit_dep.empty:
+        return pd.DataFrame()
+    d = transit_dep.copy().sort_values(["Dominance margin (pp)", "Multi-model gain (pp)"], ascending=[False, False])
+    d = d.head(limit)
+    morphology = d.apply(
+        lambda r: f"{r['Depth (ppm)']:.0f} ppm · {r['Duration (h)']:g} h · {r['Period (d)']:g} d", axis=1
+    )
+    return pd.DataFrame({
+        "Transit morphology": morphology,
+        "Best method": d["Best numerical pipeline"],
+        "Best recovery (%)": d["Best recovery (%)"],
+        "Runner-up": d["Runner-up"],
+        "Runner-up recovery (%)": d["Second-best (%)"],
+        "Advantage (pp)": d["Dominance margin (pp)"],
+        "Multi-model union (%)": d["Multi-model union (%)"],
+        "Union gain (pp)": d["Multi-model gain (pp)"],
+    })
+
+
+def compact_interaction_evidence(interaction_dep: pd.DataFrame, limit: int = 6) -> pd.DataFrame:
+    """Show the strongest local background × transit separations with explicit runner-up comparison."""
+    if interaction_dep.empty:
+        return pd.DataFrame()
+    d = interaction_dep.copy().sort_values(["Dominance margin (pp)", "Multi-model gain (pp)"], ascending=[False, False])
+    d = d.head(limit)
+    combo = d.apply(
+        lambda r: f"{r['Background stratum']} · {r['Depth (ppm)']:.0f} ppm · {r['Duration (h)']:g} h · {r['Period (d)']:g} d", axis=1
+    )
+    return pd.DataFrame({
+        "Background × transit": combo,
+        "N stars": d["N stars"],
+        "Best method": d["Best numerical pipeline"],
+        "Best recovery (%)": d["Best recovery (%)"],
+        "Runner-up": d["Runner-up"],
+        "Runner-up recovery (%)": d["Second-best (%)"],
+        "Advantage (pp)": d["Dominance margin (pp)"],
+        "Union gain (pp)": d["Multi-model gain (pp)"],
+    })
 
 
 # =============================================================================
@@ -2598,11 +2613,142 @@ def saved_series_plot(df: pd.DataFrame, value_col: str, title: str):
     return fig
 
 
+st.markdown(
+    """
+<style>
+/* Final stakeholder presentation override: restrained research UI. */
+:root {
+    --page: #f7f8fa;
+    --surface: #ffffff;
+    --border: #d9dee7;
+    --text: #1d2735;
+    --muted: #687587;
+    --navy: #284766;
+    --blue: #376f9f;
+    --blue-soft: #edf3f8;
+}
+
+html { font-size: 16px !important; }
+body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+    background: var(--page) !important;
+    color: var(--text) !important;
+}
+.block-container {
+    max-width: 1280px !important;
+    padding: 1.35rem 2.1rem 3rem 2.1rem !important;
+}
+h1 {
+    font-size: 2.05rem !important;
+    line-height: 1.12 !important;
+    letter-spacing: -0.018em !important;
+    font-weight: 680 !important;
+    color: var(--text) !important;
+}
+h2 {
+    font-size: 1.36rem !important;
+    margin-top: 1.65rem !important;
+    font-weight: 680 !important;
+}
+h3 {
+    font-size: 1.06rem !important;
+    margin-top: 1.15rem !important;
+    font-weight: 680 !important;
+}
+p, li, .stMarkdown { font-size: 0.95rem !important; line-height: 1.48 !important; }
+.small-note, [data-testid="stCaptionContainer"] { color: var(--muted) !important; }
+
+section[data-testid="stSidebar"] {
+    min-width: 260px !important;
+    max-width: 260px !important;
+    width: 260px !important;
+    background: #f1f3f6 !important;
+    border-right: 1px solid var(--border) !important;
+}
+section[data-testid="stSidebar"] .block-container {
+    max-width: 260px !important;
+    padding: 1.2rem 0.9rem 1.4rem 0.9rem !important;
+}
+section[data-testid="stSidebar"] h2 { font-size: 1.2rem !important; }
+section[data-testid="stSidebar"] h3 { font-size: 0.92rem !important; color: #4d5a6a !important; }
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span { font-size: 0.86rem !important; }
+section[data-testid="stSidebar"] [role="radiogroup"] label {
+    border-radius: 4px !important;
+    padding: 0.34rem 0.32rem !important;
+    min-height: 2rem !important;
+}
+section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #e6eaf0 !important; }
+
+[data-testid="stMetric"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 5px !important;
+    min-height: 92px !important;
+    padding: 0.8rem 0.95rem !important;
+    box-shadow: none !important;
+}
+[data-testid="stMetricLabel"] { font-size: 0.79rem !important; color: var(--muted) !important; font-weight: 600 !important; }
+[data-testid="stMetricValue"] { font-size: 1.7rem !important; color: var(--text) !important; font-weight: 690 !important; }
+[data-testid="stMetricDelta"] { font-size: 0.78rem !important; }
+
+.science-callout {
+    background: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    border-left: 3px solid var(--blue) !important;
+    border-radius: 3px !important;
+    padding: 0.72rem 0.9rem !important;
+    margin: 0.7rem 0 1rem 0 !important;
+    color: var(--text) !important;
+}
+.hero-shell, .headline-card, .section-chip, .pill-now, .pill-next {
+    border-radius: 4px !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stDataFrame"] {
+    background: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+}
+[data-testid="stPlotlyChart"] {
+    background: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    padding: 0.2rem !important;
+    box-shadow: none !important;
+}
+div[data-testid="stExpander"] {
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    background: #ffffff !important;
+}
+.stButton > button, button[data-testid^="stBaseButton"] {
+    border-radius: 4px !important;
+    box-shadow: none !important;
+}
+hr { border-color: var(--border) !important; }
+
+/* Avoid Streamlit theme turning selected controls black. */
+button, [role="radio"], [role="tab"] { color: var(--text) !important; }
+
+@media (max-width: 1200px) {
+    .block-container { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+    section[data-testid="stSidebar"] { min-width: 235px !important; max-width: 235px !important; width: 235px !important; }
+    section[data-testid="stSidebar"] .block-container { max-width: 235px !important; }
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
 # =============================================================================
 # Sidebar
 # =============================================================================
 
-st.sidebar.markdown("## 🪐 Transit Search")
+st.sidebar.markdown("## Transit Search")
 st.sidebar.caption("Kepler multi-model proof of concept")
 
 run_root = DEFAULT_RUN_ROOT
@@ -2617,7 +2763,7 @@ if runs:
         run_names,
         index=preferred,
         format_func=compact_experiment_label,
-        help="Select which saved or currently running benchmark to explore.",
+        help="Select a saved benchmark run.",
     )
     RUN_DIR = run_root / selected_name
     st.sidebar.caption(experiment_label(selected_name))
@@ -2628,53 +2774,43 @@ else:
 include_partial = True
 
 NAV_OPTIONS = [
-    "🏠 Overview",
-    "📐 Recovery & scoring",
-    "🧩 Unique Recovery",
-    "⭐ Stars & statistics",
-    "🔎 Injection explorer",
-    "🎯 FAP calibration",
-    "🧭 POC roadmap",
+    "Overview",
+    "Stars & statistics",
+    "Case explorer",
+    "FAP calibration",
 ]
 
-def navigate_to(label: str):
-    st.session_state["page_nav"] = label
-
-st.sidebar.markdown("### Explore")
-page_label = st.sidebar.radio(
-    "Explore",
-    NAV_OPTIONS,
-    label_visibility="collapsed",
-    key="page_nav",
-)
-
 PAGE_MAP = {
-    "🏠 Overview": "1",
-    "📐 Recovery & scoring": "7",
-    "🧩 Unique Recovery": "6",
-    "⭐ Stars & statistics": "2",
-    "🔎 Injection explorer": "3",
-    "🎯 FAP calibration": "4",
-    "🧭 POC roadmap": "5",
+    "Overview": "1",
+    "Stars & statistics": "2",
+    "Case explorer": "3",
+    "FAP calibration": "4",
 }
+
+if st.session_state.get("page_nav") not in NAV_OPTIONS:
+    st.session_state["page_nav"] = "Overview"
+
+st.sidebar.markdown("### View")
+page_label = st.sidebar.radio(
+    "View", NAV_OPTIONS, label_visibility="collapsed", key="page_nav"
+)
 page = PAGE_MAP[page_label]
 
 st.sidebar.divider()
-if st.sidebar.button("↻ Refresh results", use_container_width=True):
+if st.sidebar.button("Refresh results", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
 
-with st.sidebar.expander("Technical settings", expanded=False):
+with st.sidebar.expander("Analysis settings", expanded=False):
     include_partial = st.checkbox("Read live checkpoints", value=True)
     min_dominance_pp = float(st.number_input(
         "Meaningful preference margin (pp)",
         min_value=0.0, max_value=100.0, value=MIN_DOMINANCE_PP_DEFAULT, step=1.0,
-        help="A numerical winner is called meaningful only when it exceeds the second-best pipeline by at least this many percentage points.",
+        help="A method preference is called clear only when the best pipeline exceeds the runner-up by at least this many percentage points.",
     ))
     min_complementarity_pp = float(st.number_input(
         "Meaningful multi-model gain (pp)",
         min_value=0.0, max_value=100.0, value=MIN_COMPLEMENTARITY_PP_DEFAULT, step=1.0,
-        help="Used only for the descriptive complementary/disagreement classification.",
     ))
     weak_transit_mode = st.selectbox(
         "Weak-transit subset",
@@ -2685,10 +2821,6 @@ with st.sidebar.expander("Technical settings", expanded=False):
         "Custom weak-depth maximum (ppm)", min_value=1.0, value=500.0, step=50.0,
         disabled=weak_transit_mode != "Custom depth threshold",
     ))
-    st.caption(f"Experiment: {experiment_label(RUN_DIR.name)}")
-    st.caption(f"Folder ID: {RUN_DIR.name}")
-    st.caption(f"Repository: {REPO_ROOT.name}")
-
 
 # =============================================================================
 # Load data
@@ -2707,7 +2839,9 @@ injections = attach_regime_metadata(
 )
 
 pipelines = available_pipelines(injections)
-injections = add_calibrated_columns(injections, thresholds, pipelines)
+calibration_state = calibration_coverage(injections, thresholds, null_trials, pipelines)
+if calibration_state["complete"]:
+    injections = add_calibrated_columns(injections, thresholds, pipelines)
 metric_suffix, metric_label, calibration_available = infer_metric_suffix(injections, pipelines)
 TOP_K_DISPLAY = infer_top_k(RUN_DIR, injections, pipelines, fallback=TOP_K_DISPLAY)
 
@@ -2745,11 +2879,17 @@ def presentation_plot(fig, height: int | None = None):
         # Keep charts compact even when individual constructors requested very tall figures.
         final_height = max(240, min(340, int(current_height)))
 
+    # Plotly can render a title object with no text as the literal word
+    # "undefined" in some Streamlit/Plotly combinations. Preserve real chart
+    # titles, but explicitly use an empty string when a figure has no title.
+    existing_title = getattr(getattr(fig.layout, "title", None), "text", None)
+    safe_title = "" if existing_title in (None, "undefined") else str(existing_title)
+
     fig.update_layout(
         height=final_height,
         autosize=True,
         font=dict(size=12, color="#344258"),
-        title=dict(font=dict(size=15, color="#172033"), x=0.01, xanchor="left"),
+        title=dict(text=safe_title, font=dict(size=15, color="#172033"), x=0.01, xanchor="left"),
         legend=dict(
             font=dict(size=11, color="#44546a"),
             bgcolor="rgba(0,0,0,0)",
@@ -3472,93 +3612,23 @@ def render_pipeline_drilldown(
 # =============================================================================
 
 if page.startswith("1"):
+    st.title("Multi-model transit-search benchmark")
+    st.caption("Kepler Q5 injection–recovery proof of concept")
     st.markdown(
-        """
-        <div class="hero-shell">
-            <div class="hero-kicker">Kepler injection–recovery benchmark</div>
-            <div class="hero-title">Multi-model transit search</div>
-            <div class="hero-meta">
-                <b>Model Proof Of Concept:</b> How does the statistical treatment of the stellar background affect weak-transit recovery, how complementary are the resulting detection methods, and is that complementarity structured enough to motivate a multi-model or adaptive search?
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+        "**Scientific question.** How does the statistical treatment of the stellar background affect weak-transit recovery, "
+        "how complementary are the resulting detection methods, and is that complementarity structured enough to motivate a multi-model or adaptive search?"
     )
 
     n_stars = injections["target_id"].nunique() if "target_id" in injections.columns else 0
     n_cases = len(injections)
     expected_stars = expected_star_count(RUN_DIR, injections)
-    expected_cases, injection_hover = injection_grid_status(injections, expected_stars)
-
-    run_incomplete = (
-        (expected_stars > 0 and n_stars < expected_stars)
-        or (expected_cases > 0 and n_cases < expected_cases)
-        or (
-            "_source_state" in injections.columns
-            and (injections["_source_state"] == "checkpoint_partial").any()
-        )
-    )
-    case_progress = min(100.0, (100 * n_cases / expected_cases)) if expected_cases else 100.0
-
-    star_chip = (
-        f"{n_stars} stars"
-        if expected_stars <= 0 or n_stars >= expected_stars
-        else f"{n_stars} / {expected_stars} stars loaded"
-    )
-    case_chip = (
-        f"{n_cases:,} injection cases"
-        if expected_cases <= 0 or n_cases >= expected_cases
-        else f"{n_cases:,} / {expected_cases:,} injection cases loaded"
-    )
-    status_chip = (
-        f"Run incomplete · {case_progress:.1f}% cases loaded"
-        if run_incomplete
-        else "Run complete"
-    )
-    status_style = (
-        "background:#eef4ff;border:1px solid #cfe0ff;color:#2557b5;"
-        if run_incomplete
-        else "background:#ecf8ef;border:1px solid #cbe9d2;color:#176b35;"
-    )
-    injection_hover_safe = injection_hover.replace('"', '&quot;')
-
-    st.markdown(
-        f"""
-        <div style="display:flex;flex-wrap:wrap;gap:0.45rem;margin:0.15rem 0 0.65rem 0;">
-          <span title="Number of benchmark stars currently represented in the loaded results." style="background:#ffffff;border:1px solid #dbe3ec;border-radius:999px;padding:0.34rem 0.62rem;font-size:0.82rem;font-weight:650;color:#344258;cursor:help;">{star_chip}</span>
-          <span title="Background-model + transit-detector combinations currently available in this run." style="background:#ffffff;border:1px solid #dbe3ec;border-radius:999px;padding:0.34rem 0.62rem;font-size:0.82rem;font-weight:650;color:#344258;cursor:help;">{len(pipelines)} pipelines tested</span>
-          <span title="{injection_hover_safe}" style="background:#ffffff;border:1px solid #dbe3ec;border-radius:999px;padding:0.34rem 0.62rem;font-size:0.82rem;font-weight:650;color:#344258;cursor:help;">{case_chip} ⓘ</span>
-          <span title="The dashboard can read completed stars plus live per-star checkpoints while the benchmark is still running." style="{status_style}border-radius:999px;padding:0.34rem 0.62rem;font-size:0.82rem;font-weight:650;cursor:help;">{status_chip}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if calibration_available:
-        st.success(
-            "1% FAP calibration is loaded. A recovery now requires both the correct harmonic-aware period match "
-            "and a score above that star/pipeline's empirical 1% false-alarm threshold."
-        )
-    else:
-        st.markdown(
-            """
-            <div style="background:#fff9e8;border:1px solid #efd99a;border-radius:10px;padding:0.62rem 0.78rem;margin:0.2rem 0 0.8rem 0;">
-                <div style="font-size:0.88rem;font-weight:750;color:#654b16;margin-bottom:0.14rem;">In progress · 1% false-alarm calibration</div>
-                <div style="font-size:0.84rem;line-height:1.35;color:#654b16;"><b>Preliminary benchmark — FAP calibration pending.</b> Values below are harmonic-aware rank-1 period recovery, not final FAP-controlled completeness.</div>
-                <div style="font-size:0.78rem;line-height:1.32;color:#7a622d;margin-top:0.24rem;">Plain language: the current result asks whether the injected period (or its half/double-period harmonic) is the top-ranked candidate. The final calibration will additionally require that candidate to beat an empirical false-alarm threshold.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    expected_cases, _ = injection_grid_status(injections, expected_stars)
+    run_complete = (expected_stars <= 0 or n_stars >= expected_stars) and (expected_cases <= 0 or n_cases >= expected_cases)
 
     summary = pipeline_summary(injections, pipelines)
-    rate_col = (
-        "recovery_at_1pct_fap"
-        if calibration_available and "recovery_at_1pct_fap" in summary.columns
-        else "harmonic_rank1"
-    )
-
+    rate_col = "recovery_at_1pct_fap" if calibration_available and "recovery_at_1pct_fap" in summary.columns else "harmonic_rank1"
     union, union_n = union_rate(injections, pipelines, metric_suffix)
+
     if not summary.empty and rate_col in summary.columns:
         valid = summary.dropna(subset=[rate_col])
         if not valid.empty:
@@ -3569,87 +3639,60 @@ if page.startswith("1"):
             best_rate, best_name = np.nan, "—"
     else:
         best_rate, best_name = np.nan, "—"
-
     uplift = union - best_rate if np.isfinite(union) and np.isfinite(best_rate) else np.nan
 
-    st.markdown('<span class="section-chip">Headline result</span>', unsafe_allow_html=True)
+    run_text = "complete" if run_complete else "in progress"
+    decision_rule = (
+        "rank-1 P/2, P, or 2P match + star/pipeline-specific empirical 1% FAP gate"
+        if calibration_available
+        else "harmonic-aware rank-1 P/2, P, or 2P period match; FAP calibration pending"
+    )
+    st.caption(
+        f"{n_stars} stars · {n_cases:,} injections · {len(pipelines)} pipelines · run {run_text}. "
+        f"Current decision rule: {decision_rule}."
+    )
+
     m1, m2, m3 = st.columns(3)
     with m1:
-        st.markdown(
-            f"""
-            <div class="headline-card" title="Best recovery when one fixed pipeline must be applied to every loaded injection case.">
-                <div class="headline-label">Best fixed pipeline</div>
-                <div class="headline-value">{pct(best_rate)}</div>
-                <div class="headline-delta">{pipeline_label(best_name) if best_name != "—" else ""} · one branch used everywhere</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.metric("Best fixed pipeline", pct(best_rate))
+        st.caption(pipeline_label(best_name) if best_name != "—" else "")
     with m2:
-        st.markdown(
-            f"""
-            <div class="headline-card violet" title="Multi-model union: an injection counts as recovered if any loaded pipeline succeeds. This is the combined recovery set, not yet a deployable selector.">
-                <div class="headline-label">Multi-model union</div>
-                <div class="headline-value">{pct(union)}</div>
-                <div class="headline-delta">{f"{union_n:,} recovered · any branch may succeed" if np.isfinite(union) else ""}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.metric("Multi-model union", pct(union))
+        st.caption(f"{union_n:,} recovered" if np.isfinite(union) else "")
     with m3:
-        st.markdown(
-            f"""
-            <div class="headline-card green" title="Gap between the multi-model union and the best fixed pipeline. It is the headroom an adaptive selector could try to capture, not a guaranteed realized gain.">
-                <div class="headline-label">Potential adaptive gain</div>
-                <div class="headline-value">{f"+{100*uplift:.1f} pp" if np.isfinite(uplift) else "—"}</div>
-                <div class="headline-delta">multi-model union − best fixed pipeline</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.metric("Union uplift", f"+{100*uplift:.1f} pp" if np.isfinite(uplift) else "—")
+        st.caption("vs best fixed pipeline")
+
+    if calibration_available:
+        st.caption("FAP status: complete. All overview recovery values use the strict rank-1 + 1% empirical FAP criterion.")
+    else:
+        cp = calibration_state.get("threshold_pct", 0.0)
+        cpair = calibration_state.get("threshold_pairs", 0)
+        cexpected = calibration_state.get("expected_pairs", 0)
+        if cexpected:
+            st.caption(
+                f"FAP status: calibration in progress ({cp:.1f}% threshold coverage; {cpair}/{cexpected} star×pipeline thresholds). "
+                "Partial thresholds are not mixed into the headline metrics."
+            )
+        else:
+            st.caption("FAP status: pending. The overview currently reports strict rank-1 period recovery only.")
 
     st.markdown(
         """
-        <div class="science-callout" style="margin-bottom:0.45rem;">
-            <b>Interpretation:</b> Different modelling assumptions are recovering different subsets of injected transits.
-            Because the multi-model union is substantially higher than the best fixed pipeline, the next scientific question is:
-            <b>Can we understand and predict where that complementarity comes from?</b>
+        <div class="science-callout">
+        <b>Current result:</b> the multi-model union exceeds the best fixed branch, so the methods are not recovering identical subsets of injections. 
+        The analysis below asks whether that complementarity can be explained by the star, the transit morphology, or their interaction.
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    nav_specs = [
-        ("1 · Recovery & scoring", "What exactly counts as a recovery?", "📐 Recovery & scoring"),
-        ("2 · Unique Recovery", "Where does one method clearly dominate?", "🧩 Unique Recovery"),
-        ("3 · Stars & Statistics", "Does stellar background structure explain it?", "⭐ Stars & statistics"),
-        ("4 · Injection Explorer", "Does period, duration or depth explain it?", "🔎 Injection explorer"),
-        ("5 · FAP Calibration", "Do the gains survive controlled false alarms?", "🎯 FAP calibration"),
-        ("→ Adaptive search", "How could a future selector retain the right branch?", "🧭 POC roadmap"),
-    ]
-    nav_cols = st.columns(6)
-    for col, (label, description, target_page) in zip(nav_cols, nav_specs):
-        with col:
-            st.button(
-                label,
-                key=f"overview_nav_{target_page}",
-                use_container_width=True,
-                on_click=navigate_to,
-                args=(target_page,),
-                help=description,
-                type="secondary",
-            )
-            st.caption(description)
-
-
-    # -------------------------------------------------------------------------
-    # Five compact overview analyses. The first page intentionally contains only
-    # these five evidence blocks after the headline cards/navigation.
-    # -------------------------------------------------------------------------
-
-    # 1) Background treatment × detector interaction.
-    chart = summary.dropna(subset=[rate_col]).copy()
-    st.markdown("#### 1 · Background treatment × transit detector")
+    # ------------------------------------------------------------------
+    # 1. Background treatment × detector
+    # ------------------------------------------------------------------
+    st.markdown("## Recovery by background treatment and detector")
+    st.caption("The same injected cases are searched after four background treatments using BLS and TCF. Values are the current strict rank-1 recovery criterion.")
+    chart = summary.dropna(subset=[rate_col]).copy() if rate_col in summary.columns else pd.DataFrame()
     if not chart.empty:
         chart["Recovery (%)"] = 100 * chart[rate_col]
         chart["Background treatment"] = chart["branch"].replace({"GP": "Gaussian Process"})
@@ -3665,27 +3708,23 @@ if page.startswith("1"):
             y="Recovery (%)",
             color="Detector",
             markers=True,
-            text=chart["Recovery (%)"].map(lambda x: f"{x:.1f}%"),
             category_orders={"Background treatment": family_order, "Detector": ["BLS", "TCF"]},
             hover_data={"Pipeline": True, "Recovery (%)": ":.1f"},
-            labels={"Background treatment": "Background treatment", "Recovery (%)": "Recovery (%)"},
-            color_discrete_map={"BLS": "#76b9ed", "TCF": "#2563eb"},
+            labels={"Recovery (%)": "Recovery (%)"},
+            color_discrete_map={"BLS": "#7da6c5", "TCF": "#315f88"},
         )
-        fig.update_traces(textposition="top center", line={"width": 3}, marker={"size": 9})
+        fig.update_traces(line={"width": 2.2}, marker={"size": 7})
         fig.update_layout(
-            title_text="",
-            height=210,
-            margin=dict(l=10, r=12, t=8, b=16),
-            yaxis_range=[0, min(100, max(5, chart["Recovery (%)"].max() * 1.15))],
-            legend_title_text="Transit detector",
+            height=300,
+            margin=dict(l=20, r=20, t=30, b=35),
+            yaxis_range=[0, 100],
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1.0, title_text=""),
         )
-        fig = presentation_plot(fig, height=210)
+        fig = presentation_plot(fig, height=300)
+        fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1.0, title_text=""))
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False, "displaylogo": False})
-        st.caption("BLS and TCF respond differently to the background treatment; the compact summaries below test whether that difference has repeatable structure.")
-    else:
-        st.info("Pipeline recovery columns are not available for the interaction plot.")
 
-    # Derive the three dependence analyses from existing injection-level outputs only.
+    # Dependence analyses are derived only from existing injection-level results.
     star_dep, weak_label = build_star_dependence_table(
         injections, pipelines, metric_suffix, min_dominance_pp, min_complementarity_pp,
         weak_transit_mode, custom_weak_depth_ppm,
@@ -3696,123 +3735,130 @@ if page.startswith("1"):
     interaction_dep = build_interaction_dependence_table(
         injections, pipelines, metric_suffix, min_dominance_pp, min_complementarity_pp,
     )
-    gain_table = build_multimodel_gain_table(injections, pipelines, metric_suffix, best_name)
 
-    st.markdown(
-        """
-        <style>
-        table.compact-summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            background: #ffffff;
-            border: 1px solid #d7e4f3;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 0.25rem 0 0.55rem 0;
-        }
-        table.compact-summary-table th {
-            background: #eaf2ff;
-            color: #24456f;
-            font-weight: 700;
-            font-size: 0.76rem;
-            line-height: 1.15;
-            padding: 0.42rem 0.46rem;
-            border-bottom: 1px solid #d7e4f3;
-            text-align: left;
-        }
-        table.compact-summary-table td {
-            color: #24334a;
-            font-size: 0.77rem;
-            line-height: 1.18;
-            padding: 0.40rem 0.46rem;
-            border-bottom: 1px solid #edf2f8;
-            vertical-align: top;
-            overflow-wrap: anywhere;
-        }
-        table.compact-summary-table tr:last-child td { border-bottom: none; }
-        .overview-mini-title {
-            font-size: 1rem;
-            font-weight: 760;
-            color: #172033;
-            margin: 0 0 0.08rem 0;
-        }
-        .overview-mini-note {
-            font-size: 0.78rem;
-            line-height: 1.25;
-            color: #66758a;
-            margin-bottom: 0.20rem;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    star_total = len(star_dep)
+    star_clear = int((star_dep["Meaningful preference"] != "No meaningful preference").sum()) if star_total else 0
+    transit_total = len(transit_dep)
+    transit_clear = int((transit_dep["Meaningful preference"] != "No meaningful preference").sum()) if transit_total else 0
+    interaction_total = len(interaction_dep)
+    interaction_clear = int((interaction_dep["Meaningful preference"] != "No meaningful preference").sum()) if interaction_total else 0
 
-    st.markdown("### Where does model choice matter?")
+    st.markdown("## Where does model choice matter?")
     st.caption(
-        f"Compact summaries only. A preference is flagged when the best method leads the second-best by at least {min_dominance_pp:.0f} percentage points."
+        f"A preference is called clear only when the best pipeline leads the runner-up by at least {min_dominance_pp:.0f} percentage points. "
+        "The numerical comparisons are shown even when that threshold is not reached."
     )
 
-    # 2 + 3 side by side: star dependence and transit dependence.
-    c_star, c_transit = st.columns(2, gap="medium")
-    with c_star:
-        star_summary, star_clear, star_total = _compact_preference_counts(star_dep, "Stars")
-        st.markdown('<div class="overview-mini-title">2 · Star dependence — weak transits</div>', unsafe_allow_html=True)
-        if star_total:
-            st.markdown(
-                f'<div class="overview-mini-note"><b>{star_clear}/{star_total}</b> stars show a clear pipeline preference · {weak_label}.</div>',
-                unsafe_allow_html=True,
-            )
-            _render_compact_summary_table(star_summary)
-        else:
-            st.info("Star-level weak-transit summary unavailable.")
+    # ------------------------------------------------------------------
+    # 2. Star dependence
+    # ------------------------------------------------------------------
+    st.markdown("### Star dependence — weak transits")
+    if star_dep.empty:
+        st.info("Star-level dependence could not be calculated from the loaded results.")
+    else:
+        weak_coverage_note = (
+            f" {star_total}/{n_stars} loaded stars contribute to this weak-transit subset."
+            if n_stars and star_total != n_stars else ""
+        )
+        st.caption(
+            f"{star_clear}/{star_total} stars show a clear pipeline preference for {weak_label.lower()}."
+            f"{weak_coverage_note} "
+            "Quiet/easy stars are allowed to remain 'No meaningful preference' rather than being forced to a winner."
+        )
+        star_summary = star_preference_summary(star_dep)
+        st.dataframe(
+            _light_analysis_style(_round_analysis_table(star_summary)),
+            hide_index=True,
+            use_container_width=True,
+            height=min(260, 36 * (len(star_summary) + 1)),
+        )
+        with st.expander("See the individual-star evidence"):
+            cols = [
+                "Star ID", "Background stratum", "N weak injections", "Best numerical pipeline",
+                "Best recovery (%)", "Runner-up", "Second-best (%)", "Dominance margin (pp)",
+                "Multi-model union (%)", "Multi-model gain (pp)", "Meaningful preference",
+            ]
+            cols = [c for c in cols if c in star_dep.columns]
+            st.dataframe(_light_analysis_style(_round_analysis_table(star_dep[cols])), hide_index=True, use_container_width=True, height=360)
 
-    with c_transit:
-        if not transit_dep.empty and "Meaningful preference" in transit_dep.columns:
-            transit_clear = int((transit_dep["Meaningful preference"] != "No meaningful preference").sum())
-            transit_total = int(len(transit_dep))
-        else:
-            transit_clear = transit_total = 0
-        st.markdown('<div class="overview-mini-title">3 · Transit dependence across stars</div>', unsafe_allow_html=True)
-        if transit_total:
-            st.markdown(
-                f'<div class="overview-mini-note"><b>{transit_clear}/{transit_total}</b> period–duration–depth combinations show a clear preference. Top separations:</div>',
-                unsafe_allow_html=True,
-            )
-            _render_compact_summary_table(_compact_transit_rows(transit_dep))
-        else:
-            st.info("Transit-morphology summary unavailable.")
+    # ------------------------------------------------------------------
+    # 3. Transit dependence
+    # ------------------------------------------------------------------
+    st.markdown("### Transit dependence across stars")
+    if transit_dep.empty:
+        st.info("Transit-morphology dependence could not be calculated from the loaded results.")
+    else:
+        st.caption(
+            f"{transit_clear}/{transit_total} period–duration–depth combinations exceed the {min_dominance_pp:.0f}-pp preference threshold. "
+            "The table still shows the strongest numerical separations so that 'no clear preference' is not mistaken for 'no difference'."
+        )
+        transit_view = compact_transit_evidence(transit_dep, limit=6)
+        st.dataframe(
+            _light_analysis_style(_round_analysis_table(transit_view)),
+            hide_index=True,
+            use_container_width=True,
+            height=min(300, 36 * (len(transit_view) + 1)),
+        )
 
-    # 4 + 5 side by side: interaction and multi-model gain.
-    c_interaction, c_gain = st.columns(2, gap="medium")
-    with c_interaction:
-        st.markdown('<div class="overview-mini-title">4 · Background × transit interaction</div>', unsafe_allow_html=True)
-        compact_interaction = _compact_interaction_rows(interaction_dep)
-        if compact_interaction.empty:
-            st.markdown(
-                '<div class="overview-mini-note"><b>Pending:</b> valid background-stratum labels are not attached, so this interaction cannot yet be separated from transit dependence.</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            interaction_clear = int((interaction_dep["Meaningful preference"] != "No meaningful preference").sum())
-            interaction_total = int(len(interaction_dep))
-            st.markdown(
-                f'<div class="overview-mini-note"><b>{interaction_clear}/{interaction_total}</b> background × transit combinations show a clear preference. Top separations:</div>',
-                unsafe_allow_html=True,
-            )
-            _render_compact_summary_table(compact_interaction)
+    # ------------------------------------------------------------------
+    # 4. Background × transit interaction
+    # ------------------------------------------------------------------
+    st.markdown("### Background × transit interaction")
+    if interaction_dep.empty:
+        st.info("Background × transit interaction could not be calculated from the loaded results.")
+    else:
+        st.caption(
+            f"{interaction_clear}/{interaction_total} background × transit combinations exceed the {min_dominance_pp:.0f}-pp threshold. "
+            "These rows test whether a method advantage appears only for a particular stellar background and transit morphology together."
+        )
+        interaction_view = compact_interaction_evidence(interaction_dep, limit=6)
+        st.dataframe(
+            _light_analysis_style(_round_analysis_table(interaction_view)),
+            hide_index=True,
+            use_container_width=True,
+            height=min(300, 36 * (len(interaction_view) + 1)),
+        )
 
-    with c_gain:
-        st.markdown('<div class="overview-mini-title">5 · What creates the multi-model gain?</div>', unsafe_allow_html=True)
-        compact_gain = _compact_gain_rows(gain_table, pipeline_label(best_name) if best_name != "—" else "")
-        if compact_gain.empty:
-            st.info("Multi-model contribution summary unavailable.")
+    # ------------------------------------------------------------------
+    # 5. What creates the union gain?
+    # ------------------------------------------------------------------
+    st.markdown("### What creates the multi-model gain?")
+    gain_table = build_multimodel_gain_table(injections, pipelines, metric_suffix, best_name)
+    if gain_table.empty:
+        st.info("Multi-model branch contributions could not be calculated from the loaded recovery columns.")
+    else:
+        best_misses = int(len(injections) - round(best_rate * len(injections))) if np.isfinite(best_rate) else 0
+        st.caption(
+            f"Starting from the best fixed pipeline ({pipeline_label(best_name)}), the table shows which additional branches recover its missed cases. "
+            f"The best fixed pipeline misses approximately {best_misses:,} loaded injections. Contributions overlap and therefore should not be summed."
+        )
+        gain_view = gain_table.head(6)
+        st.dataframe(
+            _light_analysis_style(_round_analysis_table(gain_view)),
+            hide_index=True,
+            use_container_width=True,
+            height=min(300, 36 * (len(gain_view) + 1)),
+        )
+
+    # Data-driven takeaway: do not overclaim a router.
+    strongest = []
+    if star_total:
+        strongest.append(("star", star_clear / star_total))
+    if transit_total:
+        strongest.append(("transit", transit_clear / transit_total))
+    if interaction_total:
+        strongest.append(("interaction", interaction_clear / interaction_total))
+    if strongest:
+        strongest_name, strongest_fraction = max(strongest, key=lambda x: x[1])
+        if strongest_fraction == 0:
+            takeaway = "No stable dominance pattern is evident at the current threshold; the clearest result is multi-model complementarity rather than deterministic routing."
+        elif strongest_name == "interaction":
+            takeaway = "The clearest separation appears locally in background × transit combinations rather than as a universal star-only or transit-only rule."
+        elif strongest_name == "star":
+            takeaway = "The strongest current structure is star-level, although most stars should still be allowed to have no meaningful preference when the methods are close."
         else:
-            st.markdown(
-                f'<div class="overview-mini-note">Cases rescued after the best fixed branch (<b>{pipeline_label(best_name)}</b>) misses. Contributions overlap.</div>',
-                unsafe_allow_html=True,
-            )
-            _render_compact_summary_table(compact_gain)
+            takeaway = "The strongest current structure is transit-morphology dependence across stars, although the size of the runner-up gap remains the key evidence."
+        st.markdown(f"**Working interpretation:** {takeaway}")
 
 # =============================================================================
 # Recovery & scoring — definitions and Kepler TPS comparison
@@ -4914,8 +4960,8 @@ elif page.startswith("2"):
 
 elif page.startswith("3"):
     header(
-        "Injection explorer",
-        "Inspect success, rescue, and failure cases rather than relying only on aggregate recovery rates.",
+        "Case explorer",
+        "Inspect strict rank-1 success, rescue, and failure cases rather than relying only on aggregate recovery rates.",
     )
 
     pipeline = st.selectbox("Pipeline", pipelines, format_func=pipeline_label)
@@ -4989,7 +5035,6 @@ elif page.startswith("3"):
                         "Recovered": bool(row[hit_col]) if pd.notna(row[hit_col]) else False,
                         "Score": row.get(f"{p}_score", np.nan),
                         "Recovered P (d)": row.get(f"{p}_recovered_period_days", np.nan),
-                        f"Top-{TOP_K_DISPLAY} exact rank": row.get(f"{p}_exact_rank_topk", np.nan),
                     }
                 )
             st.dataframe(pd.DataFrame(details), hide_index=True, use_container_width=True)
@@ -5017,8 +5062,16 @@ elif page.startswith("3"):
 elif page.startswith("4"):
     header(
         "1% false-alarm calibration",
-        "Compare each detector at a controlled false-alarm probability, not at an arbitrary raw score.",
+        "A candidate must rank first at the injected period/harmonic and clear a star/pipeline-specific empirical null threshold.",
     )
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Threshold coverage", f"{calibration_state.get('threshold_pct', 0.0):.1f}%")
+    c2.metric("Stars with null trials", f"{calibration_state.get('null_stars', 0)} / {calibration_state.get('expected_stars', 0)}")
+    c3.metric("Headline mode", "Strict 1% FAP" if calibration_available else "Rank-1 only")
+
+    if not calibration_available and not thresholds.empty:
+        st.caption("Calibration checkpoints are present but incomplete. Partial thresholds are shown here for inspection only and are not mixed into overview recovery metrics.")
 
     if thresholds.empty or null_trials.empty:
         st.warning(
