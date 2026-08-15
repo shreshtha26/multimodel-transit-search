@@ -21,3 +21,11 @@ outputs/experiments/multistar_bls_tcf/*/reranker_topk_calibration_smoke/
 # Local Codex skill files
 SKILL.md
 *-SKILL.md
+# Local characterization experiment products
+/outputs/experiments/characterization/
+/outputs/experiments/characterization_population40/
+/outputs/experiments/characterization_validation/
+/outputs/experiments/characterization_validation10/
+/outputs/experiments/characterization_validation50/
+/outputs/experiments/multistar_challenger_benchmark/clean_q5_50star/star_calibration/
+/*.patch

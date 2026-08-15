@@ -27,6 +27,8 @@ from adaptive_transit.detection.tcf import default_duration_grid, default_period
 from adaptive_transit.injections.synthetic import inject_periodic_box_transit
 from adaptive_transit.noise_models.gp import apply_prepared_smooth_gp_filter, fit_smooth_gp_background, prepare_smooth_gp_filter
 from adaptive_transit.noise_models.kalman import apply_fitted_kalman_filter, fit_kalman_local_level
+from adaptive_transit.noise_models.characterization import characterize_regularized_light_curve
+from adaptive_transit.noise_models.stellar_variability import MODEL_SELECTION_FEATURE_COLUMNS
 from adaptive_transit.preprocessing.normalization import preprocess_pdcsap_light_curve
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", message="Warning: the tpfmodel submodule is not available.*", category=UserWarning)
@@ -47,7 +49,7 @@ PIPELINE_DEFINITIONS = {"raw_bls": ("raw", "bls"), "raw_tcf": ("raw", "tcf"), "a
 SEARCH_RESOLUTION_PRESETS = {"pilot": {"n_periods": 3000, "top_k": 5, "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "bls_oversample": 5}, "medium": {"n_periods": 5000, "top_k": 5, "n_coarse_periods": 2000, "n_refinement_regions": 18, "refinement_half_width_points": 30, "bls_oversample": 5}, "high": {"n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}}
 
 def default_settings(profile="pilot"):
-    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "selection_group": CLEAN_SELECTION_GROUP, "require_catalog_clean": True, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_injection_mode": "filter", "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "search_resolution": "pilot", "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False, "benchmark_schema_version": BENCHMARK_SCHEMA_VERSION}
+    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "selection_group": CLEAN_SELECTION_GROUP, "require_catalog_clean": True, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_injection_mode": "filter", "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "search_resolution": "pilot", "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False, "characterization_acf_lags": 2000, "characterization_spectral_frequencies": 4000, "benchmark_schema_version": BENCHMARK_SCHEMA_VERSION}
     if profile == "main":
         settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 50, "stratified_pilot": False, "injection_period_grid": (2.0, 5.0, 10.0), "injection_duration_hours_grid": (2.0, 4.0, 8.0), "injection_depth_grid": (0.0002, 0.0005, 0.001), "epoch_phase_fraction_grid": (0.15, 0.45, 0.75), "search_resolution": "high", "n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}
         )
@@ -143,6 +145,8 @@ def parse_args(argv=None):
     parser.add_argument("--no-resume", dest="resume", action="store_false")
     parser.add_argument("--rerun-failures", action="store_true")
     parser.add_argument("--save-regularized-inputs", action="store_true")
+    parser.add_argument("--characterization-acf-lags", type=int)
+    parser.add_argument("--characterization-spectral-frequencies", type=int)
     parsed = parser.parse_args(argv)
     args = default_settings(parsed.profile)
     if parsed.search_resolution is not None:
@@ -177,7 +181,7 @@ def injection_cases(args):
     return list(product(args.injection_period_grid, args.injection_duration_hours_grid, args.injection_depth_grid, args.epoch_phase_fraction_grid))
 
 def config_signature(args):
-    keys = ("benchmark_schema_version", "profile", "selection_group", "require_catalog_clean", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_injection_mode", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "search_resolution", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "period_match_tolerance_fraction")
+    keys = ("benchmark_schema_version", "profile", "selection_group", "require_catalog_clean", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_injection_mode", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "search_resolution", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "period_match_tolerance_fraction", "characterization_acf_lags", "characterization_spectral_frequencies")
     return {key: json_ready(getattr(args, key)) for key in keys}
 
 def write_benchmark_config(args):
@@ -341,7 +345,10 @@ def stratified_pilot_manifest(manifest, args):
     joined = manifest.merge(features, on=["target_id", "quarter", "selection_group"], how="left")
     selected = []
     selected_keys = set()
-    criteria = [("robust_flux_scatter_ppm", True, 2, "quiet_low_scatter"), ("background_tau_integrated_positive_acf_days", False, 2, "long_integrated_acf"), ("background_tau_acf_e_days", False, 2, "long_acf_e"), ("robust_flux_scatter_ppm", False, 2, "high_scatter"), ("gap_fraction", False, 2, "gap_heavy")]
+    # Legacy pilot selection only.  Low scatter is *not* equivalent to a quiet
+    # star, and gap structure is no longer treated as a scientific variability
+    # regime.  Final population labels are assigned after full v2 characterization.
+    criteria = [("robust_flux_scatter_ppm", True, 2, "low_scatter_screen"), ("background_tau_integrated_positive_acf_days", False, 2, "long_integrated_acf"), ("background_tau_acf_e_days", False, 2, "long_acf_e"), ("robust_flux_scatter_ppm", False, 2, "high_scatter")]
     for column, ascending, count, reason in criteria:
         if column not in joined.columns:
             continue
@@ -805,7 +812,7 @@ def prepare_star_run(star_dir, args):
     star_dir.mkdir(parents=True, exist_ok=True)
     compatible = star_config_matches(star_dir, args)
     if not compatible:
-        for name in ("COMPLETE", "injections.csv", "base_light_curve_candidates.csv", "star_summary.json", "failure.json"):
+        for name in ("COMPLETE", "injections.csv", "base_light_curve_candidates.csv", "star_summary.json", "stellar_characterization.json", "failure.json"):
             path = star_dir / name
             if path.exists():
                 path.unlink()
@@ -829,6 +836,21 @@ def run_star_task(task):
         flux = regular["normalized_flux"].to_numpy(dtype=float)
         if np.isfinite(time).sum() < 24 or np.isfinite(flux).sum() < 24:
             raise ValueError("Insufficient finite observations.")
+
+        # Characterize the observed stellar background ONCE before any synthetic
+        # transit is injected.  These are the X_star features for later model
+        # selection / routing.  They must never depend on injected transit truth.
+        report_progress(progress_queue, target_id, quarter, "stellar characterization", detail="v2 features")
+        characterization = characterize_regularized_light_curve(
+            regular,
+            target_id=target_id,
+            quarter=quarter,
+            preprocessing_summary=preprocessing.to_dict(),
+            variability_acf_lags=int(args["characterization_acf_lags"]),
+            variability_spectral_frequencies=int(args["characterization_spectral_frequencies"]),
+        )
+        (star_dir / "stellar_characterization.json").write_text(json.dumps(json_ready(characterization), indent=2) + "\n")
+
         period_grid = default_period_grid(time, min_period_days=args["min_period_days"], max_period_days=args["max_period_days"], n_periods=args["n_periods"])
         duration_grid = default_duration_grid(args["min_duration_hours"], args["max_duration_hours"], args["n_durations"])
         branches = required_branches(args["pipelines"])
@@ -857,7 +879,23 @@ def run_star_task(task):
         injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args, progress_queue, resume_compatible=resume_compatible)
         successful = injections.copy()
         star_metrics = calculate_star_metrics(time, flux)
-        summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "sample_stratum": sample_stratum, "status": "success", "profile": str(args["profile"]), "search_resolution": str(args["search_resolution"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)) if base_arima is not None else None, "kalman_injection_mode": str(args["kalman_injection_mode"]), "base_kalman_runtime_seconds": float(base_kalman_runtime), "base_kalman_converged": bool(base_kalman.converged) if base_kalman is not None else None, "gp_injection_mode": str(args["gp_injection_mode"]), "base_gp_runtime_seconds": float(base_gp_runtime), "base_gp_converged": bool(base_gp.converged) if base_gp is not None else None, "base_gp_length_scale_days": float(base_gp.parameters["length_scale_days"]) if base_gp is not None else None, "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics}
+        # Only continuous, pre-injection stellar-background measurements enter the
+        # future model-selection feature matrix.  Human-readable morphology flags
+        # are stored separately for interpretation and visual review.
+        characterization_features = {key: characterization.get(key) for key in MODEL_SELECTION_FEATURE_COLUMNS}
+        characterization_flags = {
+            key: characterization.get(key)
+            for key in (
+                "scientific_characterization_version",
+                "v2_periodicity_screen_pass",
+                "v2_coherent_periodic_candidate",
+                "v2_quasi_periodic_candidate",
+                "v2_rotation_spot_review_flag",
+                "v2_pulsation_review_flag",
+                "v2_low_scatter_structured_candidate",
+            )
+        }
+        summary = {"target_id": target_id, "quarter": quarter, "selection_group": selection_group, "sample_stratum": sample_stratum, "status": "success", "profile": str(args["profile"]), "search_resolution": str(args["search_resolution"]), "pipelines": list(args["pipelines"]), "runtime_seconds": float(perf_counter() - started), "light_curve_cache_hit": bool(cache_hit), "base_arima_source": str(base_arima_source), "base_arima_runtime_seconds": float(base_arima_runtime), "base_arima_converged": bool(base_arima["summary"].get("converged", True)) if base_arima is not None else None, "kalman_injection_mode": str(args["kalman_injection_mode"]), "base_kalman_runtime_seconds": float(base_kalman_runtime), "base_kalman_converged": bool(base_kalman.converged) if base_kalman is not None else None, "gp_injection_mode": str(args["gp_injection_mode"]), "base_gp_runtime_seconds": float(base_gp_runtime), "base_gp_converged": bool(base_gp.converged) if base_gp is not None else None, "base_gp_length_scale_days": float(base_gp.parameters["length_scale_days"]) if base_gp is not None else None, "injection_count_requested": int(len(cases)), "injection_count_completed": int(len(successful)), **star_metrics, **characterization_features, **characterization_flags}
         summary.update({"arima_injection_mode": str(args["arima_injection_mode"]), "base_arima_optimizer_warnflag": base_arima["summary"].get("optimizer_warnflag") if base_arima is not None else None, "base_arima_optimizer_iterations": base_arima["summary"].get("optimizer_iterations") if base_arima is not None else None, "base_arima_optimizer_function_calls": base_arima["summary"].get("optimizer_function_calls") if base_arima is not None else None, "base_gp_status": int(base_gp.status) if base_gp is not None else None, "base_gp_message": str(base_gp.message) if base_gp is not None else None, "base_gp_length_scale_at_lower_bound": bool(base_gp.parameters.get("length_scale_at_lower_bound", False)) if base_gp is not None else None, "base_gp_length_scale_at_upper_bound": bool(base_gp.parameters.get("length_scale_at_upper_bound", False)) if base_gp is not None else None, "base_gp_signal_variance_at_lower_bound": bool(base_gp.parameters.get("signal_variance_at_lower_bound", False)) if base_gp is not None else None, "base_gp_signal_variance_at_upper_bound": bool(base_gp.parameters.get("signal_variance_at_upper_bound", False)) if base_gp is not None else None, "base_gp_optimizer_warning_count": int(base_gp.parameters.get("optimizer_warning_count", 0)) if base_gp is not None else None, "base_gp_optimizer_warning_message": str(base_gp.parameters.get("optimizer_warning_message", "")) if base_gp is not None else None})
         for pipeline in args["pipelines"]:
             column = f"{pipeline}_harmonic_rank1_matched"
