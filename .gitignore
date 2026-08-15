@@ -29,3 +29,12 @@ SKILL.md
 /outputs/experiments/characterization_validation50/
 /outputs/experiments/multistar_challenger_benchmark/clean_q5_50star/star_calibration/
 /*.patch
+# Generated/intermediate benchmark outputs
+/outputs/experiments/multistar_challenger_benchmark/clean_q5_5star/
+/outputs/experiments/multistar_challenger_benchmark/clean_q5_10star/
+# Downloaded/generated Kepler catalog caches and intermediate selection tables
+/outputs/target_selection/catalog_cache/
+/outputs/target_selection/catalog_clean_selection_sources.json
+/outputs/target_selection/kepler_catalog_clean_candidate_features.csv
+/outputs/target_selection/kepler_catalog_clean_candidates_q5.csv
+/outputs/target_selection/kepler_catalog_clean_pool.csv

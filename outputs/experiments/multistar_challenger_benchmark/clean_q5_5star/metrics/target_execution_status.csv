@@ -1,6 +1,0 @@
-target_id,quarter,selection_group,sample_stratum,status,star_dir,runtime_seconds,error
-12645975,5,catalog_clean_background,gap_heavy,success,outputs/experiments/multistar_challenger_benchmark/clean_q5_5star/stars/kic_12645975_q5,8736.615325500024,
-10223890,5,catalog_clean_background,quiet_low_scatter,success,outputs/experiments/multistar_challenger_benchmark/clean_q5_5star/stars/kic_10223890_q5,8847.595410458976,
-10677499,5,catalog_clean_background,high_scatter,success,outputs/experiments/multistar_challenger_benchmark/clean_q5_5star/stars/kic_10677499_q5,8855.947599584004,
-11450313,5,catalog_clean_background,smooth_background_dominant,success,outputs/experiments/multistar_challenger_benchmark/clean_q5_5star/stars/kic_11450313_q5,8914.780923665967,
-10718455,5,catalog_clean_background,long_memory,success,outputs/experiments/multistar_challenger_benchmark/clean_q5_5star/stars/kic_10718455_q5,8975.690808959072,
