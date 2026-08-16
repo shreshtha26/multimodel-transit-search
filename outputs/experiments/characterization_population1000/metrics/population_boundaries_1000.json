@@ -1,0 +1,11 @@
+{
+  "amplitude_q25": 0.0002676033717251959,
+  "amplitude_q75": 0.0006518200878289581,
+  "memory_q25": 0.07313381146252351,
+  "memory_q75": 0.7289875381415085,
+  "evolution_q75": 0.10226407929912008,
+  "median_drift_q75": 0.34768529308003376,
+  "harmonic_power_ratio_threshold": 0.1,
+  "weak_abs_acf1": 0.2,
+  "strong_abs_acf1": 0.5
+}

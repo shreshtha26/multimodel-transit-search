@@ -1,0 +1,13 @@
+{
+  "unique_star_count": 1000,
+  "row_count": 1000,
+  "reference_star_count": 100,
+  "expansion_star_count": 900,
+  "canonical_variable_count": 11,
+  "canonical_continuous_variable_count": 10,
+  "max_missing_fraction_excluding_conditional_features": 0.008,
+  "ls_acf_period_agreement_availability_fraction": 0.154,
+  "high_redundancy_pair_count_abs_spearman_ge_0_90": 0,
+  "expansion_attempt_count": 1100,
+  "expansion_failure_count": 190
+}

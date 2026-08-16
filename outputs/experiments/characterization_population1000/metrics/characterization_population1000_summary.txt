@@ -1,0 +1,42 @@
+FINAL STELLAR BACKGROUND CHARACTERIZATION — v2
+================================================
+
+Sample: 1000 unique clean Kepler Q5 stars
+Reference development cohort retained: 100
+New population-expansion stars: 900
+Frozen scientific domains: 7
+Frozen canonical variables: 11
+Continuous canonical variables: 10
+
+Final 1,000-star population boundaries:
+  amplitude_q25: 0.0002676033717251959
+  amplitude_q75: 0.0006518200878289581
+  memory_q25: 0.07313381146252351
+  memory_q75: 0.7289875381415085
+  evolution_q75: 0.10226407929912008
+  median_drift_q75: 0.34768529308003376
+  harmonic_power_ratio_threshold: 0.1
+  weak_abs_acf1: 0.2
+  strong_abs_acf1: 0.5
+
+Quality checks:
+  non-conditional max missing fraction: 0.008
+  LS-ACF agreement availability fraction: 0.154
+  |Spearman rho| >= 0.90 pairs: 0
+
+Dominant statistical behaviour counts:
+  Quiet / low variability: 49 (4.9%)
+  Low-scatter structured: 180 (18.0%)
+  Short-memory stochastic: 112 (11.2%)
+  Long-memory / correlated: 42 (4.2%)
+  Coherent periodic: 25 (2.5%)
+  Quasi-periodic / structured: 56 (5.6%)
+  Evolving variability: 330 (33.0%)
+  High-amplitude / high-scatter: 27 (2.7%)
+  Tail-heavy / asymmetric: 119 (11.9%)
+  Mixed / complex: 60 (6.0%)
+
+Interpretation:
+  The 1,000-star population finalizes population distributions and
+  relative boundaries. Behaviour labels remain descriptive screens;
+  downstream ML should consume the underlying canonical variables.

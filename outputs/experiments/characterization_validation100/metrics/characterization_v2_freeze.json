@@ -1,0 +1,105 @@
+{
+  "freeze_id": "stellar_variability_v2_100star_freeze",
+  "scientific_characterization_version": "stellar_variability_v2",
+  "generated_utc": "2026-08-16T14:41:42.458112+00:00",
+  "git_commit": "64b79e1686bc97f97d9cdebd412ed549e937f47f",
+  "sample_size": 100,
+  "quarter": 5,
+  "selection_seed": 20260816,
+  "selection_provenance": {
+    "target_column": "target_id",
+    "quarter_column": "quarter",
+    "clean_pass_column": null,
+    "veto_columns": {
+      "koi": "koi_flag",
+      "tce": "tce_flag",
+      "confirmed_planet": "confirmed_planet_flag",
+      "eclipsing_binary": "eb_flag"
+    },
+    "trust_clean_pool": true,
+    "statistical_columns_present_but_ignored": [],
+    "candidate_pool_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/target_selection/kepler_catalog_clean_candidates_q5.csv",
+    "input_row_count": 250,
+    "clean_q5_unique_target_count": 250,
+    "selection_seed": 20260816,
+    "quarter": 5,
+    "statistical_selection_columns_used": [],
+    "selection_policy": "Deterministic random order after Q5 + upstream clean/catalog vetoes only; no light-curve statistical feature or v2 label is used."
+  },
+  "population_boundary_config": {
+    "ls_fap_threshold": 0.01,
+    "period_agreement_fraction": 0.2,
+    "weak_abs_acf1": 0.2,
+    "strong_abs_acf1": 0.5,
+    "harmonic_power_ratio_threshold": 0.1,
+    "low_amplitude_quantile": 0.25,
+    "high_amplitude_quantile": 0.75,
+    "low_memory_quantile": 0.25,
+    "high_memory_quantile": 0.75,
+    "high_evolution_quantile": 0.75
+  },
+  "realized_population_boundaries": {
+    "amplitude_q25": 0.00025814174536414885,
+    "amplitude_q75": 0.000541638125971333,
+    "memory_q25": 0.05994075446653302,
+    "memory_q75": 0.5298251234174519,
+    "evolution_q75": 0.07439202928268351,
+    "median_drift_q75": 0.2869949665667918,
+    "harmonic_power_ratio_threshold": 0.1,
+    "weak_abs_acf1": 0.2,
+    "strong_abs_acf1": 0.5
+  },
+  "canonical_domains": [
+    "autocorrelation_memory",
+    "distribution_shape",
+    "periodicity_coherence",
+    "scatter_amplitude",
+    "spectral_structure",
+    "stationarity",
+    "variance_evolution"
+  ],
+  "canonical_feature_count": 11,
+  "canonical_columns": [
+    "flux_robust_scale",
+    "flux_skewness",
+    "flux_outlier_fraction",
+    "v2_acf_lag_1",
+    "v2_acf_decay_e_days",
+    "original_series_stationarity_conclusion",
+    "v2_spectral_concentration",
+    "v2_spectral_harmonic_power_ratio",
+    "v2_ls_dominant_period_days",
+    "v2_ls_acf_period_relative_error",
+    "v2_segment_scale_relative_mad"
+  ],
+  "canonical_continuous_columns": [
+    "flux_robust_scale",
+    "flux_skewness",
+    "flux_outlier_fraction",
+    "v2_acf_lag_1",
+    "v2_acf_decay_e_days",
+    "v2_spectral_concentration",
+    "v2_spectral_harmonic_power_ratio",
+    "v2_ls_dominant_period_days",
+    "v2_ls_acf_period_relative_error",
+    "v2_segment_scale_relative_mad"
+  ],
+  "worker_count": 4,
+  "characterization_parameters": {
+    "quality_policy": "default",
+    "require_finite_flux_error": false,
+    "test_fraction": 0.2,
+    "v1_acf_lags": 80,
+    "v2_acf_lags": 240,
+    "rolling_window": 96,
+    "v1_spectral_frequencies": 2000,
+    "v2_spectral_frequencies": 4000,
+    "stationarity_min_observations": 24
+  },
+  "selection_contract": "No statistical characterization feature/label is used to select the 100 targets. Population boundaries are computed only after the final 100 successful stars are fixed.",
+  "sha256": {
+    "target_manifest_used.csv": "01af7932a8dc2ba326416df9400ca2598fce05458cecd9e0f08991106fe23817",
+    "stellar_features_v2_100.csv": "331dab0621263ad36d6022056e6b7e42e9318d41ff3be73b6cfcd94b88b21f99",
+    "characterization_master_100.csv": "1828374b5edd9c3c2ed6fa284140cf9a5e59b22a556cc7fbde8d9fc6016ac1be"
+  }
+}

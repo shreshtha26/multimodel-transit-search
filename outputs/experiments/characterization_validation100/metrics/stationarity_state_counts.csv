@@ -1,0 +1,5 @@
+stationarity_state,count,fraction
+stationary_supported,83,0.83
+conflicting_rejections,12,0.12
+inconclusive_low_power,4,0.04
+nonstationary_supported,1,0.01

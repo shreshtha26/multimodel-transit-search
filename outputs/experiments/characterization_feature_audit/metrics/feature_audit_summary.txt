@@ -1,0 +1,32 @@
+Stellar characterization v2 feature audit
+==========================================
+
+Input: outputs/experiments/characterization_validation50/metrics/characterization_master_50.csv
+Stars/rows: 50
+Raw diagnostic columns: 132
+Scientific domains: 7
+Canonical variables requested: 11
+Canonical variables resolved: 11
+Canonical variables unresolved/ambiguous: 0
+Highly redundant canonical pairs (|Spearman rho| >= 0.90): 0
+
+Canonical feature resolutions
+-----------------------------
+scatter_amplitude           robust_scatter           <- flux_robust_scale [exact]
+distribution_shape          skewness                 <- flux_skewness [exact]
+distribution_shape          outlier_fraction         <- flux_outlier_fraction [exact]
+autocorrelation_memory      acf_lag1                 <- v2_acf_lag_1 [exact]
+autocorrelation_memory      acf_timescale_days       <- v2_acf_decay_e_days [exact]
+stationarity                stationarity_state       <- original_series_stationarity_conclusion [exact]
+spectral_structure          spectral_concentration   <- v2_spectral_concentration [exact]
+spectral_structure          harmonic_power_ratio     <- v2_spectral_harmonic_power_ratio [exact]
+periodicity_coherence       dominant_period_days     <- v2_ls_dominant_period_days [exact]
+periodicity_coherence       period_agreement_error   <- v2_ls_acf_period_relative_error [exact]
+variance_evolution          segment_scale_variability <- v2_segment_scale_relative_mad [exact]
+
+Interpretation
+--------------
+The raw diagnostic table remains the audit/debug layer.
+The seven domains are the scientific characterization taxonomy.
+stellar_features_v2_50.csv is the compact canonical representation to inspect before any PCA or model-selection work.
+Do not fit PCA on repeated injection rows; dimensionality reduction must be fit at the unique-star level.

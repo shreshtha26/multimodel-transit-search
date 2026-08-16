@@ -1,0 +1,113 @@
+{
+  "schema_version": "stellar_characterization_v2",
+  "scientific_domains": [
+    "scatter_amplitude",
+    "distribution_shape",
+    "autocorrelation_memory",
+    "stationarity",
+    "spectral_structure",
+    "periodicity_coherence",
+    "variance_evolution"
+  ],
+  "canonical_features": [
+    {
+      "name": "robust_scatter",
+      "domain": "scatter_amplitude",
+      "kind": "continuous",
+      "unit": "relative_flux",
+      "source_column": "flux_robust_scale",
+      "resolution_status": "exact",
+      "rationale": "Robust amplitude of stellar-background variability; preferred over ordinary standard deviation when isolated excursions exist."
+    },
+    {
+      "name": "skewness",
+      "domain": "distribution_shape",
+      "kind": "continuous",
+      "unit": "dimensionless",
+      "source_column": "flux_skewness",
+      "resolution_status": "exact",
+      "rationale": "Asymmetry of the flux distribution."
+    },
+    {
+      "name": "outlier_fraction",
+      "domain": "distribution_shape",
+      "kind": "continuous",
+      "unit": "fraction",
+      "source_column": "flux_outlier_fraction",
+      "resolution_status": "exact",
+      "rationale": "Robust tail/impulsive-variability measure. Raw excess kurtosis is retained as an audit diagnostic rather than a canonical router feature."
+    },
+    {
+      "name": "acf_lag1",
+      "domain": "autocorrelation_memory",
+      "kind": "continuous",
+      "unit": "correlation",
+      "source_column": "v2_acf_lag_1",
+      "resolution_status": "exact",
+      "rationale": "Short-lag correlation strength of the stellar background."
+    },
+    {
+      "name": "acf_timescale_days",
+      "domain": "autocorrelation_memory",
+      "kind": "continuous",
+      "unit": "days",
+      "source_column": "v2_acf_decay_e_days",
+      "resolution_status": "exact",
+      "rationale": "Persistence timescale of correlated variability; distinct from one-cadence ACF strength."
+    },
+    {
+      "name": "stationarity_state",
+      "domain": "stationarity",
+      "kind": "categorical",
+      "unit": "category",
+      "source_column": "original_series_stationarity_conclusion",
+      "resolution_status": "exact",
+      "rationale": "Joint interpretation of ADF/KPSS evidence; raw ADF/KPSS statistics and p-values remain supporting diagnostics."
+    },
+    {
+      "name": "spectral_concentration",
+      "domain": "spectral_structure",
+      "kind": "continuous",
+      "unit": "fraction",
+      "source_column": "v2_spectral_concentration",
+      "resolution_status": "exact",
+      "rationale": "Degree to which spectral power is concentrated rather than broadly distributed across frequencies."
+    },
+    {
+      "name": "harmonic_power_ratio",
+      "domain": "spectral_structure",
+      "kind": "continuous",
+      "unit": "ratio",
+      "source_column": "v2_spectral_harmonic_power_ratio",
+      "resolution_status": "exact",
+      "rationale": "Strength of harmonically related spectral structure."
+    },
+    {
+      "name": "dominant_period_days",
+      "domain": "periodicity_coherence",
+      "kind": "continuous",
+      "unit": "days",
+      "source_column": "v2_ls_dominant_period_days",
+      "resolution_status": "exact",
+      "rationale": "Final v2 Lomb-Scargle dominant timescale. Legacy dominant_period_days is intentionally lower priority."
+    },
+    {
+      "name": "period_agreement_error",
+      "domain": "periodicity_coherence",
+      "kind": "continuous",
+      "unit": "relative_error",
+      "source_column": "v2_ls_acf_period_relative_error",
+      "resolution_status": "exact",
+      "rationale": "Harmonic-aware disagreement between LS and ACF timescales; lower values imply stronger independent support for the same periodic structure."
+    },
+    {
+      "name": "segment_scale_variability",
+      "domain": "variance_evolution",
+      "kind": "continuous",
+      "unit": "dimensionless",
+      "source_column": "v2_segment_scale_relative_mad",
+      "resolution_status": "exact",
+      "rationale": "Robust segment-to-segment variability of the local flux scale, capturing amplitude/variance nonstationarity across the quarter without implying a monotonic drift."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+feature,n_total,n_missing,missing_fraction
+flux_robust_scale,100,0,0.0
+flux_skewness,100,0,0.0
+flux_outlier_fraction,100,0,0.0
+v2_acf_lag_1,100,0,0.0
+v2_acf_decay_e_days,100,0,0.0
+original_series_stationarity_conclusion,100,0,0.0
+v2_spectral_concentration,100,0,0.0
+v2_spectral_harmonic_power_ratio,100,0,0.0
+v2_ls_dominant_period_days,100,0,0.0
+v2_ls_acf_period_relative_error,100,85,0.85
+v2_segment_scale_relative_mad,100,0,0.0

@@ -1,0 +1,16 @@
+{
+  "updated_utc": "2026-08-16T15:39:45.755488+00:00",
+  "selection_signature": {
+    "candidate_pool_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/target_selection/kepler_catalog_clean_pool.csv",
+    "candidate_pool_sha256": "babfd07846806d09f9a7294a77dc6293577b41fff1f29434173c11d03eb1c312",
+    "reference_target_hash": "baa324e246162bb66c580b66006a7c130f7673b712d21a1f0a19549c35a6af08",
+    "reference_target_count": 100,
+    "expansion_selection_seed": 2026081601,
+    "final_sample_size": 1000,
+    "v2_freeze_id": "stellar_variability_v2_100star_freeze",
+    "canonical_schema_sha256": "86178e8a7579052e4d4d033ecfd8d5a50e4f10f2d426e2197e40b91898388a9b",
+    "core_module_sha256": "94b561172882201153c97b55764deb7dec73d39033c945d86f27008fb879841b"
+  },
+  "expansion_success_count": 900,
+  "attempted_count": 1100
+}

@@ -1,0 +1,12 @@
+feature,role,n_total,n_available,availability_fraction
+flux_robust_scale,core canonical variable,1000,1000,1.0
+flux_skewness,core canonical variable,1000,1000,1.0
+flux_outlier_fraction,core canonical variable,1000,1000,1.0
+v2_acf_lag_1,core canonical variable,1000,1000,1.0
+v2_acf_decay_e_days,core canonical variable,1000,992,0.992
+original_series_stationarity_conclusion,core canonical variable,1000,1000,1.0
+v2_spectral_concentration,core canonical variable,1000,1000,1.0
+v2_spectral_harmonic_power_ratio,core canonical variable,1000,1000,1.0
+v2_ls_dominant_period_days,core canonical variable,1000,1000,1.0
+v2_ls_acf_period_relative_error,conditional diagnostic,1000,154,0.154
+v2_segment_scale_relative_mad,core canonical variable,1000,1000,1.0

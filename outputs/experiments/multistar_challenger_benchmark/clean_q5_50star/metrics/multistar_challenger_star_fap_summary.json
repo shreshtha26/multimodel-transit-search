@@ -1,0 +1,22 @@
+{
+  "profile": "main",
+  "target_count": 50,
+  "successful_calibration_target_count": 50,
+  "failed_calibration_target_count": 0,
+  "injection_count": 4050,
+  "requested_null_trials_per_star": 100,
+  "pooled_null_trial_rows": 5000,
+  "fap_level": 0.01,
+  "pipelines": [
+    "raw_bls",
+    "raw_tcf",
+    "arima_bls",
+    "arima_tcf",
+    "kalman_bls",
+    "kalman_tcf",
+    "gp_bls",
+    "gp_tcf"
+  ],
+  "calibration_scope": "per-star branch-conditional moving-block null scores; no KIC 11904151 numeric threshold reuse",
+  "all_pipeline_harmonic_recovery_rate_star_fap": 0.6587654320987655
+}

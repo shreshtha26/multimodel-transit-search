@@ -1,0 +1,11 @@
+dominant_statistical_behaviour,count,fraction
+Quiet / low variability,1,0.01
+Low-scatter structured,16,0.16
+Short-memory stochastic,6,0.06
+Long-memory / correlated,3,0.03
+Coherent periodic,1,0.01
+Quasi-periodic / structured,6,0.06
+Evolving variability,37,0.37
+High-amplitude / high-scatter,5,0.05
+Tail-heavy / asymmetric,14,0.14
+Mixed / complex,11,0.11

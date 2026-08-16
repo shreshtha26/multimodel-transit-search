@@ -1,0 +1,12 @@
+scientific_domain,canonical_variable,source_column,kind,calculation,scientific_use
+scatter_amplitude,Robust scatter,flux_robust_scale,continuous,Robust scale (MAD-derived) of the finite normalized-flux distribution.,Robust amplitude of normalized-flux variability.
+distribution_shape,Skewness,flux_skewness,continuous,Bias-corrected sample skewness of finite normalized flux.,Asymmetry of the normalized-flux distribution.
+distribution_shape,Outlier fraction,flux_outlier_fraction,continuous,Fraction of finite points beyond the configured robust outlier-sigma threshold.,Fraction of robust tail excursions.
+autocorrelation_memory,ACF lag 1,v2_acf_lag_1,continuous,Gap-preserving pairwise correlation at one regular Kepler cadence.,Immediate cadence-to-cadence dependence.
+autocorrelation_memory,ACF e-fold timescale,v2_acf_decay_e_days,continuous,"First regular-grid lag where the pairwise ACF falls to <= exp(-1), in days.",Persistence timescale of the initial positive autocorrelation.
+stationarity,Stationarity state,original_series_stationarity_conclusion,categorical,Conservative categorical conclusion from the two formal stationarity tests.,Joint ADF/KPSS stationarity interpretation.
+spectral_structure,Spectral concentration,v2_spectral_concentration,continuous,Dominant Lomb-Scargle peak power divided by total sampled spectral power.,Concentration of variability power in the dominant spectral peak.
+spectral_structure,Harmonic power ratio,v2_spectral_harmonic_power_ratio,continuous,Strongest sampled power near f/2 or 2f divided by dominant-peak power.,Strength of simple harmonic support.
+periodicity_coherence,Dominant period,v2_ls_dominant_period_days,continuous,Period of the strongest sampled v2 Lomb-Scargle peak.,Dominant coherent timescale.
+periodicity_coherence,LS-ACF period agreement error,v2_ls_acf_period_relative_error,continuous,Minimum harmonic-aware relative error between LS and ACF period candidates.,Cross-diagnostic period agreement.
+variance_evolution,Segment-scale variability,v2_segment_scale_relative_mad,continuous,Robust relative MAD of equal-time-segment robust-scale estimates.,Evolution of variability amplitude through the quarter.

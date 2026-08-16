@@ -1,0 +1,7 @@
+candidate_flag,count,fraction
+v2_quiet_candidate,1,0.01
+v2_low_scatter_structured_candidate,24,0.24
+v2_correlated_stochastic_candidate,21,0.21
+v2_evolving_variability_candidate,40,0.4
+v2_quasi_periodic_candidate,4,0.04
+v2_coherent_periodic_candidate,5,0.05
