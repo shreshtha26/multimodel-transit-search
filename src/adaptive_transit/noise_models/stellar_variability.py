@@ -79,6 +79,52 @@ MODEL_SELECTION_FEATURE_COLUMNS: tuple[str, ...] = (
 )
 
 
+# Frozen v2 scientific representation used by the 100-star characterization
+# experiment.  The seven domain names are scientific groupings; the eleven
+# source columns below are the actual canonical variables.
+#
+# IMPORTANT: keep this separate from MODEL_SELECTION_FEATURE_COLUMNS above.
+# That larger list is retained as an expanded-feature ablation set so existing
+# reranker code is not silently changed.  The compact canonical set is the
+# primary representation for the next star-level model-selection experiment.
+CANONICAL_CHARACTERIZATION_SCHEMA: tuple[tuple[str, str, str, str], ...] = (
+    ("scatter_amplitude", "Robust scatter", "flux_robust_scale", "continuous"),
+    ("distribution_shape", "Skewness", "flux_skewness", "continuous"),
+    ("distribution_shape", "Outlier fraction", "flux_outlier_fraction", "continuous"),
+    ("autocorrelation_memory", "ACF lag 1", "v2_acf_lag_1", "continuous"),
+    ("autocorrelation_memory", "ACF e-fold timescale", "v2_acf_decay_e_days", "continuous"),
+    ("stationarity", "Stationarity state", "original_series_stationarity_conclusion", "categorical"),
+    ("spectral_structure", "Spectral concentration", "v2_spectral_concentration", "continuous"),
+    ("spectral_structure", "Harmonic power ratio", "v2_spectral_harmonic_power_ratio", "continuous"),
+    ("periodicity_coherence", "Dominant period", "v2_ls_dominant_period_days", "continuous"),
+    ("periodicity_coherence", "LS-ACF period agreement error", "v2_ls_acf_period_relative_error", "continuous"),
+    ("variance_evolution", "Segment-scale variability", "v2_segment_scale_relative_mad", "continuous"),
+)
+
+CANONICAL_CHARACTERIZATION_COLUMNS: tuple[str, ...] = tuple(
+    item[2] for item in CANONICAL_CHARACTERIZATION_SCHEMA
+)
+
+CANONICAL_CONTINUOUS_FEATURE_COLUMNS: tuple[str, ...] = tuple(
+    item[2] for item in CANONICAL_CHARACTERIZATION_SCHEMA if item[3] == "continuous"
+)
+
+DOMINANT_STATISTICAL_BEHAVIOUR_ORDER: tuple[str, ...] = (
+    "Quiet / low variability",
+    "Low-scatter structured",
+    "Short-memory stochastic",
+    "Long-memory / correlated",
+    "Coherent periodic",
+    "Quasi-periodic / structured",
+    "Evolving variability",
+    "High-amplitude / high-scatter",
+    "Tail-heavy / asymmetric",
+    "Mixed / complex",
+)
+
+V2_FREEZE_ID = "stellar_variability_v2_100star_freeze"
+
+
 @dataclass(frozen=True)
 class VariabilityBoundaryConfig:
     """Operational boundaries for reproducible screening labels.
@@ -799,20 +845,32 @@ def apply_population_variability_boundaries(
     frame["v2_correlated_stochastic_candidate"] = high_memory & (~periodic)
     frame["v2_evolving_variability_candidate"] = high_evolution
 
-    # Quasi-periodic review: periodic evidence exists, but either amplitude /
-    # location evolves strongly or the period is not stable in both broad time
-    # segments.  This is a useful route to inspect spot/rotation morphology.
+    # Quasi-periodic morphology: independent LS + ACF evidence exists, but the
+    # variability amplitude/location evolves strongly or the period is not
+    # stable in both broad time segments.  This is deliberately allowed to
+    # overlap the coherent-periodic flag when one half agrees and the other does
+    # not; the single-valued "dominant behaviour" helper resolves that overlap
+    # by preferring the more specific quasi-periodic description.
     inconsistent_segments = np.isfinite(segment_consistency) & (segment_consistency < 1.0)
     quasi_periodic = (
-            periodic
+            periodic_screen
+            & acf_period_support
             & (high_evolution | inconsistent_segments)
     )
-    # Rotation / star-spot review flag.  ACF-supported quasi-periodicity plus a
-    # harmonic component is a common spot-like photometric morphology, but this
-    # is intentionally NOT named a confirmed rotation/spot classification.
+    frame["v2_quasi_periodic_candidate"] = quasi_periodic
+
+    # Rotation / star-spot review flag.  Require periodic evidence supported in
+    # both the frequency and ACF domains *plus* a detectable harmonic component.
+    # This matches the documented morphology and is intentionally conservative:
+    # it is a review flag, never a physical rotation/star-spot classification.
+    harmonic_support = (
+        np.isfinite(harmonic_ratio)
+        & (harmonic_ratio >= thresholds["harmonic_power_ratio_threshold"])
+    )
     frame["v2_rotation_spot_review_flag"] = (
-        periodic
+        (periodic | quasi_periodic)
         & acf_period_support
+        & harmonic_support
     )
 
     # Pulsation review is based on coherent periodicity plus substantial
@@ -838,6 +896,135 @@ def apply_population_variability_boundaries(
     )
 
     return frame, thresholds
+
+
+def _population_percentile_rank(frame: pd.DataFrame, column: str) -> pd.Series:
+    """Return a [0, 1] population rank aligned to ``frame``."""
+    if column not in frame.columns:
+        return pd.Series(np.nan, index=frame.index, dtype=float)
+    values = pd.to_numeric(frame[column], errors="coerce")
+    return values.rank(method="average", pct=True)
+
+
+def assign_dominant_statistical_behaviour(records: pd.DataFrame) -> pd.DataFrame:
+    """Add one population-relative navigation label per characterized star.
+
+    This is intentionally a descriptive summary of the seven scientific domains,
+    not an astrophysical classifier and not an ML target.  Explicit v2 candidate
+    flags take precedence; the continuous canonical variables provide a fallback
+    so every star receives a useful label instead of a large "other" bucket.
+    """
+    frame = records.copy()
+    if frame.empty:
+        frame["v2_dominant_statistical_behaviour"] = pd.Series(dtype=object)
+        return frame
+
+    p_scatter = _population_percentile_rank(frame, "flux_robust_scale")
+    p_acf1 = _population_percentile_rank(frame, "v2_acf_lag_1")
+    p_tau = _population_percentile_rank(frame, "v2_acf_decay_e_days")
+    p_spectral = _population_percentile_rank(frame, "v2_spectral_concentration")
+    p_harmonic = _population_percentile_rank(frame, "v2_spectral_harmonic_power_ratio")
+    p_evolution = _population_percentile_rank(frame, "v2_segment_scale_relative_mad")
+    p_outlier = _population_percentile_rank(frame, "flux_outlier_fraction")
+
+    if "flux_skewness" in frame.columns:
+        abs_skew = pd.to_numeric(frame["flux_skewness"], errors="coerce").abs()
+        p_abs_skew = abs_skew.rank(method="average", pct=True)
+    else:
+        p_abs_skew = pd.Series(np.nan, index=frame.index, dtype=float)
+
+    agreement_error = _population_percentile_rank(frame, "v2_ls_acf_period_relative_error")
+    agreement_strength = 1.0 - agreement_error
+
+    memory_strength = pd.concat([p_acf1, p_tau], axis=1).max(axis=1, skipna=True)
+    periodic_strength = pd.concat(
+        [p_spectral, p_harmonic, agreement_strength],
+        axis=1,
+    ).mean(axis=1, skipna=True)
+    distribution_strength = pd.concat(
+        [p_abs_skew, p_outlier],
+        axis=1,
+    ).max(axis=1, skipna=True)
+
+    labels = pd.Series("Mixed / complex", index=frame.index, dtype=object)
+
+    explicit_priority = (
+        ("v2_quasi_periodic_candidate", "Quasi-periodic / structured"),
+        ("v2_coherent_periodic_candidate", "Coherent periodic"),
+        ("v2_evolving_variability_candidate", "Evolving variability"),
+        ("v2_correlated_stochastic_candidate", "Long-memory / correlated"),
+        ("v2_low_scatter_structured_candidate", "Low-scatter structured"),
+        ("v2_quiet_candidate", "Quiet / low variability"),
+    )
+
+    for idx, row in frame.iterrows():
+        explicit_label = None
+        for column, label in explicit_priority:
+            if column not in row.index or pd.isna(row[column]):
+                continue
+            value = row[column]
+            if isinstance(value, str):
+                flag = value.strip().lower() in {"true", "1", "yes", "y"}
+            else:
+                flag = bool(value)
+            if flag:
+                explicit_label = label
+                break
+        if explicit_label is not None:
+            labels.at[idx] = explicit_label
+            continue
+
+        def finite_or_middle(value: float) -> float:
+            return 0.5 if not np.isfinite(value) else float(value)
+
+        scatter_rank = finite_or_middle(p_scatter.at[idx])
+        memory_rank = finite_or_middle(memory_strength.at[idx])
+        tau_rank = finite_or_middle(p_tau.at[idx])
+        spectral_rank = finite_or_middle(p_spectral.at[idx])
+        periodic_rank = finite_or_middle(periodic_strength.at[idx])
+        distribution_rank = finite_or_middle(distribution_strength.at[idx])
+        evolution_rank = finite_or_middle(p_evolution.at[idx])
+
+        if (
+            scatter_rank <= 0.25
+            and memory_rank <= 0.50
+            and periodic_rank <= 0.50
+            and evolution_rank <= 0.50
+            and distribution_rank <= 0.65
+        ):
+            label = "Quiet / low variability"
+        elif scatter_rank <= 0.35 and max(
+            memory_rank,
+            periodic_rank,
+            evolution_rank,
+            distribution_rank,
+        ) >= 0.65:
+            label = "Low-scatter structured"
+        elif periodic_rank >= 0.75 and spectral_rank >= 0.60:
+            label = "Coherent periodic"
+        elif periodic_rank >= 0.65:
+            label = "Quasi-periodic / structured"
+        elif evolution_rank >= 0.80:
+            label = "Evolving variability"
+        elif memory_rank >= 0.75:
+            label = "Long-memory / correlated"
+        elif distribution_rank >= 0.85:
+            label = "Tail-heavy / asymmetric"
+        elif scatter_rank >= 0.75:
+            label = "High-amplitude / high-scatter"
+        elif tau_rank <= 0.40 and periodic_rank < 0.65 and evolution_rank < 0.80:
+            label = "Short-memory stochastic"
+        else:
+            label = "Mixed / complex"
+
+        labels.at[idx] = label
+
+    frame["v2_dominant_statistical_behaviour"] = pd.Categorical(
+        labels,
+        categories=list(DOMINANT_STATISTICAL_BEHAVIOUR_ORDER),
+        ordered=True,
+    ).astype(str)
+    return frame
 
 
 def model_selection_feature_frame(records: pd.DataFrame) -> pd.DataFrame:
