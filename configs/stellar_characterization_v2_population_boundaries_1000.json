@@ -1,0 +1,29 @@
+{
+  "freeze_id": "stellar_variability_v2_100star_freeze",
+  "population_reference": "clean_kepler_q5_1000",
+  "sample_size": 1000,
+  "generated_utc": "2026-08-16T15:39:46.014135+00:00",
+  "boundaries": {
+    "amplitude_q25": 0.0002676033717251959,
+    "amplitude_q75": 0.0006518200878289581,
+    "memory_q25": 0.07313381146252351,
+    "memory_q75": 0.7289875381415085,
+    "evolution_q75": 0.10226407929912008,
+    "median_drift_q75": 0.34768529308003376,
+    "harmonic_power_ratio_threshold": 0.1,
+    "weak_abs_acf1": 0.2,
+    "strong_abs_acf1": 0.5
+  },
+  "boundary_config": {
+    "ls_fap_threshold": 0.01,
+    "period_agreement_fraction": 0.2,
+    "weak_abs_acf1": 0.2,
+    "strong_abs_acf1": 0.5,
+    "harmonic_power_ratio_threshold": 0.1,
+    "low_amplitude_quantile": 0.25,
+    "high_amplitude_quantile": 0.75,
+    "low_memory_quantile": 0.25,
+    "high_memory_quantile": 0.75,
+    "high_evolution_quantile": 0.75
+  }
+}
