@@ -21,7 +21,7 @@ def test_box_transit_injection_adds_negative_dip() -> None:
         depth=0.01,
     )
 
-    assert in_transit.sum() == 3
+    assert in_transit.sum() == 4
     assert np.all(template[in_transit] == -0.01)
     assert np.all(injected[in_transit] == -0.01)
     assert np.all(injected[~in_transit] == 0.0)

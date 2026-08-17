@@ -13,9 +13,10 @@ from adaptive_transit.detection.matched_filter import (
     scan_arima_transformed_template,
     select_trial_centers,
 )
-from adaptive_transit.injections.synthetic import TransitInjection, box_transit_template, inject_box_transit, local_depth_and_snr
+from adaptive_transit.injections.synthetic import TransitInjection, inject_box_transit, local_depth_and_snr
 from adaptive_transit.noise_models.arima import FittedArimaModel
 from adaptive_transit.noise_models.scaling import trailing_robust_scale
+from adaptive_transit.transit_models.box import box_transit_template
 
 
 @dataclass(frozen=True)

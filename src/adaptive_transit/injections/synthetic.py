@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 import pandas as pd
 from adaptive_transit.noise_models.scaling import robust_mad_scale
-from adaptive_transit.transit_models.box import box_transit_template
+from adaptive_transit.transit_models.box import box_transit_mask, box_transit_template
 from adaptive_transit.transit_models.periodic import periodic_box_transit_template
 
 
@@ -93,27 +93,39 @@ def inject_box_transit(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Add a box transit to finite normalized-flux samples."""
 
-    series = np.asarray(values, dtype=float).copy()
     template, in_transit = box_transit_template(
         cadenceno,
         center_cadenceno=center_cadenceno,
         duration_cadences=duration_cadences,
         depth=depth,
     )
-    finite = np.isfinite(series)
-    injected = series.copy()
-    injected[finite] = injected[finite] + template[finite]
-    return injected, template, in_transit
+    return _inject_additive_template(values, template, in_transit)
 
 
 def inject_periodic_box_transit(time, values, period_days, epoch_days, duration_days, depth):
     """Add a repeated box transit to finite flux samples."""
-    series = np.asarray(values, dtype=float).copy()
+
     template, in_transit = periodic_box_transit_template(time, period_days, epoch_days, duration_days, depth)
+    return _inject_additive_template(values, template, in_transit)
+
+
+def _inject_additive_template(
+    values: np.ndarray,
+    template: np.ndarray,
+    in_transit: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Add a precomputed additive transit template to finite samples."""
+
+    series = np.asarray(values, dtype=float).copy()
+    additive_template = np.asarray(template, dtype=float)
+    transit_mask = np.asarray(in_transit, dtype=bool)
+    if series.shape != additive_template.shape or series.shape != transit_mask.shape:
+        raise ValueError("values, template, and in_transit must have the same shape.")
+
     finite = np.isfinite(series)
     injected = series.copy()
-    injected[finite] = injected[finite] + template[finite]
-    return injected, template, in_transit
+    injected[finite] = injected[finite] + additive_template[finite]
+    return injected, additive_template, transit_mask
 
 
 def local_depth_and_snr(
@@ -128,9 +140,12 @@ def local_depth_and_snr(
 
     cadence = np.asarray(cadenceno, dtype=float)
     series = np.asarray(values, dtype=float)
-    half_duration = duration_cadences / 2.0
     local = np.abs(cadence - center_cadenceno) <= local_half_width_cadences
-    in_transit = np.abs(cadence - center_cadenceno) < half_duration
+    in_transit = box_transit_mask(
+        cadence,
+        center_cadenceno=center_cadenceno,
+        duration_cadences=duration_cadences,
+    )
     out_transit = local & ~in_transit
 
     finite_in = in_transit & np.isfinite(series)

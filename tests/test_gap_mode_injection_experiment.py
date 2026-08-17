@@ -9,7 +9,8 @@ from adaptive_transit.injections.gap_mode_experiment import (
     template_amplitude_estimate,
     transformed_template_shape_metrics,
 )
-from adaptive_transit.injections.synthetic import TransitInjection, box_transit_template
+from adaptive_transit.injections.synthetic import TransitInjection
+from adaptive_transit.transit_models.box import box_transit_template
 
 
 def test_template_amplitude_estimate_recovers_known_scale() -> None:
