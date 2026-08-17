@@ -1,0 +1,11 @@
+target_id,quarter,sample_stratum,wavelet,segment_count,median_segment_length_cadences,median_wavelet_level,median_band_noise_scale,noise_window_cadences,from_light_curve_cache,zero_injection_control
+12645975,5,gap_heavy,db6,43,109.0,4.0,0.000254860898514173,193,True,False
+1431344,5,gap_heavy,db6,44,100.0,4.0,0.0001389464249620889,193,True,False
+10677499,5,high_scatter,db6,43,109.0,4.0,0.0002182020333114999,193,True,False
+2996004,5,high_scatter,db6,43,109.0,4.0,0.00013782221522940993,193,True,False
+10718455,5,long_memory,db6,43,109.0,4.0,6.501961677082596e-05,193,True,False
+11245408,5,long_memory,db6,43,109.0,4.0,0.0001885334873383645,193,True,False
+10223890,5,quiet_low_scatter,db6,43,109.0,4.0,3.275080551485125e-05,193,True,False
+2715763,5,quiet_low_scatter,db6,43,109.0,4.0,4.22160815513405e-05,193,True,False
+11450313,5,smooth_background_dominant,db6,43,109.0,4.0,0.0004545214480585058,193,True,False
+11666946,5,smooth_background_dominant,db6,43,109.0,4.0,0.00020762714932659424,193,True,False

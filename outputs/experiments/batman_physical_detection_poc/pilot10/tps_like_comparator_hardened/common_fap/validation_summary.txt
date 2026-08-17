@@ -1,0 +1,20 @@
+TPS-LIKE EVENT-CONSISTENCY COMMON-FAP VALIDATION
+============================================================
+Stars: 10
+Null trials requested per star: 100
+Nominal FAP: 1.000%
+Moving-block size: 24 cadences
+
+TRUE NATIVE ZERO-INJECTION CONTROL
+Raw native controls above threshold: 0/10
+Hardened native controls above threshold: 0/10
+
+INJECTION RECOVERY AT COMMON FAP
+tps_like_raw_top1: 0.067
+tps_like_event_consistency_hardened: 0.067
+
+Interpretation:
+- thresholds are star-specific and score-specific;
+- both methods use the same null realization per star/trial;
+- event-consistency_score is a POC statistic, not Kepler SOC MES;
+- native zero-injection means BATMAN was skipped entirely.

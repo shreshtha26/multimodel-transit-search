@@ -1,0 +1,36 @@
+TPS-LIKE TRUE ZERO-INJECTION / NATIVE-BACKGROUND CONTROL
+========================================================================
+
+Scope:
+  Same 10-star preprocessing, wavelet-noise model, and TPS-like search
+  settings as the BATMAN comparator, but BATMAN is skipped entirely and
+  the original preprocessed stellar flux is searched. The audit also
+  verifies the explicit zero-injection flag and zero realized depth.
+  This is a native-background diagnostic, not a randomized FAP calibration.
+
+Stars: 10
+Successful injected comparison cases: 60
+Maximum realized injected depth in control: 0.000e+00
+Period-match tolerance: 0.020
+Injected winners matching each star's null winner: 0.767
+Persistent injected-period stars: 8/10
+Persistent stars whose persistent period matches the null winner: 8/8
+
+Per-star comparison:
+  KIC 1431344: null=12.260731 d, persistent=12.260731 d, persistent_flag=True, null_match=True, injected_winners_matching_null=1.000, null_MES=93.016, median_injected_MES=93.885, median_delta_MES=0.869
+  KIC 2996004: null=9.195539 d, persistent=9.195539 d, persistent_flag=True, null_match=True, injected_winners_matching_null=0.667, null_MES=26.447, median_injected_MES=26.487, median_delta_MES=0.040
+  KIC 10223890: null=13.915775 d, persistent=13.925992 d, persistent_flag=True, null_match=True, injected_winners_matching_null=0.667, null_MES=101.055, median_injected_MES=101.912, median_delta_MES=0.857
+  KIC 10677499: null=14.304008 d, persistent=14.304008 d, persistent_flag=True, null_match=True, injected_winners_matching_null=1.000, null_MES=55.267, median_injected_MES=55.356, median_delta_MES=0.089
+  KIC 10718455: null=8.296295 d, persistent=8.306512 d, persistent_flag=True, null_match=True, injected_winners_matching_null=1.000, null_MES=120.778, median_injected_MES=124.655, median_delta_MES=3.877
+  KIC 11245408: null=2.942532 d, persistent=2.942532 d, persistent_flag=True, null_match=True, injected_winners_matching_null=1.000, null_MES=413.146, median_injected_MES=413.155, median_delta_MES=0.009
+  KIC 11450313: null=10.033199 d, persistent=10.033199 d, persistent_flag=True, null_match=True, injected_winners_matching_null=1.000, null_MES=57.675, median_injected_MES=57.675, median_delta_MES=0.001
+  KIC 11666946: null=13.547900 d, persistent=13.547900 d, persistent_flag=True, null_match=True, injected_winners_matching_null=1.000, null_MES=97.833, median_injected_MES=98.022, median_delta_MES=0.188
+  KIC 2715763: null=10.993778 d, persistent=2.002584 d, persistent_flag=False, null_match=False, injected_winners_matching_null=0.000, null_MES=35.636, median_injected_MES=105.526, median_delta_MES=69.889
+  KIC 12645975: null=13.609148 d, persistent=13.609148 d, persistent_flag=False, null_match=False, injected_winners_matching_null=0.333, null_MES=25.182, median_injected_MES=28.722, median_delta_MES=3.540
+
+Interpretation guardrail:
+  A null-period match supports the interpretation that the injected
+  search is being dominated by a star-specific/background winner.
+  It is still not a detection veto and does not establish a 1% FAP
+  threshold. Candidate-ranking changes must wait for null/FAP
+  validation and event-consistency testing.

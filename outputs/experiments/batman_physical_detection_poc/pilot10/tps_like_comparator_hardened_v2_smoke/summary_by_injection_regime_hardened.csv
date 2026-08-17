@@ -1,0 +1,3 @@
+injected_period_days,requested_duration_hours,requested_depth,n_cases,raw_harmonic_recovery,hardened_harmonic_recovery,ranking_changed_fraction,median_raw_mes,median_event_consistency_score,median_single_event_fraction,median_leave_one_out_ratio
+2.0,2.0,0.0002,1,0.0,0.0,1.0,25.363013050705266,18.964187577321113,0.3970936419097447,0.6727238587327306
+2.0,4.0,0.0005,1,1.0,1.0,0.0,47.150376009348356,45.35819141419962,0.05301039977204126,0.9669881470935299

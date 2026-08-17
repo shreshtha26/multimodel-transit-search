@@ -1,0 +1,4 @@
+method,n_cases,exact_period_recovery,harmonic_period_recovery,ranking_changed_fraction,wrong_to_correct,correct_to_wrong,correct_to_correct,wrong_to_wrong
+tps_like_raw_top1,60,0.16666666666666666,0.21666666666666667,0.0,0,0,13,47
+tps_like_v2_event_consistency,60,0.21666666666666667,0.25,0.7166666666666667,2,0,13,45
+tps_like_v3_2_final,60,0.2,0.26666666666666666,0.6166666666666667,3,0,13,44

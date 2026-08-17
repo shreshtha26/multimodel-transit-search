@@ -1,0 +1,11 @@
+target_id,quarter,sample_stratum,n_clean_branches,morphology_winner_all,morphology_winner_clean,whitening_winner_all,whitening_winner_clean,oracle_snr_winner_all,oracle_snr_winner_clean,morphology_winner_nonraw_clean,whitening_winner_nonraw_clean,oracle_snr_winner_nonraw_clean,bls_exact_winner_all,bls_exact_winner_clean,bls_harmonic_winner_clean,tls_exact_winner_all,tls_exact_winner_clean,tls_harmonic_winner_clean,trapezoid_exact_winner_all,trapezoid_exact_winner_clean,trapezoid_harmonic_winner_clean
+10223890,5,quiet_low_scatter,4,raw,raw,kalman,kalman,gp,gp,gp,kalman,gp,raw|gp,raw|gp,arima|kalman|gp,raw|kalman|gp,raw|kalman|gp,raw|kalman|gp,raw,raw,kalman|gp
+10677499,5,high_scatter,3,raw,raw,kalman,kalman,gp,gp,gp,kalman,gp,raw|arima|kalman|gp,raw|kalman|gp,raw|kalman|gp,arima,kalman|gp,kalman|gp,raw|arima|kalman|gp,raw|kalman|gp,raw|kalman|gp
+10718455,5,long_memory,4,raw,raw,kalman,kalman,gp,gp,gp,kalman,gp,gp,gp,kalman|gp,kalman|gp,kalman|gp,kalman|gp,gp,gp,kalman|gp
+11245408,5,long_memory,4,raw,raw,kalman,kalman,gp,gp,gp,kalman,gp,gp,gp,kalman|gp,gp,gp,gp,gp,gp,gp
+11450313,5,smooth_background_dominant,4,raw,raw,arima,arima,gp,gp,gp,arima,gp,raw|arima|kalman|gp,raw|arima|kalman|gp,raw|arima|kalman|gp,raw|arima|kalman|gp,raw|arima|kalman|gp,raw|arima|kalman|gp,raw|arima|kalman|gp,raw|arima|kalman|gp,raw|arima|kalman|gp
+11666946,5,smooth_background_dominant,4,raw,raw,kalman,kalman,gp,gp,gp,kalman,gp,gp,gp,gp,gp,gp,gp,gp,gp,gp
+12645975,5,gap_heavy,4,raw,raw,raw,raw,raw,raw,kalman,kalman,kalman,raw,raw,raw,raw|kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman
+1431344,5,gap_heavy,3,raw,raw,kalman,kalman,gp,gp,gp,kalman,gp,raw|kalman|gp,raw|kalman|gp,kalman,kalman|gp,kalman|gp,kalman|gp,kalman,kalman,kalman
+2715763,5,quiet_low_scatter,4,raw,raw,kalman,kalman,raw,raw,kalman,kalman,kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman,raw|kalman
+2996004,5,high_scatter,3,raw,raw,arima,kalman,gp,gp,gp,kalman,gp,raw|arima|kalman|gp,raw|kalman|gp,raw|kalman|gp,kalman|gp,kalman|gp,kalman|gp,raw|arima|kalman|gp,raw|kalman|gp,raw|kalman|gp

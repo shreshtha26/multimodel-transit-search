@@ -1,0 +1,48 @@
+TPS-LIKE RELIABILITY AUDIT
+========================================================================
+
+Scope:
+  Descriptive diagnostics only. No detector changes, no null calibration,
+  and no final detection-efficiency claims are made by this audit.
+
+Cases: 60
+Stars: 10
+Exact period recovery: 0.167
+Harmonic-aware recovery: 0.217
+Persistent star-period flags: 8/10
+Single-event dominance heuristic rate: 0.650
+
+Period-pattern counts:
+  unrelated: 45
+  P: 10
+  3P/2: 2
+  2P: 2
+  P/2: 1
+
+Persistent star-specific candidate periods:
+  KIC 11245408: period≈2.942532 d, cluster_fraction=1.000, injected_periods=3, recovery=0.000
+  KIC 10718455: period≈8.306512 d, cluster_fraction=1.000, injected_periods=3, recovery=0.000
+  KIC 11666946: period≈13.547900 d, cluster_fraction=1.000, injected_periods=3, recovery=0.000
+  KIC 11450313: period≈10.033199 d, cluster_fraction=1.000, injected_periods=3, recovery=0.667
+  KIC 1431344: period≈12.260731 d, cluster_fraction=0.833, injected_periods=3, recovery=0.000
+  KIC 10223890: period≈13.925992 d, cluster_fraction=0.667, injected_periods=3, recovery=0.167
+  KIC 10677499: period≈14.304008 d, cluster_fraction=0.667, injected_periods=3, recovery=0.000
+  KIC 2996004: period≈9.195539 d, cluster_fraction=0.667, injected_periods=3, recovery=0.000
+
+Stratum summary:
+  quiet_low_scatter: n=12, recovery=0.583, median_MES=101.912, single_event_dominance=0.417
+  smooth_background_dominant: n=12, recovery=0.333, median_MES=78.610, single_event_dominance=0.500
+  gap_heavy: n=12, recovery=0.167, median_MES=70.167, single_event_dominance=0.750
+  high_scatter: n=12, recovery=0.000, median_MES=45.267, single_event_dominance=1.000
+  long_memory: n=12, recovery=0.000, median_MES=275.848, single_event_dominance=0.583
+
+High-MES failed cases retained for inspection: 12
+
+Interpretation guardrail:
+  max_ses_to_mes_ratio and persistent_star_period_flag are diagnostics,
+  not validated vetoes. Validate them against zero-injection/null trials
+  before using them to alter candidate ranking.
+
+No zero-injection baseline CSV was supplied. The star-period
+persistence result therefore shows insensitivity to injection truth,
+not yet direct identity with the uninjected star's strongest period.

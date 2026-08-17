@@ -1,0 +1,7 @@
+case_index,injected_period_days,requested_duration_hours,requested_depth,phase_fraction,morphology_winner_clean,morphology_winner_nonraw_clean,whitening_winner_clean,whitening_winner_nonraw_clean,oracle_snr_winner_clean,oracle_snr_winner_nonraw_clean,bls_exact_winner_clean,bls_harmonic_winner_clean,tls_exact_winner_clean,tls_harmonic_winner_clean,trapezoid_exact_winner_clean,trapezoid_harmonic_winner_clean
+0,2.0,2.0,0.0002,0.15,raw,gp,kalman,kalman,gp,gp,gp,kalman,arima,gp,gp,kalman
+1,2.0,4.0,0.0005,0.45,raw,gp,kalman,kalman,gp,gp,raw,kalman,kalman|gp,kalman|gp,raw,kalman|gp
+2,5.0,2.0,0.0005,0.75,raw,gp,kalman,kalman,gp,gp,gp,kalman,kalman,kalman,gp,kalman|gp
+3,5.0,8.0,0.0002,0.45,raw,gp,kalman,kalman,gp,gp,kalman|gp,kalman|gp,gp,gp,kalman|gp,kalman|gp
+4,10.0,4.0,0.0002,0.15,raw,gp,kalman,kalman,gp,gp,kalman,kalman,kalman,kalman,kalman,kalman
+5,10.0,8.0,0.0005,0.75,raw,gp,kalman,kalman,gp,gp,raw|kalman|gp,gp,raw|kalman|gp,gp,raw|kalman|gp,gp

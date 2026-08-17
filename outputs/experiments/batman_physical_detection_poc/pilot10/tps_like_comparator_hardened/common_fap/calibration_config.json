@@ -1,0 +1,51 @@
+{
+  "scientific_status": "empirical_common_FAP_validation_POC",
+  "definition_of_common": [
+    "same native preprocessed star",
+    "same fixed TPS-like wavelet noise model",
+    "same moving-block surrogate realization per star/trial",
+    "same search grid and duration bank",
+    "same nominal FAP level",
+    "separate numerical threshold for each score scale"
+  ],
+  "fap_level": 0.01,
+  "n_null_trials_per_star": 100,
+  "null_block_size_cadences": 24,
+  "seed": 1729,
+  "minimum_success_fraction": 0.9,
+  "search_settings": {
+    "wavelet": "db6",
+    "max_wavelet_level": 6,
+    "noise_window_cadences": 193,
+    "min_segment_cadences": 32,
+    "min_events": 3,
+    "min_period_days": 1.0,
+    "max_period_days": 15.0,
+    "duration_hours_grid": [
+      1.5,
+      2.0,
+      3.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0
+    ],
+    "cache_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/cache/kepler_light_curves",
+    "quality_policy": "default",
+    "no_download": true
+  },
+  "event_consistency": {
+    "top_n_candidates": 64,
+    "min_valid_events": 3,
+    "in_transit_half_width_factor": 0.55,
+    "local_guard_factor": 1.5,
+    "local_outer_factor": 4.0,
+    "min_in_transit_samples": 2,
+    "min_out_of_transit_samples": 8,
+    "min_observability_fraction": 0.5,
+    "min_positive_event_fraction": 0.6666666666666666,
+    "max_single_event_fraction": 0.7,
+    "min_leave_one_out_ratio": 0.5
+  },
+  "native_zero_injection_definition": "search original preprocessed stellar flux directly; BATMAN skipped"
+}

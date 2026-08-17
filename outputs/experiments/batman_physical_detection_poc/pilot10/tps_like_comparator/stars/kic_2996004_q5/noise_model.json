@@ -1,0 +1,33 @@
+{
+  "target_id": "2996004",
+  "quarter": 5,
+  "sample_stratum": "high_scatter",
+  "wavelet": "db6",
+  "segment_count": 43,
+  "median_segment_length_cadences": 109.0,
+  "median_wavelet_level": 4.0,
+  "median_band_noise_scale": 0.00013782221522940993,
+  "noise_window_cadences": 193,
+  "from_light_curve_cache": true,
+  "preprocessing": {
+    "quality_policy": "default",
+    "quality_rejection_bitmask": 1130799,
+    "n_raw": 4538,
+    "n_cadence_grid": 4634,
+    "n_row_absent": 96,
+    "n_usable": 4486,
+    "n_unusable_observed": 52,
+    "median_flux": 43402.587890625,
+    "normalization_fit_fraction": 1.0,
+    "normalization_fit_count": 4486,
+    "quality_zero_fraction_raw": 0.8569854561480829,
+    "quality_ok_fraction_raw": 0.989863375936536,
+    "flux_error_finite_fraction_observed": 0.988541207580432,
+    "median_cadence_days": 0.020434531033970416,
+    "gap_count": 54,
+    "max_gap_cadences": 62,
+    "max_gap_days": 1.2669409241061658,
+    "segment_count": 54,
+    "longest_segment_length": 146
+  }
+}

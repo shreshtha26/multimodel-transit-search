@@ -1,0 +1,3 @@
+method,n_cases,uncalibrated_harmonic_recovery,fraction_above_fap_threshold,harmonic_recovery_at_common_fap,median_score,median_threshold,ranking_changed_fraction
+tps_like_raw_top1,60,0.21666666666666667,0.06666666666666667,0.06666666666666667,93.88503443526545,208.17878417699006,
+tps_like_chi2_robust_hardened,60,0.26666666666666666,0.06666666666666667,0.06666666666666667,91.60696513500145,199.57357725834416,0.6166666666666667

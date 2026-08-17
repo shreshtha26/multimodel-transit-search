@@ -1,0 +1,2 @@
+case_index,period_days,duration_hours,depth,phase_fraction,case_label
+0,,,0.0,,true_zero_injection_control

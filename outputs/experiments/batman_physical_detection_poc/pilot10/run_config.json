@@ -1,0 +1,50 @@
+{
+  "manifest_path": "configs/kepler_clean_background_manifest_10star.csv",
+  "case_file": "configs/batman_physical_poc_cases.csv",
+  "output_dir": "outputs/experiments/batman_physical_detection_poc/pilot10",
+  "cache_dir": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/outputs/cache/kepler_light_curves",
+  "target_limit": 10,
+  "case_limit": null,
+  "branches": [
+    "raw",
+    "arima",
+    "kalman",
+    "gp"
+  ],
+  "detectors": [
+    "bls",
+    "trapezoid",
+    "tls"
+  ],
+  "quality_policy": "default",
+  "no_download": false,
+  "no_resume": false,
+  "arima_order": [
+    1,
+    1,
+    0
+  ],
+  "arima_maxiter": 200,
+  "kalman_maxiter": 100,
+  "kalman_burn_in": 1,
+  "gp_max_train_points": 512,
+  "gp_length_scale_days": 3.0,
+  "gp_min_length_scale_days": 1.0,
+  "gp_max_length_scale_days": 30.0,
+  "gp_measurement_noise_fraction": 0.2,
+  "gp_fixed_kernel": false,
+  "impact_parameter": 0.3,
+  "limb_u1": 0.3,
+  "limb_u2": 0.2,
+  "supersample_factor": 7,
+  "min_period_days": 1.0,
+  "max_period_days": 15.0,
+  "n_periods": 1200,
+  "min_duration_hours": 1.5,
+  "max_duration_hours": 10.0,
+  "n_durations": 8,
+  "bls_top_k": 5,
+  "tls_use_threads": 1,
+  "tls_oversampling_factor": 2,
+  "period_match_tolerance_fraction": 0.02
+}

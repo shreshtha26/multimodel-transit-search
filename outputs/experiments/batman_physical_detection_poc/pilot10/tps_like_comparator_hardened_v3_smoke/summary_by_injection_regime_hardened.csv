@@ -1,0 +1,3 @@
+injected_period_days,requested_duration_hours,requested_depth,n_cases,raw_harmonic_recovery,hardened_harmonic_recovery,ranking_changed_fraction,median_raw_mes,median_event_consistency_score,median_robust_veto_score,veto_pass_fraction,median_depth_chi2_pvalue,median_odd_even_pvalue,median_robust_event_snr,median_single_event_fraction,median_leave_one_out_ratio
+2.0,2.0,0.0002,1,0.0,0.0,1.0,25.363013050705263,17.54309482980766,24.485313693871884,1.0,0.10671571697364476,0.01950246655391028,1.3662013391378183,0.3241511137001055,0.5012992114022021
+2.0,4.0,0.0005,1,1.0,1.0,1.0,47.15037600934835,38.21751720548006,40.29676460140355,1.0,0.05277415626791082,0.11024152294649973,8.848435656431445,0.09917827538920622,0.9408788377933861

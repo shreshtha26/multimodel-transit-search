@@ -1,0 +1,2 @@
+pipeline,n_cases,exact_period_recovery,harmonic_period_recovery,median_period_error,median_mes,median_candidate_observability,median_runtime_seconds
+tps_like_wavelet_matched_filter,1,0.0,0.0,5.804574181267526,25.363013050705266,0.42857142857142855,0.4355649999342859

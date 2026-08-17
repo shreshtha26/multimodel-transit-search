@@ -1,0 +1,3 @@
+method,score_name,fap_level,score_threshold,successful_null_trials,requested_null_trials,success_fraction,observed_null_exceedance_fraction,null_score_median,null_score_max,target_id,quarter,sample_stratum
+tps_like_raw_top1,raw_top1_mes,0.01,1324.993445080567,100,100,1.0,0.01,554.6112764073523,1324.993445080567,11245408,5,long_memory
+tps_like_event_consistency_hardened,event_consistency_score,0.01,890.0902589598549,100,100,1.0,0.01,0.0,890.0902589598549,11245408,5,long_memory

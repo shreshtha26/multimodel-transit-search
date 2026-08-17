@@ -1,0 +1,7 @@
+period_days,duration_hours,depth,phase_fraction,case_label,case_index
+2.0,2.0,0.0002,0.15,short_shallow_fast,0
+2.0,4.0,0.0005,0.45,medium_deeper_fast,1
+5.0,2.0,0.0005,0.75,short_deeper_midperiod,2
+5.0,8.0,0.0002,0.45,long_shallow_midperiod,3
+10.0,4.0,0.0002,0.15,medium_shallow_slow,4
+10.0,8.0,0.0005,0.75,long_deeper_slow,5

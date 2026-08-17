@@ -1,0 +1,5 @@
+target_id,quarter,sample_stratum,branch,converged,aic,runtime_seconds,params_json,process_variance,measurement_variance,length_scale_days,training_point_count
+12645975,5,gap_heavy,raw,True,,,,,,,
+12645975,5,gap_heavy,arima,True,-50064.61480765841,0.24095891695469618,"[-0.5154485277843878, 8.122096627628841e-07]",,,,
+12645975,5,gap_heavy,kalman,True,,0.48278050031512976,,6.11772752316009e-11,5.502731696934155e-07,,
+12645975,5,gap_heavy,gp,True,,0.06085970904678106,,,,3.0000000000000004,192.0

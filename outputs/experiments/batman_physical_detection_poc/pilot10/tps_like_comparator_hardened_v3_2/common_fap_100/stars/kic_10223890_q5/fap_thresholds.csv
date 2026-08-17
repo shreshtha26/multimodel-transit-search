@@ -1,0 +1,3 @@
+method,score_name,fap_level,score_threshold,successful_null_trials,requested_null_trials,success_fraction,observed_null_exceedance_fraction,null_score_median,null_score_max,target_id,quarter,sample_stratum
+tps_like_raw_top1,raw_top1_mes,0.01,151.75015026764157,100,100,1.0,0.01,56.771613049142424,151.75015026764157,10223890,5,quiet_low_scatter
+tps_like_chi2_robust_hardened,robust_veto_score,0.01,151.75015026764157,100,100,1.0,0.01,54.080535409217845,151.75015026764157,10223890,5,quiet_low_scatter

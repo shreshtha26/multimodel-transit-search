@@ -1,0 +1,3 @@
+method,n_cases,exact_period_recovery,harmonic_period_recovery,median_score,score_name,ranking_changed_fraction,event_consistent_flag_fraction
+tps_like_raw_top1,60,0.16666666666666666,0.21666666666666667,93.88503443526545,raw_top1_mes,,
+tps_like_event_consistency_hardened,60,0.21666666666666667,0.25,74.20829485851684,event_consistency_score,0.7166666666666667,0.9666666666666667

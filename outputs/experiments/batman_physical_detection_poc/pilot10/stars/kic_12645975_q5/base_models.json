@@ -1,0 +1,50 @@
+{
+  "target_id": "12645975",
+  "quarter": 5,
+  "sample_stratum": "gap_heavy",
+  "from_light_curve_cache": true,
+  "preprocessing": {
+    "quality_policy": "default",
+    "quality_rejection_bitmask": 1130799,
+    "n_raw": 4538,
+    "n_cadence_grid": 4634,
+    "n_row_absent": 96,
+    "n_usable": 4485,
+    "n_unusable_observed": 53,
+    "median_flux": 7613.38818359375,
+    "normalization_fit_fraction": 1.0,
+    "normalization_fit_count": 4485,
+    "quality_zero_fraction_raw": 0.8904803878360511,
+    "quality_ok_fraction_raw": 0.989863375936536,
+    "flux_error_finite_fraction_observed": 0.988320846187748,
+    "median_cadence_days": 0.02043415663865744,
+    "gap_count": 55,
+    "max_gap_cadences": 62,
+    "max_gap_days": 1.2669177115967614,
+    "segment_count": 55,
+    "longest_segment_length": 146
+  },
+  "models": {
+    "raw": {
+      "converged": true
+    },
+    "arima": {
+      "converged": true,
+      "aic": -50064.61480765841,
+      "runtime_seconds": 0.23870841693133116,
+      "params_json": "[-0.5154485277843878, 8.122096627628841e-07]"
+    },
+    "kalman": {
+      "converged": true,
+      "runtime_seconds": 0.49875254230573773,
+      "process_variance": 6.11772752316009e-11,
+      "measurement_variance": 5.502731696934155e-07
+    },
+    "gp": {
+      "converged": false,
+      "runtime_seconds": 0.46520579094067216,
+      "length_scale_days": 1.0,
+      "training_point_count": 512
+    }
+  }
+}

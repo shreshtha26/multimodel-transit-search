@@ -1,0 +1,10 @@
+{
+  "purpose": "sensitivity_audit_only_do_not_change_production_gp_defaults",
+  "min_length_scale_grid_days": [
+    1.0,
+    0.75,
+    0.5
+  ],
+  "max_poc_transit_duration_days": 0.3333333333333333,
+  "note": "Candidate lower bounds are judged jointly on optimizer behavior, background whitening, and BATMAN signal transfer."
+}

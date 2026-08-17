@@ -1,0 +1,21 @@
+{
+  "purpose": "diagnose_optimizer_stability_before_changing_production_gp_defaults",
+  "policies": [
+    {
+      "policy": "optimized_r0",
+      "optimize_kernel": true,
+      "n_restarts_optimizer": 0
+    },
+    {
+      "policy": "optimized_r2",
+      "optimize_kernel": true,
+      "n_restarts_optimizer": 2
+    },
+    {
+      "policy": "fixed_kernel_3d",
+      "optimize_kernel": false,
+      "n_restarts_optimizer": 0
+    }
+  ],
+  "note": "fixed_kernel_3d is an explicit fallback benchmark, not an automatic production replacement"
+}

@@ -1,0 +1,16 @@
+{
+  "order": [
+    1,
+    1,
+    0
+  ],
+  "converged": true,
+  "aic": -60965.21857530138,
+  "bic": -60952.33708726287,
+  "finite_innovation_count": 4485,
+  "optimizer_warnflag": 0,
+  "optimizer_iterations": 4,
+  "optimizer_function_calls": 99,
+  "fit_maxiter": 200,
+  "flux_length": 4634
+}

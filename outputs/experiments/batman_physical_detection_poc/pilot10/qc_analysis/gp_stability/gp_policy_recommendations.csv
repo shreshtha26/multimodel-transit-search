@@ -1,0 +1,11 @@
+target_id,quarter,recommended_policy,recommendation_type
+10223890,5,fixed_kernel_3d,explicit_fixed_kernel_fallback
+10677499,5,optimized_r0,converged_optimized
+10718455,5,optimized_r2,converged_optimized
+11245408,5,optimized_r2,converged_optimized
+11450313,5,fixed_kernel_3d,explicit_fixed_kernel_fallback
+11666946,5,optimized_r2,converged_optimized
+12645975,5,fixed_kernel_3d,explicit_fixed_kernel_fallback
+1431344,5,fixed_kernel_3d,explicit_fixed_kernel_fallback
+2715763,5,fixed_kernel_3d,explicit_fixed_kernel_fallback
+2996004,5,optimized_r2,converged_optimized
