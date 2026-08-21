@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import math
+import sqlite3
 from pathlib import Path
 from typing import Iterable
 
@@ -26,16 +27,21 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-PIPELINES = (
+CORE_PIPELINES = (
     "raw_bls",
     "raw_tcf",
+    "raw_tps_like",
     "arima_bls",
     "arima_tcf",
+    "arima_tps_like",
     "kalman_bls",
     "kalman_tcf",
+    "kalman_tps_like",
     "gp_bls",
     "gp_tcf",
+    "gp_tps_like",
 )
+PIPELINES = CORE_PIPELINES
 
 # Display fallback only; overridden from benchmark_config.json when available.
 TOP_K_DISPLAY = 10
@@ -50,23 +56,31 @@ CONSENSUS_HARD_THRESHOLD = 0.20
 PIPELINE_META = {
     "raw_bls": ("Raw", "BLS"),
     "raw_tcf": ("Raw", "TCF"),
+    "raw_tps_like": ("Raw", "TPS-like"),
     "arima_bls": ("ARIMA", "BLS"),
     "arima_tcf": ("ARIMA", "TCF"),
+    "arima_tps_like": ("ARIMA", "TPS-like"),
     "kalman_bls": ("Kalman", "BLS"),
     "kalman_tcf": ("Kalman", "TCF"),
+    "kalman_tps_like": ("Kalman", "TPS-like"),
     "gp_bls": ("GP", "BLS"),
     "gp_tcf": ("GP", "TCF"),
+    "gp_tps_like": ("GP", "TPS-like"),
 }
 
 PIPELINE_LABELS = {
     "raw_bls": "Raw + BLS",
     "raw_tcf": "Raw + TCF",
+    "raw_tps_like": "Raw + TPS-like",
     "arima_bls": "ARIMA + BLS",
     "arima_tcf": "ARIMA + TCF",
+    "arima_tps_like": "ARIMA + TPS-like",
     "kalman_bls": "Kalman + BLS",
     "kalman_tcf": "Kalman + TCF",
+    "kalman_tps_like": "Kalman + TPS-like",
     "gp_bls": "Gaussian Process + BLS",
     "gp_tcf": "Gaussian Process + TCF",
+    "gp_tps_like": "Gaussian Process + TPS-like",
 }
 
 
@@ -1090,7 +1104,7 @@ def find_repo_root(start: Path) -> Path:
 
 
 REPO_ROOT = find_repo_root(Path.cwd())
-DEFAULT_RUN_ROOT = REPO_ROOT / "outputs" / "experiments" / "multistar_challenger_benchmark"
+DEFAULT_RUN_ROOT = REPO_ROOT / "outputs" / "experiments" / "adaptive_transit"
 
 
 def normalize_target_id(value) -> str:
@@ -1112,7 +1126,14 @@ def discover_runs(root: Path) -> list[Path]:
     for p in root.iterdir():
         if not p.is_dir():
             continue
-        if (p / "metrics").exists() or (p / "stars").exists() or (p / "benchmark_config.json").exists():
+        if (
+            (p / "metrics").exists()
+            or (p / "stars").exists()
+            or (p / "benchmark_config.json").exists()
+            or (p / "run_metadata.json").exists()
+            or (p / "run_live.sqlite").exists()
+            or (p / "detection.csv").exists()
+        ):
             runs.append(p)
     return sorted(runs, key=lambda p: p.stat().st_mtime, reverse=True)
 
@@ -1184,8 +1205,153 @@ def read_json_safe(path_text: str) -> dict:
 
 
 @st.cache_data(show_spinner=False)
+def read_live_table_safe(run_dir_text: str, table_name: str) -> pd.DataFrame:
+    run_dir = Path(run_dir_text)
+    db_path = run_dir / "run_live.sqlite"
+    if db_path.exists():
+        try:
+            with sqlite3.connect(db_path) as connection:
+                return pd.read_sql_query(f'SELECT * FROM "{table_name}"', connection)
+        except Exception:
+            pass
+    return read_csv_safe(str(run_dir / f"{table_name}.csv"))
+
+
+def _read_live_and_csv_table(run_dir: Path, table_name: str) -> pd.DataFrame:
+    frames = []
+    live = read_live_table_safe(str(run_dir), table_name)
+    if not live.empty:
+        live = live.copy()
+        live["_calibration_source_dir"] = str(run_dir)
+        live["_calibration_source_table"] = table_name
+        live["_calibration_source_mtime"] = (run_dir / "run_live.sqlite").stat().st_mtime if (run_dir / "run_live.sqlite").exists() else run_dir.stat().st_mtime
+        frames.append(live)
+    csv_path = run_dir / f"{table_name}.csv"
+    csv_frame = read_csv_safe(str(csv_path))
+    if not csv_frame.empty:
+        csv_frame = csv_frame.copy()
+        csv_frame["_calibration_source_dir"] = str(run_dir)
+        csv_frame["_calibration_source_table"] = table_name
+        csv_frame["_calibration_source_mtime"] = csv_path.stat().st_mtime if csv_path.exists() else run_dir.stat().st_mtime
+        frames.append(csv_frame)
+    if not frames:
+        return pd.DataFrame()
+    out = pd.concat(frames, ignore_index=True, sort=False)
+    keys = [c for c in ("run_id", "config_hash", "star_id", "target_id", "quarter", "treatment", "detector", "score_name", "score_definition", "fap_level", "trial") if c in out.columns]
+    if keys:
+        out = out.drop_duplicates(keys, keep="last").reset_index(drop=True)
+    return out
+
+
+def _target_quarter_from_star_id(star_id_value) -> tuple[str, int | None]:
+    match = re.match(r"kic_([^_]+)_q(\d+)", str(star_id_value), flags=re.I)
+    if not match:
+        return normalize_target_id(star_id_value), None
+    return normalize_target_id(match.group(1)), int(match.group(2))
+
+
+def _attach_target_quarter(frame: pd.DataFrame, characterization: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    out = frame.copy()
+    if "target_id" not in out.columns:
+        if not characterization.empty and {"star_id", "target_id"}.issubset(characterization.columns):
+            keep = ["star_id", "target_id"] + (["quarter"] if "quarter" in characterization.columns else [])
+            out = out.merge(characterization[keep].drop_duplicates("star_id"), on="star_id", how="left")
+        elif "star_id" in out.columns:
+            parsed = out["star_id"].map(_target_quarter_from_star_id)
+            out["target_id"] = [item[0] for item in parsed]
+            if "quarter" not in out.columns:
+                out["quarter"] = [item[1] for item in parsed]
+    if "target_id" in out.columns:
+        out["target_id"] = out["target_id"].map(normalize_target_id)
+    if "quarter" in out.columns:
+        out["quarter"] = pd.to_numeric(out["quarter"], errors="coerce").astype("Int64")
+    return out
+
+
+def _bool_column(frame: pd.DataFrame, column: str) -> pd.Series:
+    if column not in frame.columns:
+        return pd.Series(False, index=frame.index)
+    return frame[column].astype(str).str.lower().isin({"true", "1", "1.0"})
+
+
+def _wide_from_adaptive_long(run_dir: Path) -> pd.DataFrame:
+    characterization = read_live_table_safe(str(run_dir), "characterization")
+    injections = _attach_target_quarter(read_live_table_safe(str(run_dir), "injection"), characterization)
+    detection = _attach_target_quarter(read_live_table_safe(str(run_dir), "detection"), characterization)
+    if injections.empty or detection.empty:
+        return pd.DataFrame()
+    required = {"star_id", "injection_id", "treatment", "detector"}
+    if not required.issubset(detection.columns):
+        return pd.DataFrame()
+
+    out = injections.copy()
+    if "injection_kind" in out.columns:
+        out = out[out["injection_kind"].astype(str).ne("native")].copy()
+    if out.empty:
+        return out
+    if "target_id" not in out.columns:
+        out = _attach_target_quarter(out, characterization)
+    rename = {
+        "period_days": "injected_period_days",
+        "duration_days": "injected_duration_days",
+        "depth": "injected_depth",
+    }
+    out = out.rename(columns={k: v for k, v in rename.items() if k in out.columns and v not in out.columns})
+    if "injected_duration_days" in out.columns and "injected_duration_hours" not in out.columns:
+        out["injected_duration_hours"] = pd.to_numeric(out["injected_duration_days"], errors="coerce") * 24.0
+
+    if "above_threshold" not in detection.columns and "passes_fap" in detection.columns:
+        detection = detection.rename(columns={"passes_fap": "above_threshold"})
+    detection = detection.copy()
+    detection["pipeline"] = detection["treatment"].astype(str) + "_" + detection["detector"].astype(str)
+    detection["success_bool"] = _bool_column(detection, "success")
+    detection["harmonic_bool"] = _bool_column(detection, "harmonic_recovery")
+    detection["exact_bool"] = _bool_column(detection, "exact_recovery")
+    detection["fap_bool"] = _bool_column(detection, "above_threshold")
+
+    for pipeline, group in detection.groupby("pipeline", dropna=False):
+        keys = ["star_id", "injection_id"]
+        agg = group.groupby(keys, dropna=False).agg(
+            **{
+                f"{pipeline}_success": ("success_bool", "max"),
+                f"{pipeline}_harmonic_rank1_matched": ("harmonic_bool", "max"),
+                f"{pipeline}_exact_rank1_matched": ("exact_bool", "max"),
+                f"{pipeline}_fap01_detected": ("fap_bool", "max"),
+                f"{pipeline}_score": ("raw_score", "max") if "raw_score" in group.columns else ("success_bool", "size"),
+                f"{pipeline}_runtime_seconds": ("runtime_seconds", "sum") if "runtime_seconds" in group.columns else ("success_bool", "size"),
+            }
+        ).reset_index()
+        if "score_name" in group.columns:
+            score_names = (
+                group.groupby(keys, dropna=False)["score_name"]
+                .agg(lambda values: ",".join(sorted(set(str(value) for value in values if pd.notna(value)))))
+                .reset_index(name=f"{pipeline}_score_name")
+            )
+            agg = agg.merge(score_names, on=keys, how="left")
+        if f"{pipeline}_fap01_detected" in agg.columns:
+            agg[f"{pipeline}_fap01_harmonic_recovered"] = (
+                agg[f"{pipeline}_harmonic_rank1_matched"].fillna(False).astype(bool)
+                & agg[f"{pipeline}_fap01_detected"].fillna(False).astype(bool)
+            )
+            agg[f"{pipeline}_fap01_exact_recovered"] = (
+                agg[f"{pipeline}_exact_rank1_matched"].fillna(False).astype(bool)
+                & agg[f"{pipeline}_fap01_detected"].fillna(False).astype(bool)
+            )
+        out = out.merge(agg, on=keys, how="left")
+
+    out["_source_state"] = "live_sqlite" if (run_dir / "run_live.sqlite").exists() else "long_csv"
+    return out
+
+
+@st.cache_data(show_spinner=False)
 def collect_injections(run_dir_text: str, include_partial: bool = True) -> pd.DataFrame:
     run_dir = Path(run_dir_text)
+    adaptive = _wide_from_adaptive_long(run_dir)
+    if not adaptive.empty:
+        return adaptive
+
     global_path = run_dir / "metrics" / "multistar_challenger_injections.csv"
     if global_path.exists():
         df = pd.read_csv(global_path, dtype={"target_id": str})
@@ -1251,6 +1417,36 @@ def collect_calibration(run_dir_text: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     run_dir = Path(run_dir_text)
     metrics_dir = run_dir / "metrics"
 
+    adaptive_thresholds = []
+    adaptive_nulls = []
+    candidate_dirs = [run_dir]
+    if run_dir.parent.exists():
+        for sibling in run_dir.parent.iterdir():
+            if sibling == run_dir or not sibling.is_dir() or sibling.name.startswith("_"):
+                continue
+            if (
+                (sibling / "fap_thresholds.csv").exists()
+                or (sibling / "null_score.csv").exists()
+                or (sibling / "run_live.sqlite").exists()
+            ):
+                candidate_dirs.append(sibling)
+    candidate_dirs = sorted(
+        dict.fromkeys(candidate_dirs),
+        key=lambda path: path.stat().st_mtime if path.exists() else 0.0,
+    )
+    for candidate in candidate_dirs:
+        thresholds_frame = _read_live_and_csv_table(candidate, "fap_thresholds")
+        null_frame = _read_live_and_csv_table(candidate, "null_score")
+        if not thresholds_frame.empty:
+            adaptive_thresholds.append(thresholds_frame)
+        if not null_frame.empty:
+            adaptive_nulls.append(null_frame)
+
+    adaptive_thresholds = pd.concat(adaptive_thresholds, ignore_index=True, sort=False) if adaptive_thresholds else pd.DataFrame()
+    adaptive_nulls = pd.concat(adaptive_nulls, ignore_index=True, sort=False) if adaptive_nulls else pd.DataFrame()
+    if not adaptive_thresholds.empty or not adaptive_nulls.empty:
+        return adaptive_thresholds, adaptive_nulls
+
     global_thresholds = metrics_dir / "multistar_challenger_star_fap_thresholds.csv"
     global_nulls = metrics_dir / "multistar_challenger_star_null_trials.csv"
     if global_thresholds.exists() and global_nulls.exists():
@@ -1300,6 +1496,10 @@ def collect_characterization(run_dir_text: str, repo_root_text: str) -> pd.DataF
     run_dir = Path(run_dir_text)
     repo_root = Path(repo_root_text)
 
+    adaptive = read_live_table_safe(str(run_dir), "characterization")
+    if not adaptive.empty:
+        return adaptive
+
     preferred = [
         run_dir / "characterization_analysis" / "multistar_characterization_per_star.csv",
         run_dir / "metrics" / "multistar_characterization_per_star.csv",
@@ -1339,6 +1539,19 @@ def harmonized_thresholds(thresholds: pd.DataFrame) -> pd.DataFrame:
     if thresholds.empty:
         return thresholds
     t = thresholds.copy()
+    if "pipeline" not in t.columns and {"treatment", "detector"}.issubset(t.columns):
+        t["pipeline"] = t["treatment"].astype(str) + "_" + t["detector"].astype(str)
+    if "score_threshold" not in t.columns and "fap_threshold" in t.columns:
+        t["score_threshold"] = t["fap_threshold"]
+    if "score_name" not in t.columns and "score_definition" in t.columns:
+        t["score_name"] = t["score_definition"]
+    if "score_definition" not in t.columns and "score_name" in t.columns:
+        t["score_definition"] = t["score_name"]
+    if "target_id" not in t.columns and "star_id" in t.columns:
+        parsed = t["star_id"].map(_target_quarter_from_star_id)
+        t["target_id"] = [item[0] for item in parsed]
+        if "quarter" not in t.columns:
+            t["quarter"] = [item[1] for item in parsed]
     if "fap_level" in t.columns:
         t["fap_level"] = pd.to_numeric(t["fap_level"], errors="coerce")
         t = t[np.isclose(t["fap_level"], 0.01, equal_nan=False)]
@@ -1348,7 +1561,79 @@ def harmonized_thresholds(thresholds: pd.DataFrame) -> pd.DataFrame:
     t["target_id"] = t["target_id"].map(normalize_target_id)
     if "quarter" in t.columns:
         t["quarter"] = pd.to_numeric(t["quarter"], errors="coerce").astype("Int64")
+    if "run_id" in t.columns and "fap_calibration_run_id" not in t.columns:
+        t["fap_calibration_run_id"] = t["run_id"].astype(str)
+    if "config_hash" in t.columns and "fap_calibration_config_hash" not in t.columns:
+        t["fap_calibration_config_hash"] = t["config_hash"].astype(str)
+    if "null_trial_count" in t.columns:
+        t["null_trial_count"] = pd.to_numeric(t["null_trial_count"], errors="coerce")
+    if "_calibration_source_mtime" not in t.columns:
+        t["_calibration_source_mtime"] = np.arange(len(t), dtype=float)
     return t
+
+
+def harmonized_null_scores(null_trials: pd.DataFrame) -> pd.DataFrame:
+    if null_trials.empty:
+        return null_trials
+    n = null_trials.copy()
+    if "pipeline" not in n.columns and {"treatment", "detector"}.issubset(n.columns):
+        n["pipeline"] = n["treatment"].astype(str) + "_" + n["detector"].astype(str)
+    if "target_id" not in n.columns and "star_id" in n.columns:
+        parsed = n["star_id"].map(_target_quarter_from_star_id)
+        n["target_id"] = [item[0] for item in parsed]
+        if "quarter" not in n.columns:
+            n["quarter"] = [item[1] for item in parsed]
+    if "target_id" in n.columns:
+        n["target_id"] = n["target_id"].map(normalize_target_id)
+    if "quarter" in n.columns:
+        n["quarter"] = pd.to_numeric(n["quarter"], errors="coerce").astype("Int64")
+    if "score_name" not in n.columns and "score_definition" in n.columns:
+        n["score_name"] = n["score_definition"]
+    if "score_definition" not in n.columns and "score_name" in n.columns:
+        n["score_definition"] = n["score_name"]
+    if "run_id" in n.columns and "fap_calibration_run_id" not in n.columns:
+        n["fap_calibration_run_id"] = n["run_id"].astype(str)
+    if "config_hash" in n.columns and "fap_calibration_config_hash" not in n.columns:
+        n["fap_calibration_config_hash"] = n["config_hash"].astype(str)
+    return n
+
+
+def latest_compatible_thresholds(
+    thresholds: pd.DataFrame,
+    injections: pd.DataFrame,
+    pipelines: Iterable[str],
+) -> pd.DataFrame:
+    t = harmonized_thresholds(thresholds)
+    if t.empty or injections.empty:
+        return t.iloc[0:0].copy()
+    inj = injections.copy()
+    if "target_id" not in inj.columns:
+        return t.iloc[0:0].copy()
+    inj["target_id"] = inj["target_id"].map(normalize_target_id)
+    if "quarter" not in inj.columns:
+        inj["quarter"] = 5
+    inj["quarter"] = pd.to_numeric(inj["quarter"], errors="coerce").astype("Int64")
+    star_keys = inj[["target_id", "quarter"]].dropna().drop_duplicates()
+    t = t[t["pipeline"].isin(list(pipelines))].copy()
+    if "quarter" not in t.columns:
+        t["quarter"] = 5
+    t["quarter"] = pd.to_numeric(t["quarter"], errors="coerce").astype("Int64")
+    t = t.merge(star_keys, on=["target_id", "quarter"], how="inner")
+    if "score_threshold" in t.columns:
+        t["score_threshold"] = pd.to_numeric(t["score_threshold"], errors="coerce")
+        t = t[np.isfinite(t["score_threshold"])]
+    if t.empty:
+        return t
+    if "null_trial_count" not in t.columns:
+        t["null_trial_count"] = np.nan
+    if "score_name" not in t.columns:
+        t["score_name"] = ""
+    t["_score_name_key"] = t["score_name"].fillna("").astype(str)
+    t["_source_sort"] = pd.to_numeric(t.get("_calibration_source_mtime", pd.Series(np.arange(len(t)), index=t.index)), errors="coerce").fillna(0.0)
+    t["_trial_sort"] = pd.to_numeric(t["null_trial_count"], errors="coerce").fillna(-1)
+    t = t.sort_values(["target_id", "quarter", "pipeline", "_score_name_key", "_source_sort", "_trial_sort"]).reset_index(drop=True)
+    t = t.drop_duplicates(["target_id", "quarter", "pipeline", "_score_name_key"], keep="last")
+    return t.drop(columns=[c for c in ("_score_name_key", "_source_sort", "_trial_sort") if c in t.columns])
 
 
 def calibration_coverage(
@@ -1374,8 +1659,8 @@ def calibration_coverage(
     expected_stars = int(len(star_keys))
     expected_pairs = expected_stars * len(pipelines)
 
-    t = harmonized_thresholds(thresholds)
     threshold_pairs = 0
+    t = latest_compatible_thresholds(thresholds, inj, pipelines)
     if not t.empty and "score_threshold" in t.columns:
         t = t.copy()
         if "quarter" not in t.columns:
@@ -1391,9 +1676,8 @@ def calibration_coverage(
         threshold_pairs = int(expected.merge(t, on=["target_id", "quarter", "pipeline"], how="inner").shape[0])
 
     null_stars = 0
-    if not null_trials.empty and "target_id" in null_trials.columns:
-        n = null_trials.copy()
-        n["target_id"] = n["target_id"].map(normalize_target_id)
+    n = harmonized_null_scores(null_trials)
+    if not n.empty and "target_id" in n.columns:
         if "quarter" not in n.columns:
             n["quarter"] = 5
         n["quarter"] = pd.to_numeric(n["quarter"], errors="coerce").astype("Int64")
@@ -1416,8 +1700,12 @@ def add_calibrated_columns(injections: pd.DataFrame, thresholds: pd.DataFrame, p
     if out.empty:
         return out
     out["target_id"] = out["target_id"].map(normalize_target_id)
+    if "run_id" in out.columns and "injection_run_id" not in out.columns:
+        out["injection_run_id"] = out["run_id"].astype(str)
+    if "config_hash" in out.columns and "injection_config_hash" not in out.columns:
+        out["injection_config_hash"] = out["config_hash"].astype(str)
 
-    t = harmonized_thresholds(thresholds)
+    t = latest_compatible_thresholds(thresholds, out, pipelines)
     if t.empty:
         return out
 
@@ -1430,9 +1718,50 @@ def add_calibrated_columns(injections: pd.DataFrame, thresholds: pd.DataFrame, p
         pthr = t[t["pipeline"] == p].copy()
         if pthr.empty or "score_threshold" not in pthr.columns:
             continue
-        keep = keys + ["score_threshold"]
-        pthr = pthr[keep].drop_duplicates(keys, keep="last").rename(columns={"score_threshold": f"{p}_fap01_threshold"})
-        out = out.merge(pthr, on=keys, how="left")
+        score_name_col = f"{p}_score_name"
+        provenance_cols = [
+            c
+            for c in (
+                "score_threshold",
+                "score_definition",
+                "fap_calibration_run_id",
+                "fap_calibration_config_hash",
+                "null_trial_count",
+                "fap_level",
+                "_calibration_source_dir",
+            )
+            if c in pthr.columns
+        ]
+        if score_name_col in out.columns and "score_name" in pthr.columns:
+            keep = keys + ["score_name", *provenance_cols]
+            pthr = pthr[keep].drop_duplicates(keys + ["score_name"], keep="last")
+            rename = {
+                "score_threshold": f"{p}_fap01_threshold",
+                "score_name": score_name_col,
+                "score_definition": f"{p}_fap01_score_definition",
+                "fap_calibration_run_id": f"{p}_fap01_calibration_run_id",
+                "fap_calibration_config_hash": f"{p}_fap01_calibration_config_hash",
+                "null_trial_count": f"{p}_fap01_null_trial_count",
+                "fap_level": f"{p}_fap01_level",
+                "_calibration_source_dir": f"{p}_fap01_source_dir",
+            }
+            pthr = pthr.rename(columns={k: v for k, v in rename.items() if k in pthr.columns})
+            out = out.merge(pthr, on=keys + [score_name_col], how="left")
+        else:
+            keep = keys + (["score_name"] if "score_name" in pthr.columns else []) + provenance_cols
+            pthr = pthr[keep].drop_duplicates(keys, keep="last")
+            rename = {
+                "score_threshold": f"{p}_fap01_threshold",
+                "score_name": f"{p}_fap01_score_name",
+                "score_definition": f"{p}_fap01_score_definition",
+                "fap_calibration_run_id": f"{p}_fap01_calibration_run_id",
+                "fap_calibration_config_hash": f"{p}_fap01_calibration_config_hash",
+                "null_trial_count": f"{p}_fap01_null_trial_count",
+                "fap_level": f"{p}_fap01_level",
+                "_calibration_source_dir": f"{p}_fap01_source_dir",
+            }
+            pthr = pthr.rename(columns={k: v for k, v in rename.items() if k in pthr.columns})
+            out = out.merge(pthr, on=keys, how="left")
 
         score_col = f"{p}_score"
         harmonic_col = f"{p}_harmonic_rank1_matched"
@@ -2847,7 +3176,7 @@ if calibration_state["complete"]:
 metric_suffix, metric_label, calibration_available = infer_metric_suffix(injections, pipelines)
 TOP_K_DISPLAY = infer_top_k(RUN_DIR, injections, pipelines, fallback=TOP_K_DISPLAY)
 
-if injections.empty and not page.startswith("5"):
+if injections.empty and not page.startswith("2") and not page.startswith("5"):
     st.error(
         "No injection data found for this run. Select a run that has either "
         "`metrics/multistar_challenger_injections.csv` or per-star `injections.csv` checkpoints."
@@ -4796,22 +5125,38 @@ elif page.startswith("4"):
         "A candidate must rank first at the injected period/harmonic and clear a star/pipeline-specific empirical null threshold.",
     )
 
+    compatible_thresholds = latest_compatible_thresholds(thresholds, injections, pipelines)
+    harmonized_nulls = harmonized_null_scores(null_trials)
+    injection_run_ids = sorted(injections["run_id"].dropna().astype(str).unique()) if "run_id" in injections.columns else []
+    calibration_run_ids = (
+        sorted(compatible_thresholds["fap_calibration_run_id"].dropna().astype(str).unique())
+        if "fap_calibration_run_id" in compatible_thresholds.columns
+        else []
+    )
+
     c1, c2, c3 = st.columns(3)
     c1.metric("Threshold coverage", f"{calibration_state.get('threshold_pct', 0.0):.1f}%")
     c2.metric("Stars with null trials", f"{calibration_state.get('null_stars', 0)} / {calibration_state.get('expected_stars', 0)}")
     c3.metric("Headline mode", "Strict 1% FAP" if calibration_available else "Rank-1 only")
+    if injection_run_ids:
+        st.caption("Injection run ID(s): " + ", ".join(injection_run_ids[:4]) + (" ..." if len(injection_run_ids) > 4 else ""))
+    if calibration_run_ids:
+        st.caption("FAP calibration run ID(s): " + ", ".join(calibration_run_ids[:4]) + (" ..." if len(calibration_run_ids) > 4 else ""))
 
     if not calibration_available and not thresholds.empty:
         st.caption("Calibration checkpoints are present but incomplete. Partial thresholds are shown here for inspection only and are not mixed into overview recovery metrics.")
 
-    if thresholds.empty or null_trials.empty:
+    if compatible_thresholds.empty:
         st.warning(
-            "This run does not currently contain both `fap_thresholds.csv` and `null_trials.csv`. "
-            "You can demo the benchmark, but do not claim 1% FAP recovery for this run until calibration is generated."
+            "No scientifically compatible FAP thresholds were found for the selected injection run. "
+            "The dashboard matches calibration by star, treatment, detector, score name and FAP level; operational run IDs do not need to match."
         )
     else:
-        t = harmonized_thresholds(thresholds)
+        t = compatible_thresholds
         cal_pipelines = [p for p in pipelines if p in set(t["pipeline"].astype(str))]
+        if not cal_pipelines:
+            st.warning("Compatible threshold rows were found, but none match the currently loaded pipelines.")
+            st.stop()
         pipeline = st.selectbox("Pipeline", cal_pipelines, format_func=pipeline_label)
 
         stars = sorted(t[t["pipeline"] == pipeline]["target_id"].map(normalize_target_id).unique())
@@ -4822,13 +5167,22 @@ elif page.startswith("4"):
         ]
         if tr.empty:
             st.stop()
-        threshold = float(pd.to_numeric(tr.iloc[0]["score_threshold"], errors="coerce"))
-        quarter = int(tr.iloc[0].get("quarter", 5))
+        threshold_row = tr.iloc[0]
+        threshold = float(pd.to_numeric(threshold_row["score_threshold"], errors="coerce"))
+        quarter = int(threshold_row.get("quarter", 5))
+        score_name = str(threshold_row.get("score_name", ""))
 
         score_col = f"{pipeline}_score"
-        ns = null_trials[
-            null_trials["target_id"].map(normalize_target_id) == target
-        ].copy()
+        ns = harmonized_nulls.copy()
+        if not ns.empty and "target_id" in ns.columns:
+            ns = ns[
+                (ns["target_id"].map(normalize_target_id) == target)
+                & (pd.to_numeric(ns.get("quarter", 5), errors="coerce") == quarter)
+            ].copy()
+            if "pipeline" in ns.columns:
+                ns = ns[ns["pipeline"].astype(str) == pipeline].copy()
+            if score_name and "score_name" in ns.columns:
+                ns = ns[ns["score_name"].astype(str) == score_name].copy()
 
         star_inj = injections[
             (injections["target_id"].map(normalize_target_id) == target)
@@ -4838,6 +5192,17 @@ elif page.startswith("4"):
         fig = go.Figure()
         if score_col in ns.columns:
             null_scores = pd.to_numeric(ns[score_col], errors="coerce").dropna()
+            fig.add_trace(
+                go.Histogram(
+                    x=null_scores,
+                    name="Null scores",
+                    opacity=0.65,
+                    histnorm="probability density",
+                    nbinsx=35,
+                )
+            )
+        elif "score" in ns.columns:
+            null_scores = pd.to_numeric(ns["score"], errors="coerce").dropna()
             fig.add_trace(
                 go.Histogram(
                     x=null_scores,
@@ -4877,10 +5242,38 @@ elif page.startswith("4"):
         m1.metric("1% FAP threshold", f"{threshold:.4g}")
         if det_col in star_inj.columns:
             m2.metric("Scores above threshold", pct(star_inj[det_col].fillna(False).astype(bool).mean()))
+        elif pd.notna(threshold_row.get("null_trial_count", np.nan)):
+            m2.metric("Null trials", f"{int(float(threshold_row.get('null_trial_count'))):,}")
         if harmonic_col in star_inj.columns:
             m3.metric("Correct period", pct(star_inj[harmonic_col].fillna(False).astype(bool).mean()))
+        elif pd.notna(threshold_row.get("fap_level", np.nan)):
+            m3.metric("FAP level", f"{float(threshold_row.get('fap_level')):.3g}")
         if rec_col in star_inj.columns:
             m4.metric("Recovery @ 1% FAP", pct(star_inj[rec_col].fillna(False).astype(bool).mean()))
+        elif pd.notna(threshold_row.get("fap_calibration_run_id", np.nan)):
+            m4.metric("Calibration run", str(threshold_row.get("fap_calibration_run_id")))
+
+        provenance_rows = []
+        for label, column in (
+            ("Injection run ID", "run_id"),
+            ("Injection config hash", "config_hash"),
+        ):
+            if column in star_inj.columns:
+                values = sorted(star_inj[column].dropna().astype(str).unique())
+                if values:
+                    provenance_rows.append({"Field": label, "Value": ", ".join(values[:4])})
+        for label, column in (
+            ("FAP calibration run ID", "fap_calibration_run_id"),
+            ("FAP calibration config hash", "fap_calibration_config_hash"),
+            ("FAP level", "fap_level"),
+            ("Null trial count", "null_trial_count"),
+            ("Score name", "score_name"),
+        ):
+            if column in threshold_row.index and pd.notna(threshold_row[column]):
+                provenance_rows.append({"Field": label, "Value": str(threshold_row[column])})
+        if provenance_rows:
+            st.subheader("Calibration provenance")
+            st.dataframe(pd.DataFrame(provenance_rows), hide_index=True, use_container_width=True)
 
         st.latex(
             r"R_{1\%} = \frac{\#\{\mathrm{correct\ harmonic\ period}\ \cap\ S > T_{0.99,\ null}\}}{N_{\mathrm{injections}}}"

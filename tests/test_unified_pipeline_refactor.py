@@ -13,7 +13,14 @@ from adaptive_transit.config import (
     benchmark_profile,
 )
 from adaptive_transit.core import LightCurve, stable_seed
-from adaptive_transit.detectors import DETECTORS, DetectorContext, TPSLikeDetector, TransitDetector
+from adaptive_transit.detectors import (
+    CHALLENGER_DETECTORS,
+    CORE_DETECTORS,
+    DETECTORS,
+    DetectorContext,
+    TPSLikeDetector,
+    TransitDetector,
+)
 from adaptive_transit.fap import threshold_key
 from adaptive_transit.injection_plan import InjectionCase, native_zero_case, realize_injection
 from adaptive_transit.resume import LongTableStore
@@ -95,7 +102,9 @@ class CopyTreatment(BackgroundTreatment):
 
 def test_registry_loading_exposes_active_treatments_and_detectors():
     assert set(BACKGROUND_MODELS) == {"raw", "arima", "kalman", "gp"}
-    assert set(DETECTORS) == {"bls", "tls", "trapezoid", "tps_like"}
+    assert set(CORE_DETECTORS) == {"bls", "tcf", "tps_like"}
+    assert set(CHALLENGER_DETECTORS) == {"tls", "trapezoid"}
+    assert set(DETECTORS) == {"bls", "tcf", "tls", "trapezoid", "tps_like"}
 
 
 def test_raw_treatment_identity_behaviour():
@@ -191,6 +200,7 @@ def test_long_format_schema_validity():
         injection_cases=(native_zero_case(),),
     )
     assert_long_schema(result.characterization, "characterization")
+    assert_long_schema(result.treatment, "treatment")
     assert_long_schema(result.injection, "injection")
     assert_long_schema(result.preservation, "preservation")
     assert_long_schema(result.detection, "detection")
@@ -321,6 +331,26 @@ def test_benchmark100_and_benchmark1000_use_same_runner_and_frozen_manifests():
     )
 
 
+def test_active_scientific_profiles_have_exactly_twelve_core_combinations():
+    for name in ("benchmark100", "benchmark1000", "demo50"):
+        config = benchmark_profile(name)
+        assert len(config.active_combinations) == 12
+        assert [spec.pipeline_id for spec in config.active_combinations] == [
+            "raw_bls",
+            "raw_tcf",
+            "raw_tps_like",
+            "arima_bls",
+            "arima_tcf",
+            "arima_tps_like",
+            "kalman_bls",
+            "kalman_tcf",
+            "kalman_tps_like",
+            "gp_bls",
+            "gp_tcf",
+            "gp_tps_like",
+        ]
+
+
 def test_null_trial_count_is_part_of_config_identity():
     default = benchmark_profile("benchmark100")
     engineering = replace(default, n_null_trials_per_star=100)
@@ -442,6 +472,29 @@ def test_cli_calibration_default_is_scientific_1000_nulls(capsys):
     assert rc == 0
     captured = capsys.readouterr().out
     assert "n_null_trials_per_star=1000" in captured
+
+
+def test_demo50_dry_run_exposes_configurable_core_depths(capsys):
+    import importlib.util
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "run_adaptive_transit_benchmark.py"
+    spec = importlib.util.spec_from_file_location("adaptive_benchmark_cli_demo50", script)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    rc = module.main([
+        "--profile",
+        "demo50",
+        "--injection-depth-grid",
+        "0.0002,0.0005,0.001",
+        "--dry-run",
+    ])
+    assert rc == 0
+    captured = capsys.readouterr().out
+    assert "target_limit=50" in captured
+    assert "injection_depth_grid=0.0002,0.0005,0.001" in captured
+    assert "active_combinations=raw_bls,raw_tcf,raw_tps_like,arima_bls,arima_tcf,arima_tps_like,kalman_bls,kalman_tcf,kalman_tps_like,gp_bls,gp_tcf,gp_tps_like" in captured
 
 
 def test_benchmark100_four_shard_partition_reconstructs_frozen_manifest():
@@ -587,6 +640,17 @@ def test_shard_qc_and_merge_synthetic_outputs(tmp_path):
             shard_dir / "characterization.csv",
             index=False,
         )
+        pd.DataFrame(
+            [
+                {
+                    "run_id": run_id,
+                    "config_hash": config.config_hash,
+                    "star_id": star,
+                    "treatment": "raw",
+                    "success": True,
+                }
+            ]
+        ).to_csv(shard_dir / "treatment.csv", index=False)
         pd.DataFrame(
             [
                 {

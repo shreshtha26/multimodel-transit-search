@@ -1,0 +1,5 @@
+run_id,config_hash,star_id,injection_id,treatment,depth_before,depth_after,depth_retention_fraction,snr_before,snr_after,snr_retention_fraction,in_transit_observation_count,success,template_hash
+smoke_ce55ac60038b7702,ce55ac60038b7702,kic_1431791_q5,native_zero,arima,,,,,,,0,False,8e5b523a8ddcdd15
+smoke_ce55ac60038b7702,ce55ac60038b7702,kic_1431791_q5,native_zero,raw,,,,,,,0,False,8e5b523a8ddcdd15
+smoke_ce55ac60038b7702,ce55ac60038b7702,kic_1431791_q5,batman_00000,arima,0.0007868880518663857,-1.7895015320700116e-05,-0.02274150087583069,13.086682611633583,-0.24724146386434478,-0.018892600302276467,161,True,83395741875cd9a5
+smoke_ce55ac60038b7702,ce55ac60038b7702,kic_1431791_q5,batman_00000,raw,0.0007868880518663857,0.0007868880518663857,1.0,13.086682611633583,13.086682611633583,1.0,161,True,83395741875cd9a5

@@ -22,8 +22,16 @@ from astropy.timeseries import BoxLeastSquares
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 from tqdm.auto import tqdm
-from adaptive_transit.data.kepler_io import load_kepler_pdcsap
+from adaptive_transit.data.kepler_io import (
+    DEFAULT_MAST_CONNECT_TIMEOUT_SECONDS,
+    DEFAULT_MAST_READ_TIMEOUT_SECONDS,
+    KeplerFetchPolicy,
+    load_kepler_pdcsap,
+)
 from adaptive_transit.detection.tcf import default_duration_grid, default_period_grid, fit_arima_innovations, harmonic_peak_rank, matching_peak_rank, period_match_fraction, run_tcf
+from adaptive_transit.detection.tls import run_tls
+from adaptive_transit.detection.tps_like import prepare_tps_like_noise_model, run_tps_like_search
+from adaptive_transit.detection.trapezoid import run_bls_seeded_trapezoid
 from adaptive_transit.injections.synthetic import inject_periodic_box_transit
 from adaptive_transit.noise_models.gp import apply_prepared_smooth_gp_filter, fit_smooth_gp_background, prepare_smooth_gp_filter
 from adaptive_transit.noise_models.kalman import apply_fitted_kalman_filter, fit_kalman_local_level
@@ -41,15 +49,19 @@ OUTPUT_ROOT = PROJECT_ROOT / "outputs/experiments/multistar_challenger_benchmark
 BACKGROUND_FEATURE_PATH = PROJECT_ROOT / "outputs/target_selection/kepler_catalog_clean_candidate_features.csv"
 EXISTING_ARIMA_CACHE_ROOT = PROJECT_ROOT / "outputs/experiments/multistar_bls_tcf/optimized/stars"
 TQDM_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} ({percentage:3.0f}%) [{elapsed}<{remaining}, {rate_fmt}] {postfix}"
-DEFAULT_PIPELINES = ("raw_bls", "raw_tcf", "arima_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
+BRANCHES = ("raw", "arima", "kalman", "gp")
+CORE_DETECTORS = ("bls", "tcf", "tps_like")
+CHALLENGER_DETECTORS = ("tls", "trapezoid")
+DETECTORS = (*CORE_DETECTORS, *CHALLENGER_DETECTORS)
+PIPELINE_DEFINITIONS = {f"{branch}_{detector}": (branch, detector) for branch in BRANCHES for detector in DETECTORS}
+DEFAULT_PIPELINES = tuple(f"{branch}_{detector}" for branch in BRANCHES for detector in CORE_DETECTORS)
 CLEAN_SELECTION_GROUP = "catalog_clean_background"
 CATALOG_FLAG_COLUMNS = ("koi_flag", "tce_flag", "confirmed_planet_flag", "eb_flag")
-BENCHMARK_SCHEMA_VERSION = 2
-PIPELINE_DEFINITIONS = {"raw_bls": ("raw", "bls"), "raw_tcf": ("raw", "tcf"), "arima_bls": ("arima", "bls"), "arima_tcf": ("arima", "tcf"), "kalman_bls": ("kalman", "bls"), "kalman_tcf": ("kalman", "tcf"), "gp_bls": ("gp", "bls"), "gp_tcf": ("gp", "tcf")}
+BENCHMARK_SCHEMA_VERSION = 3
 SEARCH_RESOLUTION_PRESETS = {"pilot": {"n_periods": 3000, "top_k": 5, "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "bls_oversample": 5}, "medium": {"n_periods": 5000, "top_k": 5, "n_coarse_periods": 2000, "n_refinement_regions": 18, "refinement_half_width_points": 30, "bls_oversample": 5}, "high": {"n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}}
 
-def default_settings(profile="pilot"):
-    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "selection_group": CLEAN_SELECTION_GROUP, "require_catalog_clean": True, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_injection_mode": "filter", "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "search_resolution": "pilot", "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False, "characterization_acf_lags": 2000, "characterization_spectral_frequencies": 4000, "benchmark_schema_version": BENCHMARK_SCHEMA_VERSION}
+def default_settings(profile="smoke"):
+    settings = {"profile": profile, "manifest_path": MANIFEST_PATH, "cache_dir": CACHE_DIR, "output_dir": OUTPUT_ROOT / profile, "background_feature_path": BACKGROUND_FEATURE_PATH, "existing_arima_cache_root": EXISTING_ARIMA_CACHE_ROOT, "target_limit": 10, "strict_target_count": True, "target_ids": None, "selection_group": CLEAN_SELECTION_GROUP, "require_catalog_clean": True, "stratified_pilot": True, "quality_policy": "default", "require_finite_flux_error": False, "test_fraction": 0.20, "pipelines": DEFAULT_PIPELINES, "arima_order": (1, 1, 0), "fit_maxiter": 200, "arima_injection_mode": "filter", "kalman_injection_mode": "filter", "kalman_maxiter": 100, "kalman_burn_in": 1, "gp_injection_mode": "filter", "gp_max_train_points": 512, "gp_length_scale_days": 3.0, "gp_min_length_scale_days": 1.0, "gp_max_length_scale_days": 30.0, "gp_measurement_noise_fraction": 0.20, "gp_n_restarts_optimizer": 0, "gp_random_seed": 123, "gp_optimize_kernel": True, "injection_period_grid": (2.0, 5.0), "injection_duration_hours_grid": (2.0, 4.0), "injection_depth_grid": (0.0005, 0.001), "epoch_phase_fraction_grid": (0.45,), "min_period_days": 1.0, "max_period_days": 15.0, "search_resolution": "pilot", "n_periods": 3000, "min_duration_hours": 1.5, "max_duration_hours": 10.0, "n_durations": 8, "edge_width_cadences": 0, "min_edge_observations": 4, "min_transit_events": 3, "min_event_consistency_fraction": 0.60, "top_k": 5, "search_mode": "coarse_to_fine", "n_coarse_periods": 1000, "n_refinement_regions": 12, "refinement_half_width_points": 30, "period_match_tolerance_fraction": 0.02, "bls_objective": "snr", "bls_oversample": 5, "tls_use_threads": 1, "tls_oversampling_factor": 2, "tps_wavelet": "db6", "tps_max_wavelet_level": 6, "tps_noise_window_cadences": 193, "tps_min_segment_cadences": 32, "max_workers": None, "reserve_cpu_cores": 2, "random_seed": 123, "allow_download": True, "download_max_attempts": 5, "download_initial_wait_seconds": 5.0, "download_backoff_factor": 2.0, "progress_interval": 1, "checkpoint_interval": 5, "prefetch_workers": 4, "resume": True, "rerun_failures": False, "save_regularized_inputs": False, "characterization_acf_lags": 2000, "characterization_spectral_frequencies": 4000, "benchmark_schema_version": BENCHMARK_SCHEMA_VERSION}
     if profile == "main":
         settings.update({"output_dir": OUTPUT_ROOT / profile, "target_limit": 50, "stratified_pilot": False, "injection_period_grid": (2.0, 5.0, 10.0), "injection_duration_hours_grid": (2.0, 4.0, 8.0), "injection_depth_grid": (0.0002, 0.0005, 0.001), "epoch_phase_fraction_grid": (0.15, 0.45, 0.75), "search_resolution": "high", "n_periods": 10000, "top_k": 10, "n_coarse_periods": 4000, "n_refinement_regions": 30, "refinement_half_width_points": 40, "bls_oversample": 10}
         )
@@ -97,8 +109,8 @@ def parse_target_ids(value):
     return values
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Run a heavily parallel multi-star benchmark across raw, ARIMA, Kalman, and GP residual branches.")
-    parser.add_argument("--profile", choices=("pilot", "main", "smoke"), default="pilot")
+    parser = argparse.ArgumentParser(description="Legacy wide-table challenger benchmark. Active scientific runs use scripts/run_adaptive_transit_benchmark.py with benchmark100 or benchmark1000.")
+    parser.add_argument("--profile", choices=("pilot", "main", "smoke"), default="smoke")
     parser.add_argument("--manifest-path", type=Path)
     parser.add_argument("--cache-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -135,9 +147,17 @@ def parse_args(argv=None):
     parser.add_argument("--n-refinement-regions", type=int)
     parser.add_argument("--refinement-half-width-points", type=int)
     parser.add_argument("--bls-oversample", type=int)
+    parser.add_argument("--tls-use-threads", type=int)
+    parser.add_argument("--tls-oversampling-factor", type=int)
+    parser.add_argument("--tps-wavelet", type=str)
+    parser.add_argument("--tps-max-wavelet-level", type=int)
+    parser.add_argument("--tps-noise-window-cadences", type=int)
+    parser.add_argument("--tps-min-segment-cadences", type=int)
     parser.add_argument("--max-workers", type=int)
     parser.add_argument("--reserve-cpu-cores", type=int)
     parser.add_argument("--no-download", dest="allow_download", action="store_false")
+    parser.add_argument("--download-connect-timeout-seconds", type=float)
+    parser.add_argument("--download-read-timeout-seconds", type=float)
     parser.add_argument("--download-max-attempts", type=int)
     parser.add_argument("--checkpoint-interval", type=int)
     parser.add_argument("--progress-interval", type=int)
@@ -181,7 +201,7 @@ def injection_cases(args):
     return list(product(args.injection_period_grid, args.injection_duration_hours_grid, args.injection_depth_grid, args.epoch_phase_fraction_grid))
 
 def config_signature(args):
-    keys = ("benchmark_schema_version", "profile", "selection_group", "require_catalog_clean", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_injection_mode", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "search_resolution", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "period_match_tolerance_fraction", "characterization_acf_lags", "characterization_spectral_frequencies")
+    keys = ("benchmark_schema_version", "profile", "selection_group", "require_catalog_clean", "pipelines", "quality_policy", "require_finite_flux_error", "test_fraction", "arima_order", "fit_maxiter", "arima_injection_mode", "kalman_injection_mode", "kalman_maxiter", "kalman_burn_in", "gp_injection_mode", "gp_max_train_points", "gp_length_scale_days", "gp_min_length_scale_days", "gp_max_length_scale_days", "gp_measurement_noise_fraction", "gp_n_restarts_optimizer", "gp_optimize_kernel", "injection_period_grid", "injection_duration_hours_grid", "injection_depth_grid", "epoch_phase_fraction_grid", "min_period_days", "max_period_days", "search_resolution", "n_periods", "min_duration_hours", "max_duration_hours", "n_durations", "top_k", "search_mode", "n_coarse_periods", "n_refinement_regions", "refinement_half_width_points", "bls_objective", "bls_oversample", "tls_use_threads", "tls_oversampling_factor", "tps_wavelet", "tps_max_wavelet_level", "tps_noise_window_cadences", "tps_min_segment_cadences", "period_match_tolerance_fraction", "characterization_acf_lags", "characterization_spectral_frequencies")
     return {key: json_ready(getattr(args, key)) for key in keys}
 
 def write_benchmark_config(args):
@@ -211,7 +231,7 @@ def is_transient_download_error(exc):
     message = f"{type(exc).__name__}: {exc}"
     if "No Kepler light curve found" in message:
         return False
-    markers = ("ReadTimeout", "ConnectTimeout", "ConnectionError", "HTTPSConnectionPool", "Max retries exceeded", "Temporary failure", "temporarily unavailable", "Connection reset", "RemoteDisconnected", "mast.stsci.edu")
+    markers = ("ReadTimeout", "ConnectTimeout", "ConnectionError", "HTTPSConnectionPool", "Max retries exceeded", "Temporary failure", "temporarily unavailable", "Connection reset", "RemoteDisconnected", "mast.stsci.edu", "KeplerLightCurveFetchError", "Kepler MAST fetch failed")
     return any(marker in message for marker in markers)
 
 def load_light_curve_frame(target_id, quarter, args, progress_queue=None):
@@ -221,10 +241,17 @@ def load_light_curve_frame(target_id, quarter, args, progress_queue=None):
     if not args.get("allow_download", True):
         raise FileNotFoundError(f"Cached light curve is missing: {path}")
     max_attempts = max(1, int(args.get("download_max_attempts", 1)))
+    connect_timeout = args.get("download_connect_timeout_seconds") or DEFAULT_MAST_CONNECT_TIMEOUT_SECONDS
+    read_timeout = args.get("download_read_timeout_seconds") or DEFAULT_MAST_READ_TIMEOUT_SECONDS
+    fetch_policy = KeplerFetchPolicy(
+        connect_timeout_seconds=float(connect_timeout),
+        read_timeout_seconds=float(read_timeout),
+        max_attempts=1,
+    )
     for attempt in range(1, max_attempts + 1):
         try:
             report_progress(progress_queue, target_id, quarter, "download attempt", detail=f"{attempt}/{max_attempts}")
-            light_curve = load_kepler_pdcsap(target_id, quarter)
+            light_curve = load_kepler_pdcsap(target_id, quarter, fetch_policy=fetch_policy)
             frame = light_curve.to_dataframe()
             path.parent.mkdir(parents=True, exist_ok=True)
             frame.to_parquet(path, index=False)
@@ -413,6 +440,33 @@ def select_bls_top_peaks(periodogram, top_k=10, separation_fraction=0.01):
         peaks.insert(0, "rank", np.arange(1, len(peaks) + 1, dtype=int))
     return peaks
 
+def select_top_periodogram_peaks(periodogram, score_column, top_k=10, separation_fraction=0.01):
+    if periodogram.empty or "period_days" not in periodogram.columns or score_column not in periodogram.columns:
+        return pd.DataFrame()
+    scores = pd.to_numeric(periodogram[score_column], errors="coerce").to_numpy(dtype=float)
+    peak_indices = local_maximum_indices(scores)
+    candidates = periodogram.iloc[peak_indices].copy()
+    candidates = candidates[np.isfinite(pd.to_numeric(candidates[score_column], errors="coerce"))]
+    if candidates.empty:
+        candidates = periodogram[np.isfinite(pd.to_numeric(periodogram[score_column], errors="coerce"))].copy()
+    candidates = candidates.sort_values(score_column, ascending=False)
+    selected = []
+    for index, row in candidates.iterrows():
+        period = float(row["period_days"])
+        if any(abs(period - item["period_days"]) / item["period_days"] <= float(separation_fraction) for item in selected):
+            continue
+        item = row.to_dict()
+        item["periodogram_index"] = int(index)
+        item["period_days"] = period
+        item["score"] = float(row[score_column])
+        selected.append(item)
+        if len(selected) >= int(top_k):
+            break
+    peaks = pd.DataFrame(selected)
+    if not peaks.empty:
+        peaks.insert(0, "rank", np.arange(1, len(peaks) + 1, dtype=int))
+    return peaks
+
 def run_bls_search(time, flux, period_grid, duration_grid, args):
     time = np.asarray(time, dtype=float)
     flux = np.asarray(flux, dtype=float)
@@ -430,6 +484,132 @@ def run_bls_search(time, flux, period_grid, duration_grid, args):
 
 def run_tcf_search(time, residuals, period_grid, duration_grid, args):
     return run_tcf(time, residuals, period_grid, duration_grid, edge_width_cadences=args["edge_width_cadences"], min_edge_observations=args["min_edge_observations"], min_transit_events=args["min_transit_events"], min_event_consistency_fraction=args["min_event_consistency_fraction"], top_k=args["top_k"], search_mode=args["search_mode"], n_coarse_periods=args["n_coarse_periods"], n_refinement_regions=args["n_refinement_regions"], refinement_half_width_points=args["refinement_half_width_points"])
+
+def run_tls_search(time, flux, args):
+    result = run_tls(
+        time,
+        flux,
+        period_min=args["min_period_days"],
+        period_max=args["max_period_days"],
+        use_threads=args["tls_use_threads"],
+        oversampling_factor=args["tls_oversampling_factor"],
+    )
+    summary = dict(result["summary"])
+    summary["score"] = float(summary["sde"])
+    periodogram = result["periodogram"].copy()
+    if "power" in periodogram.columns:
+        periodogram["sde"] = robust_standardize(periodogram["power"].to_numpy(dtype=float))
+        top_peaks = select_top_periodogram_peaks(periodogram, "sde", top_k=args["top_k"], separation_fraction=0.01)
+    else:
+        top_peaks = pd.DataFrame()
+    best_peak = {
+        "rank": 1,
+        "period_days": float(summary["period_days"]),
+        "duration_days": float(summary["duration_days"]),
+        "epoch_days": float(summary["epoch_days"]),
+        "score": float(summary["score"]),
+        "sde": float(summary["sde"]),
+        "snr": float(summary["snr"]),
+        "depth_raw": float(summary["depth_raw"]),
+    }
+    if top_peaks.empty:
+        top_peaks = pd.DataFrame([best_peak])
+    else:
+        top_peaks = top_peaks[abs(top_peaks["period_days"] - best_peak["period_days"]) / best_peak["period_days"] > 0.01]
+        top_peaks = pd.concat([pd.DataFrame([best_peak]), top_peaks], ignore_index=True).head(int(args["top_k"]))
+        top_peaks["rank"] = np.arange(1, len(top_peaks) + 1, dtype=int)
+        top_peaks["score"] = pd.to_numeric(top_peaks.get("score", top_peaks.get("sde")), errors="coerce")
+        top_peaks["sde"] = pd.to_numeric(top_peaks.get("sde", top_peaks.get("score")), errors="coerce")
+    return {"summary": summary, "periodogram": periodogram, "top_peaks": top_peaks, "raw_result": result.get("raw_result")}
+
+def trapezoid_seed_result(bls_result):
+    seeded = dict(bls_result)
+    peaks = bls_result["top_peaks"].copy()
+    if "period" not in peaks.columns and "period_days" in peaks.columns:
+        peaks["period"] = peaks["period_days"]
+    if "duration" not in peaks.columns and "duration_days" in peaks.columns:
+        peaks["duration"] = peaks["duration_days"]
+    seeded["top_peaks"] = peaks
+    return seeded
+
+def run_trapezoid_search(time, flux, period_grid, duration_grid, args, cache=None):
+    cache = {} if cache is None else cache
+    bls_result = cache.get("bls")
+    if bls_result is None:
+        bls_result = run_bls_search(time, flux, period_grid, duration_grid, args)
+        cache["bls"] = bls_result
+    result = run_bls_seeded_trapezoid(
+        time,
+        flux,
+        trapezoid_seed_result(bls_result),
+        duration_grid=duration_grid,
+        top_k_periods=args["top_k"],
+    )
+    evaluated = result["evaluated"].copy()
+    top_peaks = evaluated.sort_values("score", ascending=False).head(int(args["top_k"])).reset_index(drop=True)
+    top_peaks.insert(0, "rank", np.arange(1, len(top_peaks) + 1, dtype=int))
+    return {"summary": result["summary"], "periodogram": evaluated, "top_peaks": top_peaks}
+
+def run_tps_like_detector_search(time, values, segment_id, duration_grid, args, cache=None):
+    if segment_id is None:
+        raise ValueError("TPS-like detector requires cadence-grid segment_id.")
+    cache = {} if cache is None else cache
+    if "tps_like_noise_model_error" in cache:
+        raise ValueError(str(cache["tps_like_noise_model_error"]))
+    prepared = cache.get("tps_like_noise_model")
+    if prepared is None:
+        prepared = prepare_tps_like_noise_model(
+            values,
+            segment_id,
+            wavelet=args["tps_wavelet"],
+            max_level=args["tps_max_wavelet_level"],
+            noise_window_cadences=args["tps_noise_window_cadences"],
+            min_segment_cadences=args["tps_min_segment_cadences"],
+        )
+        cache["tps_like_noise_model"] = prepared
+    duration_hours_grid = [float(duration) * 24.0 for duration in np.asarray(duration_grid, dtype=float)]
+    result = run_tps_like_search(
+        time,
+        values,
+        segment_id,
+        prepared_noise_model=prepared,
+        min_period_days=args["min_period_days"],
+        max_period_days=args["max_period_days"],
+        duration_hours_grid=duration_hours_grid,
+        wavelet=args["tps_wavelet"],
+        max_level=args["tps_max_wavelet_level"],
+        noise_window_cadences=args["tps_noise_window_cadences"],
+        min_segment_cadences=args["tps_min_segment_cadences"],
+        min_events=args["min_transit_events"],
+    )
+    summary = dict(result["summary"])
+    summary["score"] = float(summary["mes"])
+    periodogram = result["periodogram"].copy()
+    top_peaks = periodogram.sort_values("mes", ascending=False).head(int(args["top_k"])).reset_index(drop=True)
+    if top_peaks.empty:
+        raise ValueError("TPS-like detector produced no finite top candidates.")
+    top_peaks.insert(0, "rank", np.arange(1, len(top_peaks) + 1, dtype=int))
+    top_peaks["score"] = pd.to_numeric(top_peaks["mes"], errors="coerce")
+    return {"summary": summary, "periodogram": periodogram, "top_peaks": top_peaks, "prepared_noise_model": prepared}
+
+def run_detector_search(detector, time, values, period_grid, duration_grid, args, *, segment_id=None, cache=None):
+    cache = {} if cache is None else cache
+    if detector in cache:
+        return cache[detector]
+    if detector == "bls":
+        result = run_bls_search(time, values, period_grid, duration_grid, args)
+    elif detector == "tcf":
+        result = run_tcf_search(time, values, period_grid, duration_grid, args)
+    elif detector == "tls":
+        result = run_tls_search(time, values, args)
+    elif detector == "trapezoid":
+        result = run_trapezoid_search(time, values, period_grid, duration_grid, args, cache=cache)
+    elif detector == "tps_like":
+        result = run_tps_like_detector_search(time, values, segment_id, duration_grid, args, cache=cache)
+    else:
+        raise ValueError(f"Unknown detector: {detector}")
+    cache[detector] = result
+    return result
 
 def median_cadence(time):
     values = np.sort(np.unique(np.asarray(time, dtype=float)[np.isfinite(time)]))
@@ -569,10 +749,53 @@ def match_fields(period, injected_period, tolerance):
     exact_error = float(abs(float(period) - float(injected_period)) / float(injected_period))
     return harmonic_error, exact_error, bool(harmonic_error <= float(tolerance)), bool(exact_error <= float(tolerance))
 
+def detector_summary_period_days(summary):
+    if "period_days" in summary:
+        return float(summary["period_days"])
+    return float(summary["period"])
+
+def detector_summary_duration_hours(summary):
+    if "duration_hours" in summary:
+        return float(summary["duration_hours"])
+    if "duration_days" in summary:
+        return float(summary["duration_days"]) * 24.0
+    return float(summary["duration"]) * 24.0
+
+def detector_summary_epoch_days(summary):
+    if "epoch_days" in summary:
+        return float(summary["epoch_days"])
+    if "transit_time" in summary:
+        return float(summary["transit_time"])
+    return float(summary.get("epoch", np.nan))
+
+def detector_summary_score(summary, detector):
+    if detector == "bls":
+        return float(summary["sde"])
+    if detector == "tls":
+        return float(summary["sde"])
+    if detector == "tps_like":
+        return float(summary["mes"])
+    return float(summary["score"])
+
+def peak_score_series(peaks, detector):
+    for column in ("score", "sde", "mes", "power"):
+        if column in peaks.columns:
+            return pd.to_numeric(peaks[column], errors="coerce").to_numpy(dtype=float)
+    return np.full(len(peaks), np.nan, dtype=float)
+
+def peak_duration_hours(peak):
+    if "duration_hours" in peak and np.isfinite(float(peak["duration_hours"])):
+        return float(peak["duration_hours"])
+    if "duration_days" in peak and np.isfinite(float(peak["duration_days"])):
+        return float(peak["duration_days"]) * 24.0
+    if "duration" in peak and np.isfinite(float(peak["duration"])):
+        return float(peak["duration"]) * 24.0
+    return float("nan")
+
 def detector_result_fields(pipeline, result, detector, injected_period, args, runtime, base_rank1_period=None):
     summary = result["summary"]
     peaks = result["top_peaks"]
-    period = float(summary["period_days"] if detector == "bls" else summary["period"])
+    period = detector_summary_period_days(summary)
     harmonic_error, exact_error, harmonic_matched, exact_matched = match_fields(period, injected_period, args["period_match_tolerance_fraction"])
     exact_rank = top_peak_rank(peaks, injected_period, args["period_match_tolerance_fraction"])
     half_rank = harmonic_rank(peaks, injected_period, 0.5, args["period_match_tolerance_fraction"])
@@ -590,10 +813,22 @@ def detector_result_fields(pipeline, result, detector, injected_period, args, ru
     else:
         failure_mode = "candidate_generation_failure"
     fields = {f"{pipeline}_success": True, f"{pipeline}_runtime_seconds": float(runtime), f"{pipeline}_recovered_period_days": period, f"{pipeline}_period_error_fraction": harmonic_error, f"{pipeline}_exact_period_error_fraction": exact_error, f"{pipeline}_harmonic_rank1_matched": harmonic_matched, f"{pipeline}_exact_rank1_matched": exact_matched, f"{pipeline}_harmonic_topk_matched": harmonic_topk, f"{pipeline}_exact_rank_topk": exact_rank, f"{pipeline}_half_period_rank_topk": half_rank, f"{pipeline}_double_period_rank_topk": double_rank, f"{pipeline}_base_rank1_period_days": base_rank1_period, f"{pipeline}_base_rank1_error_fraction": base_rank1_error, f"{pipeline}_matches_base_rank1": matches_base_rank1, f"{pipeline}_failure_mode": failure_mode, f"{pipeline}_top_periods_json": json.dumps([float(row.get("period_days", row.get("period", np.nan))) for row in peaks.to_dict(orient="records")])}
+    fields.update({
+        f"{pipeline}_score": detector_summary_score(summary, detector),
+        f"{pipeline}_duration_hours": detector_summary_duration_hours(summary),
+        f"{pipeline}_epoch_days": detector_summary_epoch_days(summary),
+        f"{pipeline}_top_scores_json": json.dumps([float(value) for value in peak_score_series(peaks, detector)]),
+    })
     if detector == "bls":
-        fields.update({f"{pipeline}_score": float(summary["sde"]), f"{pipeline}_power": float(summary["power"]), f"{pipeline}_duration_hours": float(summary["duration_days"] * 24.0), f"{pipeline}_transit_time": float(summary["transit_time"]), f"{pipeline}_depth": float(summary["depth"]), f"{pipeline}_top_scores_json": json.dumps([float(value) for value in peaks["sde"].to_numpy(dtype=float)])})
-    else:
-        fields.update({f"{pipeline}_score": float(summary["score"]), f"{pipeline}_raw_pooled_score": float(summary["raw_pooled_score"]), f"{pipeline}_duration_hours": float(summary["duration"] * 24.0), f"{pipeline}_epoch_days": float(summary["epoch"]), f"{pipeline}_valid_transit_events": int(summary["n_valid_transit_events"]), f"{pipeline}_positive_event_fraction": float(summary["positive_event_fraction"]), f"{pipeline}_top_scores_json": json.dumps([float(value) for value in peaks["score"].to_numpy(dtype=float)])})
+        fields.update({f"{pipeline}_power": float(summary["power"]), f"{pipeline}_transit_time": float(summary["transit_time"]), f"{pipeline}_depth": float(summary["depth"])})
+    elif detector == "tcf":
+        fields.update({f"{pipeline}_raw_pooled_score": float(summary["raw_pooled_score"]), f"{pipeline}_valid_transit_events": int(summary["n_valid_transit_events"]), f"{pipeline}_positive_event_fraction": float(summary["positive_event_fraction"])})
+    elif detector == "tls":
+        fields.update({f"{pipeline}_tls_snr": float(summary["snr"]), f"{pipeline}_depth_raw": float(summary["depth_raw"]), f"{pipeline}_n_observations": int(summary["n_observations"])})
+    elif detector == "trapezoid":
+        fields.update({f"{pipeline}_depth": float(summary["depth"]), f"{pipeline}_ingress_fraction": float(summary["ingress_fraction"]), f"{pipeline}_bls_seed_rank": int(summary["seed_rank"]), f"{pipeline}_seed_source": "bls_top_peaks"})
+    elif detector == "tps_like":
+        fields.update({f"{pipeline}_max_ses": float(summary["max_ses"]), f"{pipeline}_observed_event_count": int(summary["observed_event_count"]), f"{pipeline}_expected_event_count": int(summary["expected_event_count"]), f"{pipeline}_observability_fraction": float(summary["observability_fraction"]), f"{pipeline}_period_cadences": int(summary["period_cadences"]), f"{pipeline}_duration_cadences": int(summary["duration_cadences"]), f"{pipeline}_segment_count": int(summary["segment_count"]), f"{pipeline}_wavelet": str(summary["wavelet"])})
     return fields
 
 def empty_pipeline_fields(pipeline, error):
@@ -611,10 +846,31 @@ def add_branch_diagnostics(row, branch, series, before, in_transit):
 def required_branches(pipelines):
     return sorted({PIPELINE_DEFINITIONS[pipeline][0] for pipeline in pipelines})
 
+def required_detectors(pipelines):
+    return sorted({PIPELINE_DEFINITIONS[pipeline][1] for pipeline in pipelines})
 
-def base_candidate_rows(time, branch_series, period_grid, duration_grid, target_id, quarter, selection_group, sample_stratum, args):
+def prepare_branch_detector_caches(branch_series, segment_id, pipelines, args):
+    caches = {branch: {} for branch in branch_series}
+    if "tps_like" not in required_detectors(pipelines):
+        return caches
+    for branch, values in branch_series.items():
+        try:
+            caches[branch]["tps_like_noise_model"] = prepare_tps_like_noise_model(
+                values,
+                segment_id,
+                wavelet=args["tps_wavelet"],
+                max_level=args["tps_max_wavelet_level"],
+                noise_window_cadences=args["tps_noise_window_cadences"],
+                min_segment_cadences=args["tps_min_segment_cadences"],
+            )
+        except Exception as exc:
+            caches[branch]["tps_like_noise_model_error"] = f"{type(exc).__name__}: {exc}"
+    return caches
+
+def base_candidate_rows(time, branch_series, segment_id, period_grid, duration_grid, target_id, quarter, selection_group, sample_stratum, args, detector_caches=None):
     rows = []
     rank1 = {}
+    detector_caches = detector_caches or {branch: {} for branch in branch_series}
     for pipeline in args["pipelines"]:
         branch, detector = PIPELINE_DEFINITIONS[pipeline]
         if branch not in branch_series:
@@ -622,14 +878,14 @@ def base_candidate_rows(time, branch_series, period_grid, duration_grid, target_
             rank1[pipeline] = np.nan
             continue
         try:
-            result = run_bls_search(time, branch_series[branch], period_grid, duration_grid, args) if detector == "bls" else run_tcf_search(time, branch_series[branch], period_grid, duration_grid, args)
+            cache = detector_caches.setdefault(branch, {})
+            result = run_detector_search(detector, time, branch_series[branch], period_grid, duration_grid, args, segment_id=segment_id, cache=cache)
             peaks = result["top_peaks"]
-            rank1[pipeline] = float(result["summary"]["period_days"] if detector == "bls" else result["summary"]["period"])
+            rank1[pipeline] = detector_summary_period_days(result["summary"])
             for fallback_rank, peak in enumerate(peaks.to_dict(orient="records"), start=1):
                 period = float(peak.get("period_days", peak.get("period", np.nan)))
-                score = float(peak.get("sde", peak.get("score", np.nan)))
-                duration = float(peak.get("duration_days", peak.get("duration", np.nan)))
-                rows.append({"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "sample_stratum": str(sample_stratum), "pipeline": pipeline, "branch": branch, "detector": detector, "success": True, "rank": int(peak.get("rank", fallback_rank)), "period_days": period, "score": score, "duration_hours": duration * 24.0 if np.isfinite(duration) else np.nan, "error": ""})
+                score = float(peak.get("score", peak.get("sde", peak.get("mes", peak.get("power", np.nan)))))
+                rows.append({"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "sample_stratum": str(sample_stratum), "pipeline": pipeline, "branch": branch, "detector": detector, "success": True, "rank": int(peak.get("rank", fallback_rank)), "period_days": period, "score": score, "duration_hours": peak_duration_hours(peak), "error": ""})
         except Exception as exc:
             rank1[pipeline] = np.nan
             rows.append({"target_id": normalize_target_id(target_id), "quarter": int(quarter), "selection_group": str(selection_group), "sample_stratum": str(sample_stratum), "pipeline": pipeline, "branch": branch, "detector": detector, "success": False, "rank": 0, "period_days": np.nan, "score": np.nan, "error": f"{type(exc).__name__}: {exc}"})
@@ -648,7 +904,7 @@ def base_branch_series(flux, base_arima, base_kalman, base_gp, pipelines):
         values["gp"] = np.asarray(base_gp.residuals, dtype=float)
     return values
 
-def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args):
+def run_one_case(case_index, case, time, flux, segment_id, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, base_detector_caches, args):
     injected_period, injected_duration_hours, injected_depth, epoch_phase_fraction = case
     finite = np.isfinite(time) & np.isfinite(flux)
     epoch = float(np.min(time[finite]) + float(epoch_phase_fraction) * float(injected_period))
@@ -731,6 +987,7 @@ def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duratio
         except Exception as exc:
             branch_errors["gp"] = f"{type(exc).__name__}: {exc}"
             row["gp_error"] = branch_errors["gp"]
+    case_detector_caches = {branch: dict(base_detector_caches.get(branch, {})) for branch in branch_series}
     for pipeline in args["pipelines"]:
         branch, detector = PIPELINE_DEFINITIONS[pipeline]
         if branch not in branch_series:
@@ -738,7 +995,8 @@ def run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duratio
             continue
         try:
             started = perf_counter()
-            result = run_bls_search(time, branch_series[branch], bls_periods, duration_grid, args) if detector == "bls" else run_tcf_search(time, branch_series[branch], tcf_periods, duration_grid, args)
+            detector_cache = case_detector_caches.setdefault(branch, dict(base_detector_caches.get(branch, {})))
+            result = run_detector_search(detector, time, branch_series[branch], period_grid, duration_grid, args, segment_id=segment_id, cache=detector_cache)
             row.update(detector_result_fields(pipeline, result, detector, injected_period, args, perf_counter() - started, base_rank1_period=base_rank1_periods.get(pipeline)))
             row[f"{pipeline}_error"] = ""
         except Exception as exc:
@@ -786,7 +1044,7 @@ def save_rows(path, rows):
     frame.to_csv(path, index=False)
     return frame
 
-def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args, progress_queue, resume_compatible=None):
+def run_star_injections(star_dir, cases, time, flux, segment_id, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, base_detector_caches, args, progress_queue, resume_compatible=None):
     rows, completed = load_existing_injection_rows(star_dir, cases, args, resume_compatible=resume_compatible)
     if completed:
         report_progress(progress_queue, target_id, quarter, "injections resumed", units=len(completed), detail=f"{len(completed)}/{len(cases)}")
@@ -796,7 +1054,7 @@ def run_star_injections(star_dir, cases, time, flux, bls_periods, tcf_periods, d
     for case_index, case in enumerate(cases):
         if case_index in completed:
             continue
-        rows.append(run_one_case(case_index, case, time, flux, bls_periods, tcf_periods, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args))
+        rows.append(run_one_case(case_index, case, time, flux, segment_id, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, base_detector_caches, args))
         completed.add(case_index)
         unreported += 1
         if len(completed) % checkpoint_interval == 0 or len(completed) == len(cases):
@@ -834,6 +1092,7 @@ def run_star_task(task):
         regular, preprocessing = preprocess_pdcsap_light_curve(light_curve_frame, quality_policy=args["quality_policy"], require_finite_flux_error=args["require_finite_flux_error"], normalization_fit_fraction=1.0 - args["test_fraction"])
         time = regular["time"].to_numpy(dtype=float)
         flux = regular["normalized_flux"].to_numpy(dtype=float)
+        segment_id = regular["segment_id"].to_numpy(dtype=int)
         if np.isfinite(time).sum() < 24 or np.isfinite(flux).sum() < 24:
             raise ValueError("Insufficient finite observations.")
 
@@ -873,10 +1132,12 @@ def run_star_task(task):
             if args["gp_injection_mode"] == "filter":
                 prepared_gp = prepared_base_gp
         base_series = base_branch_series(flux, base_arima, base_kalman, base_gp, args["pipelines"])
-        base_candidates, base_rank1_periods = base_candidate_rows(time, base_series, period_grid, duration_grid, target_id, quarter, selection_group, sample_stratum, args)
+        base_detector_caches = prepare_branch_detector_caches(base_series, segment_id, args["pipelines"], args)
+        base_candidate_caches = {branch: dict(cache) for branch, cache in base_detector_caches.items()}
+        base_candidates, base_rank1_periods = base_candidate_rows(time, base_series, segment_id, period_grid, duration_grid, target_id, quarter, selection_group, sample_stratum, args, detector_caches=base_candidate_caches)
         base_candidates.to_csv(star_dir / "base_light_curve_candidates.csv", index=False)
         cases = [tuple(case) for case in args["cases"]]
-        injections = run_star_injections(star_dir, cases, time, flux, period_grid, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, args, progress_queue, resume_compatible=resume_compatible)
+        injections = run_star_injections(star_dir, cases, time, flux, segment_id, period_grid, duration_grid, base_arima, base_kalman, prepared_gp, target_id, quarter, selection_group, sample_stratum, base_rank1_periods, base_detector_caches, args, progress_queue, resume_compatible=resume_compatible)
         successful = injections.copy()
         star_metrics = calculate_star_metrics(time, flux)
         # Only continuous, pre-injection stellar-background measurements enter the
@@ -984,7 +1245,19 @@ def prefetch_manifest_light_curves(rows, args):
     if not missing:
         return []
     worker_count = max(1, min(int(args.prefetch_workers), len(missing)))
-    prefetch_args = {"cache_dir": str(args.cache_dir), "allow_download": True, "download_max_attempts": int(args.download_max_attempts), "download_initial_wait_seconds": float(args.download_initial_wait_seconds), "download_backoff_factor": float(args.download_backoff_factor)}
+    prefetch_args = {
+        "cache_dir": str(args.cache_dir),
+        "allow_download": True,
+        "download_connect_timeout_seconds": float(
+            getattr(args, "download_connect_timeout_seconds", None) or DEFAULT_MAST_CONNECT_TIMEOUT_SECONDS
+        ),
+        "download_read_timeout_seconds": float(
+            getattr(args, "download_read_timeout_seconds", None) or DEFAULT_MAST_READ_TIMEOUT_SECONDS
+        ),
+        "download_max_attempts": int(args.download_max_attempts),
+        "download_initial_wait_seconds": float(args.download_initial_wait_seconds),
+        "download_backoff_factor": float(args.download_backoff_factor),
+    }
     results = []
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         future_map = {executor.submit(prefetch_light_curve_task, (row, prefetch_args)): row for row in missing}

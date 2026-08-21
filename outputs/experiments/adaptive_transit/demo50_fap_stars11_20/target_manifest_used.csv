@@ -1,0 +1,11 @@
+target_id,quarter,selection_group,sample_stratum,koi_flag,tce_flag,confirmed_planet_flag,eb_flag,provenance
+10677499,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+2996004,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+3657874,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+7031686,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+7771970,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+9414701,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+9451256,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+9542723,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+9603403,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3
+9827856,5,catalog_clean_background,high_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3

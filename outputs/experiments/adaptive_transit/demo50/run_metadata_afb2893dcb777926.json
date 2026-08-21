@@ -1,0 +1,209 @@
+{
+  "config": {
+    "active_combinations": [
+      {
+        "detector": "bls",
+        "treatment": "raw"
+      },
+      {
+        "detector": "tcf",
+        "treatment": "raw"
+      },
+      {
+        "detector": "tps_like",
+        "treatment": "raw"
+      },
+      {
+        "detector": "bls",
+        "treatment": "arima"
+      },
+      {
+        "detector": "tcf",
+        "treatment": "arima"
+      },
+      {
+        "detector": "tps_like",
+        "treatment": "arima"
+      },
+      {
+        "detector": "bls",
+        "treatment": "kalman"
+      },
+      {
+        "detector": "tcf",
+        "treatment": "kalman"
+      },
+      {
+        "detector": "tps_like",
+        "treatment": "kalman"
+      },
+      {
+        "detector": "bls",
+        "treatment": "gp"
+      },
+      {
+        "detector": "tcf",
+        "treatment": "gp"
+      },
+      {
+        "detector": "tps_like",
+        "treatment": "gp"
+      }
+    ],
+    "allowed_selection_groups": [
+      "catalog_clean_background"
+    ],
+    "detector_parameters": {},
+    "epoch_phase_fraction_grid": [
+      0.45
+    ],
+    "expected_quarter": 5,
+    "fap_level": 0.01,
+    "include_native_zero_injection": false,
+    "injection_depth_grid": [
+      0.0002,
+      0.0005,
+      0.001
+    ],
+    "injection_duration_hours_grid": [
+      4.0
+    ],
+    "injection_period_grid": [
+      5.0
+    ],
+    "manifest_path": "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/configs/kepler_clean_background_manifest.csv",
+    "max_duration_hours": 10.0,
+    "max_period_days": 15.0,
+    "min_duration_hours": 1.5,
+    "min_period_days": 1.0,
+    "n_durations": 8,
+    "n_null_trials_per_star": 100,
+    "n_periods": 3000,
+    "null_block_size_cadences": 24,
+    "null_generation_seed": 456,
+    "period_match_tolerance_fraction": 0.02,
+    "profile": "demo50",
+    "quality_policy": "default",
+    "random_seed": 123,
+    "require_finite_flux_error": false,
+    "runner_module": "adaptive_transit.runner.UnifiedPipelineRunner",
+    "schema_version": 1,
+    "strict_target_count": true,
+    "target_limit": 5,
+    "top_k": 5,
+    "treatment_parameters": {}
+  },
+  "config_hash": "afb2893dcb777926",
+  "mode": "null_calibration",
+  "num_shards": 1,
+  "run_id": "demo50_afb2893dcb777926",
+  "schemas": {
+    "characterization": [
+      "run_id",
+      "config_hash",
+      "star_id",
+      "target_id",
+      "quarter",
+      "characterization_version",
+      "success",
+      "flux_robust_scale",
+      "flux_skewness",
+      "flux_outlier_fraction",
+      "v2_acf_lag_1",
+      "v2_acf_decay_e_days",
+      "original_series_stationarity_conclusion",
+      "v2_spectral_concentration",
+      "v2_spectral_harmonic_power_ratio",
+      "v2_ls_dominant_period_days",
+      "v2_ls_acf_period_relative_error",
+      "v2_segment_scale_relative_mad"
+    ],
+    "detection": [
+      "run_id",
+      "config_hash",
+      "star_id",
+      "injection_id",
+      "treatment",
+      "detector",
+      "score_name",
+      "score_definition",
+      "fap_level",
+      "fap_threshold",
+      "above_threshold",
+      "success",
+      "best_period_days",
+      "best_epoch",
+      "best_duration_days",
+      "best_depth",
+      "raw_score",
+      "exact_recovery",
+      "harmonic_recovery",
+      "period_error",
+      "exact_period_error",
+      "harmonic_period_error",
+      "observability",
+      "runtime_seconds",
+      "diagnostics"
+    ],
+    "injection": [
+      "run_id",
+      "config_hash",
+      "star_id",
+      "injection_id",
+      "injection_kind",
+      "period_days",
+      "epoch_days",
+      "duration_days",
+      "depth",
+      "epoch_phase_fraction",
+      "batman_used",
+      "seed",
+      "template_hash",
+      "success"
+    ],
+    "null_score": [
+      "run_id",
+      "config_hash",
+      "star_id",
+      "trial",
+      "trial_seed",
+      "treatment",
+      "detector",
+      "score_name",
+      "score_definition",
+      "score",
+      "success",
+      "best_period_days",
+      "runtime_seconds"
+    ],
+    "preservation": [
+      "run_id",
+      "config_hash",
+      "star_id",
+      "injection_id",
+      "treatment",
+      "depth_before",
+      "depth_after",
+      "depth_retention_fraction",
+      "snr_before",
+      "snr_after",
+      "snr_retention_fraction",
+      "in_transit_observation_count",
+      "template_hash",
+      "success"
+    ],
+    "treatment": [
+      "run_id",
+      "config_hash",
+      "star_id",
+      "treatment",
+      "success",
+      "runtime_seconds",
+      "diagnostics"
+    ]
+  },
+  "shard_id": null,
+  "shard_name": null,
+  "shard_row_end_1based": null,
+  "shard_row_start_1based": null
+}

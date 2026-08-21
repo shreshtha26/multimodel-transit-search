@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Iterable
 from html import escape
+import re
+import sqlite3
 
 import numpy as np
 import pandas as pd
@@ -29,7 +31,7 @@ from scipy.signal import lombscargle
 #   4. stationarity
 #   5. spectral structure
 #   6. periodicity / coherence
-#   7. variance evolution
+#   7. variability stability
 #
 # The diagnostic figures below are visual inspection aids derived from the same
 # selected light curve. The scalar values shown beside them come from the saved
@@ -42,6 +44,24 @@ PLOT_CONFIG = {
     "scrollZoom": True,
     "displaylogo": False,
     "responsive": True,
+}
+
+CORE_TREATMENTS = ("raw", "arima", "kalman", "gp")
+CORE_DETECTORS = ("bls", "tcf", "tps_like")
+CORE_PIPELINES = tuple(f"{treatment}_{detector}" for treatment in CORE_TREATMENTS for detector in CORE_DETECTORS)
+PIPELINE_LABELS = {
+    "raw_bls": "Raw + BLS",
+    "raw_tcf": "Raw + TCF",
+    "raw_tps_like": "Raw + TPS-like",
+    "arima_bls": "ARIMA + BLS",
+    "arima_tcf": "ARIMA + TCF",
+    "arima_tps_like": "ARIMA + TPS-like",
+    "kalman_bls": "Kalman + BLS",
+    "kalman_tcf": "Kalman + TCF",
+    "kalman_tps_like": "Kalman + TPS-like",
+    "gp_bls": "GP + BLS",
+    "gp_tcf": "GP + TCF",
+    "gp_tps_like": "GP + TPS-like",
 }
 
 CANONICAL_SCHEMA = [
@@ -167,7 +187,7 @@ CANONICAL_SCHEMA = [
     },
     {
         "domain": "variance_evolution",
-        "domain_label": "Variance evolution",
+        "domain_label": "Variability stability",
         "feature": "segment_scale_variability",
         "label": "Segment-scale variability",
         "source": "v2_segment_scale_relative_mad",
@@ -295,6 +315,70 @@ def _read_named_csv(
 ) -> tuple[pd.DataFrame, Path | None]:
     p = _find_named_file(repo_root, run_dir, names)
     return (_read_csv(p), p) if p is not None else (pd.DataFrame(), None)
+
+
+@st.cache_data(show_spinner=False)
+def _read_live_table(run_dir_text: str | None, table_name: str) -> pd.DataFrame:
+    if not run_dir_text:
+        return pd.DataFrame()
+    run_dir = Path(run_dir_text)
+    db_path = run_dir / "run_live.sqlite"
+    if db_path.exists():
+        try:
+            with sqlite3.connect(db_path) as connection:
+                return pd.read_sql_query(f'SELECT * FROM "{table_name}"', connection)
+        except Exception:
+            pass
+    return _read_csv(run_dir / f"{table_name}.csv")
+
+
+def _target_quarter_from_star_id(value) -> tuple[str, int | None]:
+    match = re.match(r"kic_([^_]+)_q(\d+)", str(value), flags=re.I)
+    if not match:
+        return _normalize_target_id(value), None
+    return _normalize_target_id(match.group(1)), int(match.group(2))
+
+
+def _attach_target_quarter(frame: pd.DataFrame, characterization: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    out = frame.copy()
+    if "target_id" not in out.columns:
+        if not characterization.empty and {"star_id", "target_id"}.issubset(characterization.columns):
+            keep = ["star_id", "target_id"] + (["quarter"] if "quarter" in characterization.columns else [])
+            out = out.merge(characterization[keep].drop_duplicates("star_id"), on="star_id", how="left")
+        elif "star_id" in out.columns:
+            parsed = out["star_id"].map(_target_quarter_from_star_id)
+            out["target_id"] = [item[0] for item in parsed]
+            if "quarter" not in out.columns:
+                out["quarter"] = [item[1] for item in parsed]
+    if "target_id" in out.columns:
+        out["target_id"] = out["target_id"].map(_normalize_target_id)
+    if "quarter" in out.columns:
+        out["quarter"] = pd.to_numeric(out["quarter"], errors="coerce").astype("Int64")
+    return out
+
+
+@st.cache_data(show_spinner=False)
+def load_live_benchmark_bundle(run_dir_text: str | None) -> dict:
+    characterization = _read_live_table(run_dir_text, "characterization")
+    detection = _read_live_table(run_dir_text, "detection")
+    injection = _read_live_table(run_dir_text, "injection")
+    status = _read_live_table(run_dir_text, "run_status")
+    thresholds = _read_live_table(run_dir_text, "fap_thresholds")
+
+    characterization = _canonicalize(characterization)
+    detection = _attach_target_quarter(detection, characterization)
+    injection = _attach_target_quarter(injection, characterization)
+    status = _attach_target_quarter(status, characterization)
+    thresholds = _attach_target_quarter(thresholds, characterization)
+    return {
+        "characterization": characterization,
+        "detection": detection,
+        "injection": injection,
+        "status": status,
+        "thresholds": thresholds,
+    }
 
 
 def _first_existing_column(df: pd.DataFrame, names: Iterable[str]) -> str | None:
@@ -761,6 +845,7 @@ def _interpretation_text(domain: str, features: pd.DataFrame, row: pd.Series, se
         label = _pretty_stationarity_state(row.get("stationarity_state", ""))
         adf = _num(row.get("original_adf_pvalue", np.nan))
         kpss = _num(row.get("original_kpss_pvalue", np.nan))
+        pp = _num(row.get("original_pp_pvalue", row.get("pp_pvalue", np.nan)))
 
         statements = []
         if np.isfinite(adf):
@@ -773,6 +858,11 @@ def _interpretation_text(domain: str, features: pd.DataFrame, row: pd.Series, se
                 statements.append(f"KPSS rejects stationarity (p={kpss:.2g})")
             else:
                 statements.append(f"KPSS does not reject stationarity (p={kpss:.2g})")
+        if np.isfinite(pp):
+            if pp < 0.05:
+                statements.append(f"PP rejects a unit root (p={pp:.2g})")
+            else:
+                statements.append(f"PP does not reject a unit root (p={pp:.2g})")
 
         if statements:
             return "; ".join(statements) + f" → {label.lower()}."
@@ -788,8 +878,10 @@ def _interpretation_text(domain: str, features: pd.DataFrame, row: pd.Series, se
     if domain == "periodicity":
         period = _num(row.get("dominant_period_days", np.nan))
         agreement = _num(row.get("period_agreement_error", np.nan))
+        acf_period = _num(row.get("v2_acf_period_candidate_days", row.get("acf_period_candidate_days", np.nan)))
         if np.isfinite(agreement):
-            return f"Dominant period = {period:.3g} d; harmonic-aware LS–ACF disagreement = {100*agreement:.1f}%. Lower disagreement means stronger cross-diagnostic agreement."
+            acf_text = f"; ACF-supported period = {acf_period:.3g} d" if np.isfinite(acf_period) else ""
+            return f"Dominant LS period = {period:.3g} d{acf_text}; harmonic-aware LS–ACF disagreement = {100*agreement:.1f}%. Lower disagreement means stronger cross-diagnostic agreement."
         return f"Dominant period = {period:.3g} d."
 
     if domain == "variance":
@@ -838,6 +930,24 @@ def _pairwise_acf(values: np.ndarray, max_lag: int = 700) -> tuple[np.ndarray, n
     return lags, acf
 
 
+def _acf_lag_table(time: np.ndarray, flux: np.ndarray, max_lag: int = 20) -> pd.DataFrame:
+    cadence = _median_cadence_days(time)
+    lags, acf = _pairwise_acf(flux, max_lag=max_lag)
+    if not lags.size:
+        return pd.DataFrame(columns=["Lag", "Lag days", "ACF", "Role"])
+    rows = []
+    for lag, value in zip(lags[1 : int(max_lag) + 1], acf[1 : int(max_lag) + 1]):
+        rows.append(
+            {
+                "Lag": int(lag),
+                "Lag days": float(lag * cadence) if np.isfinite(cadence) else np.nan,
+                "ACF": value,
+                "Role": "canonical" if int(lag) == 1 else "diagnostic",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _lomb_scargle_visual(
     time: np.ndarray,
     flux: np.ndarray,
@@ -873,6 +983,19 @@ def _lomb_scargle_visual(
     except Exception:
         return np.array([]), np.array([])
     return freq, np.asarray(power, dtype=float)
+
+
+def _spectral_peak_snr_diagnostic(time: np.ndarray, flux: np.ndarray) -> float:
+    _, power = _lomb_scargle_visual(time, flux)
+    finite = power[np.isfinite(power)]
+    if finite.size < 8:
+        return np.nan
+    med = float(np.median(finite))
+    scale = _robust_scale(finite)
+    peak = float(np.max(finite))
+    if not np.isfinite(scale) or scale <= 0:
+        return np.nan
+    return float((peak - med) / scale)
 
 
 def _segment_diagnostics(
@@ -943,13 +1066,13 @@ def _segment_diagnostics(
 
 def _format_value(value, feature: str) -> str:
     if pd.isna(value):
-        return "—"
+        return "--"
     meta = FEATURE_META[feature]
     if meta["kind"] == "categorical":
         return str(value)
     x = _num(value)
     if not np.isfinite(x):
-        return "—"
+        return "--"
     if feature == "robust_scatter":
         return f"{1e6*x:.0f} ppm" if abs(x) < 0.1 else f"{x:.4g}"
     if meta["unit"] == "days":
@@ -1116,6 +1239,7 @@ def _acf_figure(
     time: np.ndarray,
     flux: np.ndarray,
     row: pd.Series,
+    display_lag_count: int | None = 20,
 ) -> go.Figure | None:
     cadence = _median_cadence_days(time)
     lags, acf = _pairwise_acf(flux)
@@ -1145,17 +1269,10 @@ def _acf_figure(
         )
 
     full_max = float(np.nanmax(lag_days)) if lag_days.size else 1.0
-    # For short-memory stars, the informative structure is confined to the first
-    # few cadences. Start with a tight view; the Plotly autoscale/reset controls
-    # still expose the full computed lag range.
-    focus = min(
-        full_max,
-        max(
-            0.20,
-            8.0 * tau if np.isfinite(tau) else 0.20,
-            8.0 * cadence,
-        ),
-    )
+    if display_lag_count is None:
+        focus = full_max
+    else:
+        focus = min(full_max, max(float(display_lag_count) * cadence, cadence))
     fig.update_layout(title="Autocorrelation function")
     fig.update_xaxes(title="Lag (days)", range=[0, focus])
     fig.update_yaxes(title="Autocorrelation", range=[-0.15, 1.05])
@@ -1413,6 +1530,178 @@ def _recovery_figure(
     return fig
 
 
+def _pipeline_id(treatment, detector) -> str:
+    return f"{str(treatment)}_{str(detector)}"
+
+
+def _pipeline_label(pipeline: str) -> str:
+    return PIPELINE_LABELS.get(str(pipeline), str(pipeline).replace("_", " ").title())
+
+
+def _long_bool(frame: pd.DataFrame, column: str) -> pd.Series:
+    if column not in frame.columns:
+        return pd.Series(False, index=frame.index)
+    return frame[column].astype(str).str.lower().isin({"true", "1", "1.0"})
+
+
+def _star_pipeline_performance_table(
+    detection: pd.DataFrame,
+    injection: pd.DataFrame,
+    selected: str,
+) -> tuple[pd.DataFrame, str]:
+    columns = [
+        "pipeline",
+        "Treatment",
+        "Detector",
+        "Completed injections",
+        "Planned injections",
+        "Recovery (%)",
+        "Calibration",
+    ]
+    if detection.empty or "target_id" not in detection.columns:
+        rows = [
+            {
+                "pipeline": pipeline,
+                "Treatment": treatment.title() if treatment != "gp" else "GP",
+                "Detector": "TPS-like" if detector == "tps_like" else detector.upper(),
+                "Completed injections": 0,
+                "Planned injections": 0,
+                "Recovery (%)": np.nan,
+                "Calibration": "PROVISIONAL - NOT COMMON-FAP CALIBRATED",
+            }
+            for treatment in CORE_TREATMENTS
+            for detector in CORE_DETECTORS
+            for pipeline in [_pipeline_id(treatment, detector)]
+        ]
+        return pd.DataFrame(rows, columns=columns), "PROVISIONAL - NOT COMMON-FAP CALIBRATED"
+
+    det = detection.copy()
+    det["target_id"] = det["target_id"].map(_normalize_target_id)
+    det = det[det["target_id"].astype(str).eq(str(selected))]
+    if det.empty:
+        return pd.DataFrame(columns=columns), "PROVISIONAL - NOT COMMON-FAP CALIBRATED"
+
+    inj = injection.copy() if injection is not None else pd.DataFrame()
+    planned = 0
+    if not inj.empty and "target_id" in inj.columns:
+        inj["target_id"] = inj["target_id"].map(_normalize_target_id)
+        inj = inj[inj["target_id"].astype(str).eq(str(selected))]
+        if "injection_kind" in inj.columns:
+            inj = inj[inj["injection_kind"].astype(str).ne("native")]
+        elif "batman_used" in inj.columns:
+            inj = inj[_long_bool(inj, "batman_used")]
+        planned = int(inj["injection_id"].nunique()) if "injection_id" in inj.columns else int(len(inj))
+    if planned == 0 and "injection_id" in det.columns:
+        planned = int(det.loc[det["injection_id"].astype(str).ne("native_zero"), "injection_id"].nunique())
+
+    if "above_threshold" not in det.columns and "passes_fap" in det.columns:
+        det = det.rename(columns={"passes_fap": "above_threshold"})
+    calibrated = "above_threshold" in det.columns and det["above_threshold"].notna().any()
+    det["pipeline"] = det["treatment"].astype(str) + "_" + det["detector"].astype(str)
+    det["success_bool"] = _long_bool(det, "success")
+    det["harmonic_bool"] = _long_bool(det, "harmonic_recovery")
+    det["exact_bool"] = _long_bool(det, "exact_recovery")
+    det["threshold_bool"] = _long_bool(det, "above_threshold") if calibrated else True
+    det["recovered_bool"] = det["success_bool"] & (det["harmonic_bool"] | det["exact_bool"]) & det["threshold_bool"]
+
+    rows = []
+    for treatment in CORE_TREATMENTS:
+        for detector in CORE_DETECTORS:
+            pipeline = _pipeline_id(treatment, detector)
+            group = det[det["pipeline"].eq(pipeline)]
+            completed = int(group["injection_id"].nunique()) if "injection_id" in group.columns else int(len(group) > 0)
+            if group.empty or "injection_id" not in group.columns:
+                recovery = np.nan
+            else:
+                by_injection = group.groupby("injection_id", dropna=False)["recovered_bool"].max()
+                recovery = 100.0 * float(by_injection.mean()) if not by_injection.empty else np.nan
+            rows.append(
+                {
+                    "pipeline": pipeline,
+                    "Treatment": treatment.title() if treatment != "gp" else "GP",
+                    "Detector": "TPS-like" if detector == "tps_like" else detector.upper(),
+                    "Completed injections": completed,
+                    "Planned injections": planned,
+                    "Recovery (%)": recovery,
+                    "Calibration": "Common-FAP calibrated" if calibrated else "PROVISIONAL - NOT COMMON-FAP CALIBRATED",
+                }
+            )
+    label = "Common-FAP calibrated" if calibrated else "PROVISIONAL - NOT COMMON-FAP CALIBRATED"
+    return pd.DataFrame(rows, columns=columns), label
+
+
+def _pipeline_performance_figure(table: pd.DataFrame) -> go.Figure | None:
+    if table.empty:
+        return None
+    matrix = table.pivot(index="Treatment", columns="Detector", values="Recovery (%)")
+    treatment_order = ["Raw", "ARIMA", "Kalman", "GP"]
+    detector_order = ["BLS", "TCF", "TPS-like"]
+    matrix = matrix.reindex(index=treatment_order, columns=detector_order)
+    text = matrix.applymap(lambda x: "" if pd.isna(x) else f"{x:.1f}%")
+    fig = go.Figure(
+        go.Heatmap(
+            z=matrix.to_numpy(dtype=float),
+            x=list(matrix.columns),
+            y=list(matrix.index),
+            text=text.to_numpy(),
+            texttemplate="%{text}",
+            colorscale="Viridis",
+            zmin=0,
+            zmax=100,
+            colorbar=dict(title="Recovery %"),
+            hovertemplate="%{y} x %{x}<br>Recovery %{z:.1f}%<extra></extra>",
+        )
+    )
+    fig.update_layout(title="Per-star core pipeline recovery")
+    fig.update_xaxes(title="Detector")
+    fig.update_yaxes(title="Treatment")
+    return fig
+
+
+def _star_progress_table(status: pd.DataFrame, detection: pd.DataFrame, injection: pd.DataFrame, selected: str) -> pd.DataFrame:
+    rows = []
+    if not status.empty and "target_id" in status.columns:
+        s = status.copy()
+        s["target_id"] = s["target_id"].map(_normalize_target_id)
+        s = s[s["target_id"].astype(str).eq(str(selected))]
+        for stage, group in s.groupby("stage", dropna=False):
+            rows.append(
+                {
+                    "Stage": str(stage).replace("_", " ").title(),
+                    "Completed/recorded units": int(len(group)),
+                    "Latest status": str(group["status"].iloc[-1]) if "status" in group.columns and len(group) else "",
+                    "Last update": str(group["updated_at"].iloc[-1]) if "updated_at" in group.columns and len(group) else "",
+                }
+            )
+    if not any(row["Stage"] == "Detection" for row in rows) and not detection.empty and "target_id" in detection.columns:
+        det = detection.copy()
+        det["target_id"] = det["target_id"].map(_normalize_target_id)
+        det = det[det["target_id"].astype(str).eq(str(selected))]
+        if not det.empty:
+            rows.append(
+                {
+                    "Stage": "Detection",
+                    "Completed/recorded units": int(det[["injection_id", "treatment", "detector"]].drop_duplicates().shape[0]),
+                    "Latest status": "partial",
+                    "Last update": "",
+                }
+            )
+    if not any(row["Stage"] == "Injection" for row in rows) and not injection.empty and "target_id" in injection.columns:
+        inj = injection.copy()
+        inj["target_id"] = inj["target_id"].map(_normalize_target_id)
+        inj = inj[inj["target_id"].astype(str).eq(str(selected))]
+        if not inj.empty:
+            rows.append(
+                {
+                    "Stage": "Injection",
+                    "Completed/recorded units": int(inj["injection_id"].nunique()) if "injection_id" in inj.columns else int(len(inj)),
+                    "Latest status": "partial",
+                    "Last update": "",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 # -----------------------------------------------------------------------------
 # Scientific summary table
 # -----------------------------------------------------------------------------
@@ -1422,13 +1711,22 @@ def _selected_value(row: pd.Series, feature: str) -> str:
     return _format_value(row.get(feature, np.nan), feature)
 
 
-def _methods_table(row: pd.Series) -> pd.DataFrame:
+def _feature_percentile_text(features: pd.DataFrame, feature: str, selected: str) -> str:
+    meta = FEATURE_META[feature]
+    if meta["kind"] != "continuous":
+        return "n/a"
+    percentile = _population_percentile(features, feature, selected)
+    return f"{percentile:.1f}" if np.isfinite(percentile) else "Unavailable"
+
+
+def _methods_table(row: pd.Series, features: pd.DataFrame, selected: str) -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
                 "Domain": item["domain_label"],
                 "Variable": item["label"],
                 "Value": _selected_value(row, item["feature"]),
+                "Population percentile": _feature_percentile_text(features, item["feature"], selected),
                 "Definition / calculation": item["calculation"],
                 "Scientific use": item["rationale"],
             }
@@ -1437,9 +1735,9 @@ def _methods_table(row: pd.Series) -> pd.DataFrame:
     )
 
 
-def _render_methods_table(row: pd.Series):
+def _render_methods_table(row: pd.Series, features: pd.DataFrame, selected: str):
     """Wrapped HTML table: readable in a meeting without horizontal scrolling."""
-    df = _methods_table(row)
+    df = _methods_table(row, features, selected)
     header = "".join(f"<th>{escape(str(c))}</th>" for c in df.columns)
     body_rows = []
     for _, r in df.iterrows():
@@ -1451,11 +1749,12 @@ def _render_methods_table(row: pd.Series):
       table.characterization-methods {{width:100%; border-collapse:collapse; table-layout:fixed; font-size:.86rem; background:white;}}
       table.characterization-methods th {{text-align:left; background:#f5f7fa; color:#344258; border:1px solid #dbe3ec; padding:.62rem .65rem; vertical-align:top;}}
       table.characterization-methods td {{border:1px solid #e1e7ee; padding:.6rem .65rem; vertical-align:top; line-height:1.38; white-space:normal; overflow-wrap:anywhere;}}
-      table.characterization-methods th:nth-child(1), table.characterization-methods td:nth-child(1) {{width:14%;}}
-      table.characterization-methods th:nth-child(2), table.characterization-methods td:nth-child(2) {{width:15%;}}
+      table.characterization-methods th:nth-child(1), table.characterization-methods td:nth-child(1) {{width:13%;}}
+      table.characterization-methods th:nth-child(2), table.characterization-methods td:nth-child(2) {{width:14%;}}
       table.characterization-methods th:nth-child(3), table.characterization-methods td:nth-child(3) {{width:9%;}}
-      table.characterization-methods th:nth-child(4), table.characterization-methods td:nth-child(4) {{width:31%;}}
-      table.characterization-methods th:nth-child(5), table.characterization-methods td:nth-child(5) {{width:31%;}}
+      table.characterization-methods th:nth-child(4), table.characterization-methods td:nth-child(4) {{width:10%;}}
+      table.characterization-methods th:nth-child(5), table.characterization-methods td:nth-child(5) {{width:27%;}}
+      table.characterization-methods th:nth-child(6), table.characterization-methods td:nth-child(6) {{width:27%;}}
     </style>
     <div class="characterization-methods-wrap">
       <table class="characterization-methods">
@@ -1498,7 +1797,16 @@ def render_characterization_v2_page(
         str(repo_root),
         str(run_dir) if run_dir is not None else None,
     )
+    live_bundle = load_live_benchmark_bundle(str(run_dir) if run_dir is not None else None)
     features = bundle["canonical"].copy()
+    live_features = live_bundle["characterization"].copy()
+    if not live_features.empty:
+        if features.empty:
+            features = live_features
+        elif "target_id" in features.columns and "target_id" in live_features.columns:
+            features = pd.concat([live_features, features], ignore_index=True, sort=False)
+            subset = ["target_id"] + (["quarter"] if "quarter" in features.columns else [])
+            features = features.drop_duplicates(subset=subset, keep="first").reset_index(drop=True)
 
     if features.empty or "target_id" not in features.columns:
         st.error(
@@ -1648,7 +1956,8 @@ def render_characterization_v2_page(
         else _format_value(row.get("acf_timescale_days", np.nan), "acf_timescale_days")
     )
 
-    m1, m2, m3, m4 = st.columns(4)
+    m0, m1, m2, m3, m4 = st.columns(5)
+    m0.metric("Star ID", f"KIC {selected}")
     m1.metric(amplitude_title, amplitude_value)
     m2.metric(memory_title, memory_value)
     m3.metric("Stationarity", stationarity_label)
@@ -1659,6 +1968,16 @@ def render_characterization_v2_page(
         + ". Population/behaviour labels are descriptive screening aids; "
         "review flags are not astrophysical classifications."
     )
+
+    progress_table = _star_progress_table(
+        live_bundle["status"],
+        live_bundle["detection"],
+        live_bundle["injection"],
+        selected,
+    )
+    if not progress_table.empty:
+        st.markdown("## Live completion state")
+        st.dataframe(progress_table, hide_index=True, use_container_width=True)
 
     light_curve = _load_light_curve(
         str(repo_root),
@@ -1713,7 +2032,25 @@ def render_characterization_v2_page(
     with c3:
         st.markdown("### 3. Autocorrelation / memory")
         st.caption("How strongly does one cadence predict the next, and how quickly does that memory decay?")
-        _show_plot(_acf_figure(time, flux, row) if time.size else None, height=345, key=f"acf_{selected}")
+        lag_window = st.radio(
+            "ACF lag window",
+            ["20", "10", "50", "Full"],
+            horizontal=True,
+            key=f"acf_lag_window_{selected}",
+        )
+        lag_count = None if lag_window == "Full" else int(lag_window)
+        _show_plot(_acf_figure(time, flux, row, display_lag_count=lag_count) if time.size else None, height=345, key=f"acf_{selected}")
+        lag_table = _acf_lag_table(time, flux, max_lag=50 if lag_count is None else lag_count) if time.size else pd.DataFrame()
+        if not lag_table.empty:
+            st.dataframe(
+                lag_table,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Lag days": st.column_config.NumberColumn(format="%.5f"),
+                    "ACF": st.column_config.NumberColumn(format="%.4f"),
+                },
+            )
         st.caption("**Interpretation:** " + _interpretation_text("acf", features, row, selected, cadence))
 
     with c4:
@@ -1727,6 +2064,9 @@ def render_characterization_v2_page(
         st.markdown("### 5. Spectral structure")
         st.caption("Where is the variability power concentrated in period space, and is there harmonic support?")
         _show_plot(_spectral_figure(time, flux, row) if time.size else None, height=355, key=f"spectral_{selected}")
+        spectral_snr = _spectral_peak_snr_diagnostic(time, flux) if time.size else np.nan
+        if np.isfinite(spectral_snr):
+            st.caption(f"Diagnostic only: robust Lomb-Scargle peak prominence/SNR = {spectral_snr:.2f}.")
         st.caption("**Interpretation:** " + _interpretation_text("spectral", features, row, selected, cadence))
 
     with c6:
@@ -1735,7 +2075,7 @@ def render_characterization_v2_page(
         _show_plot(_phase_fold_figure(time, flux, row) if time.size else None, height=355, key=f"periodicity_{selected}")
         st.caption("**Interpretation:** " + _interpretation_text("periodicity", features, row, selected, cadence))
 
-    st.markdown("### 7. Variance evolution")
+    st.markdown("### 7. Variability stability")
     st.caption("Does the local variability amplitude remain stable through the quarter?")
     _show_plot(_variance_evolution_figure(segments, row), height=330, key=f"variance_evolution_{selected}")
     st.caption("**Interpretation:** " + _interpretation_text("variance", features, row, selected, cadence))
@@ -1747,10 +2087,38 @@ def render_characterization_v2_page(
     st.caption(
         "The eleven retained variables. The table gives the selected-star value, exact operational definition and why each statistic is scientifically useful."
     )
-    _render_methods_table(row)
+    _render_methods_table(row, features, selected)
 
     # ------------------------------------------------------------------
-    # Scientific bridge back to transit recovery — figure only.
+    # Per-star live pipeline performance.
+    # ------------------------------------------------------------------
+    performance_table, calibration_label = _star_pipeline_performance_table(
+        live_bundle["detection"],
+        live_bundle["injection"],
+        selected,
+    )
+    if not performance_table.empty:
+        st.markdown("## Per-star pipeline performance")
+        if calibration_label != "Common-FAP calibrated":
+            st.warning("PROVISIONAL - NOT COMMON-FAP CALIBRATED")
+        else:
+            st.caption("Common-FAP calibrated recovery for the selected star.")
+        _show_plot(
+            _pipeline_performance_figure(performance_table),
+            height=360,
+            key=f"pipeline_performance_{selected}",
+        )
+        st.dataframe(
+            performance_table.drop(columns=["pipeline"]),
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Recovery (%)": st.column_config.NumberColumn(format="%.1f"),
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # Scientific bridge back to legacy transit recovery — figure only.
     # ------------------------------------------------------------------
     if injections is not None and not injections.empty and pipelines and metric_suffix:
         st.markdown("## Characterisation and recovery")
@@ -1762,4 +2130,3 @@ def render_characterization_v2_page(
             height=370,
             key=f"recovery_{selected}",
         )
-

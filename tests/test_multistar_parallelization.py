@@ -18,10 +18,27 @@ def load_script(name, path):
 def test_challenger_defaults_include_symmetric_pipelines():
     runner = load_script("run_multistar_challenger_benchmark_parallel", "scripts/run_multistar_challenger_benchmark.py")
     args = runner.default_settings("main")
-    assert args.pipelines == ("raw_bls", "raw_tcf", "arima_bls", "arima_tcf", "kalman_bls", "kalman_tcf", "gp_bls", "gp_tcf")
+    assert args.pipelines == runner.DEFAULT_PIPELINES
+    assert set(args.pipelines) == {
+        f"{branch}_{detector}"
+        for branch in runner.BRANCHES
+        for detector in runner.CORE_DETECTORS
+    }
+    for branch in runner.BRANCHES:
+        for detector in runner.CORE_DETECTORS:
+            assert f"{branch}_{detector}" in args.pipelines
+        for detector in runner.CHALLENGER_DETECTORS:
+            assert f"{branch}_{detector}" in runner.PIPELINE_DEFINITIONS
+            assert f"{branch}_{detector}" not in args.pipelines
     assert args.reserve_cpu_cores == 2
     assert args.checkpoint_interval == 5
     assert args.prefetch_workers == 4
+
+def test_legacy_challenger_cli_defaults_to_smoke_not_50_star_surface():
+    runner = load_script("run_multistar_challenger_benchmark_default_profile", "scripts/run_multistar_challenger_benchmark.py")
+    args = runner.parse_args([])
+    assert args.profile == "smoke"
+    assert args.target_limit == 2
 
 def test_challenger_worker_count_leaves_two_cores(monkeypatch):
     runner = load_script("run_multistar_challenger_benchmark_cpu", "scripts/run_multistar_challenger_benchmark.py")
@@ -97,3 +114,57 @@ def test_calibration_inherits_saved_benchmark_resolution(tmp_path):
     assert calibration_args.pipelines == args.pipelines
     assert calibration_args.kalman_injection_mode == "filter"
     assert calibration_args.gp_injection_mode == "filter"
+
+def test_detector_registry_adapts_tls_schema(monkeypatch):
+    runner = load_script("run_multistar_challenger_benchmark_tls_registry", "scripts/run_multistar_challenger_benchmark.py")
+    import numpy as np
+    import pandas as pd
+
+    def fake_tls(time, flux, **kwargs):
+        return {
+            "summary": {
+                "period_days": 3.0,
+                "duration_days": 0.2,
+                "epoch_days": 1.0,
+                "sde": 9.0,
+                "snr": 7.0,
+                "depth_raw": 0.001,
+                "n_observations": int(np.isfinite(flux).sum()),
+            },
+            "periodogram": pd.DataFrame({"period_days": [2.0, 3.0, 4.0, 5.0, 6.0], "power": [1.0, 5.0, 1.0, 4.0, 1.0]}),
+            "raw_result": object(),
+        }
+
+    monkeypatch.setattr(runner, "run_tls", fake_tls)
+    args = vars(runner.default_settings("smoke"))
+    time = np.linspace(0.0, 20.0, 500)
+    flux = np.zeros(time.size)
+    result = runner.run_detector_search("tls", time, flux, np.linspace(1.0, 5.0, 50), np.array([0.2]), args)
+    assert result["summary"]["score"] == 9.0
+    assert list(result["top_peaks"]["rank"]) == [1, 2]
+    fields = runner.detector_result_fields("raw_tls", result, "tls", 3.0, args, 0.1)
+    assert fields["raw_tls_score"] == 9.0
+    assert fields["raw_tls_tls_snr"] == 7.0
+    assert fields["raw_tls_harmonic_rank1_matched"]
+
+def test_detector_registry_runs_tps_like_on_segment_grid():
+    runner = load_script("run_multistar_challenger_benchmark_tps_registry", "scripts/run_multistar_challenger_benchmark.py")
+    import numpy as np
+
+    args = vars(runner.default_settings("smoke"))
+    args.update({
+        "min_period_days": 1.0,
+        "max_period_days": 4.0,
+        "top_k": 3,
+        "tps_max_wavelet_level": 3,
+        "tps_noise_window_cadences": 31,
+        "tps_min_segment_cadences": 32,
+        "min_transit_events": 2,
+    })
+    time = np.arange(0.0, 12.0, 0.1)
+    flux = np.zeros(time.size)
+    flux[np.arange(5, time.size, 20)] = -0.01
+    segment_id = np.zeros(time.size, dtype=int)
+    result = runner.run_detector_search("tps_like", time, flux, np.linspace(1.0, 4.0, 20), np.array([0.2]), args, segment_id=segment_id)
+    assert result["summary"]["score"] == result["summary"]["mes"]
+    assert {"period_days", "mes", "score"}.issubset(result["top_peaks"].columns)

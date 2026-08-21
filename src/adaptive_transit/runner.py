@@ -9,6 +9,7 @@ from typing import Callable, Mapping
 
 import numpy as np
 import pandas as pd
+from tqdm.auto import tqdm
 
 from adaptive_transit.config import AdaptiveTransitConfig
 from adaptive_transit.core import LightCurve, stable_seed
@@ -20,13 +21,20 @@ from adaptive_transit.injection_plan import InjectionCase, build_injection_cases
 from adaptive_transit.noise_models.characterization import characterize_light_curve
 from adaptive_transit.noise_models.stellar_variability import CANONICAL_CHARACTERIZATION_COLUMNS, V2_FREEZE_ID
 from adaptive_transit.preservation import preservation_row
-from adaptive_transit.schemas import DetectionResult, assert_long_schema, diagnostics_json, finite_or_none
+from adaptive_transit.schemas import (
+    DetectionResult,
+    LONG_TABLE_SCHEMAS,
+    assert_long_schema,
+    diagnostics_json,
+    finite_or_none,
+)
 from adaptive_transit.treatments import BACKGROUND_MODELS, BackgroundTreatment, make_background_treatment
 
 
 @dataclass(frozen=True)
 class RunnerResult:
     characterization: pd.DataFrame
+    treatment: pd.DataFrame
     injection: pd.DataFrame
     preservation: pd.DataFrame
     detection: pd.DataFrame
@@ -101,6 +109,58 @@ class UnifiedPipelineRunner:
             "top_k": self.config.top_k,
         }
 
+    def _all_detection_scores_completed(
+        self,
+        progress_store,
+        *,
+        run_id: str,
+        star_id: str,
+        injection_id: str,
+        treatment: str,
+        detector_name: str,
+    ) -> bool:
+        if progress_store is None:
+            return False
+        detector = self.detector_registry[detector_name]
+        params = self.detector_parameters(detector_name)
+        for score_definition in detector.active_score_definitions(params):
+            if not progress_store.has_key(
+                "detection",
+                {
+                    "run_id": run_id,
+                    "config_hash": self.config_hash,
+                    "star_id": star_id,
+                    "injection_id": injection_id,
+                    "treatment": treatment,
+                    "detector": detector_name,
+                    "score_definition": str(score_definition),
+                },
+            ):
+                return False
+        return True
+
+    def _null_trial_completed(self, progress_store, *, run_id: str, star_id: str, trial: int) -> bool:
+        if progress_store is None:
+            return False
+        for spec in self.config.active_combinations:
+            detector = self.detector_registry[spec.detector]
+            params = self.detector_parameters(spec.detector)
+            for score_definition in detector.active_score_definitions(params):
+                if not progress_store.has_key(
+                    "null_score",
+                    {
+                        "run_id": run_id,
+                        "config_hash": self.config_hash,
+                        "star_id": star_id,
+                        "trial": int(trial),
+                        "treatment": spec.treatment,
+                        "detector": spec.detector,
+                        "score_definition": str(score_definition),
+                    },
+                ):
+                    return False
+        return True
+
     def characterize_native(self, *, run_id: str, star_id: str, target_id: str, quarter: int, native: LightCurve) -> dict:
         record = self.characterizer(
             native.time,
@@ -166,12 +226,12 @@ class UnifiedPipelineRunner:
         native: LightCurve,
         injection_cases: tuple[InjectionCase, ...] | None = None,
         thresholds: pd.DataFrame | None = None,
+        progress_store=None,
+        progress_callback: Callable[[dict], None] | None = None,
+        show_progress: bool = False,
     ) -> RunnerResult:
         period_grid = self.period_grid(native)
         duration_grid = self.duration_grid()
-        treatment_models = self.fit_native_treatments(native)
-        native_treated = self.native_treatment_results(native, treatment_models)
-        base_detector_caches = self.base_detector_caches(native_treated)
         characterization_rows = [
             self.characterize_native(
                 run_id=run_id,
@@ -181,31 +241,83 @@ class UnifiedPipelineRunner:
                 native=native,
             )
         ]
+        if progress_store is not None:
+            progress_store.upsert_rows("characterization", characterization_rows)
+            progress_store.record_status(
+                run_id=run_id,
+                config_hash=self.config_hash,
+                star_id=star_id,
+                stage="characterization",
+                status="complete",
+            )
+        treatment_models = self.fit_native_treatments(native)
+        native_treated = self.native_treatment_results(native, treatment_models)
+        treatment_rows: list[dict] = []
+        for treatment_name, result in native_treated.items():
+            treatment_row = {
+                "run_id": run_id,
+                "config_hash": self.config_hash,
+                "star_id": star_id,
+                "treatment": treatment_name,
+                "success": bool(result.success),
+                "runtime_seconds": result.runtime_seconds,
+                "diagnostics": diagnostics_json(result.diagnostics),
+            }
+            treatment_rows.append(treatment_row)
+            if progress_store is not None:
+                progress_store.upsert_row("treatment", treatment_row)
+                progress_store.record_status(
+                    run_id=run_id,
+                    config_hash=self.config_hash,
+                    star_id=star_id,
+                    stage="treatment",
+                    treatment=treatment_name,
+                    status="complete" if result.success else "failed",
+                    runtime_seconds=result.runtime_seconds,
+                )
+        base_detector_caches = self.base_detector_caches(native_treated)
+        cases_to_run = tuple(injection_cases or self.default_injection_cases())
         injection_rows: list[dict] = []
         preservation_rows: list[dict] = []
         detection_rows: list[dict] = []
+        pipeline_progress = None
+        if show_progress:
+            pipeline_progress = tqdm(
+                total=len(cases_to_run) * len(self.config.active_combinations),
+                desc="Pipeline searches",
+                leave=False,
+            )
 
-        for case in injection_cases or self.default_injection_cases():
+        for case_index, case in enumerate(cases_to_run, start=1):
             realization = realize_injection(native, case)
             case = realization.case
-            injection_rows.append(
-                {
-                    "run_id": run_id,
-                    "config_hash": self.config_hash,
-                    "star_id": star_id,
-                    "injection_id": case.injection_id,
-                    "injection_kind": case.kind,
-                    "period_days": case.period_days,
-                    "epoch_days": case.epoch_days,
-                    "duration_days": case.duration_days,
-                    "depth": case.depth,
-                    "epoch_phase_fraction": case.epoch_phase_fraction,
-                    "batman_used": bool(realization.batman_used),
-                    "seed": case.seed,
-                    "template_hash": realization.template_hash,
-                    "success": True,
-                }
-            )
+            injection_row = {
+                "run_id": run_id,
+                "config_hash": self.config_hash,
+                "star_id": star_id,
+                "injection_id": case.injection_id,
+                "injection_kind": case.kind,
+                "period_days": case.period_days,
+                "epoch_days": case.epoch_days,
+                "duration_days": case.duration_days,
+                "depth": case.depth,
+                "epoch_phase_fraction": case.epoch_phase_fraction,
+                "batman_used": bool(realization.batman_used),
+                "seed": case.seed,
+                "template_hash": realization.template_hash,
+                "success": True,
+            }
+            injection_rows.append(injection_row)
+            if progress_store is not None:
+                progress_store.upsert_row("injection", injection_row)
+                progress_store.record_status(
+                    run_id=run_id,
+                    config_hash=self.config_hash,
+                    star_id=star_id,
+                    stage="injection",
+                    injection_id=case.injection_id,
+                    status="complete",
+                )
 
             treatment_results = {}
             for treatment_name, treatment in treatment_models.items():
@@ -223,8 +335,57 @@ class UnifiedPipelineRunner:
                 )
                 row["template_hash"] = realization.template_hash
                 preservation_rows.append(row)
+                if progress_store is not None:
+                    progress_store.upsert_row("preservation", row)
+                    progress_store.record_status(
+                        run_id=run_id,
+                        config_hash=self.config_hash,
+                        star_id=star_id,
+                        stage="preservation",
+                        injection_id=case.injection_id,
+                        treatment=treatment_name,
+                        status="complete",
+                    )
 
             for spec in self.config.active_combinations:
+                if progress_callback is not None:
+                    progress_callback(
+                        {
+                            "stage": "detection",
+                            "star_id": star_id,
+                            "injection_id": case.injection_id,
+                            "injection_index": int(case_index),
+                            "injection_total": int(len(cases_to_run)),
+                            "treatment": spec.treatment,
+                            "detector": spec.detector,
+                        }
+                    )
+                if pipeline_progress is not None:
+                    pipeline_progress.set_postfix_str(
+                        f"Current: {case.injection_id} x {spec.treatment} x {spec.detector}",
+                        refresh=False,
+                    )
+                if self._all_detection_scores_completed(
+                    progress_store,
+                    run_id=run_id,
+                    star_id=star_id,
+                    injection_id=case.injection_id,
+                    treatment=spec.treatment,
+                    detector_name=spec.detector,
+                ):
+                    progress_store.record_status(
+                        run_id=run_id,
+                        config_hash=self.config_hash,
+                        star_id=star_id,
+                        stage="detection",
+                        injection_id=case.injection_id,
+                        treatment=spec.treatment,
+                        detector=spec.detector,
+                        status="skipped_existing",
+                    )
+                    if pipeline_progress is not None:
+                        pipeline_progress.update(1)
+                    continue
                 treatment_result = treatment_results[spec.treatment]
                 detector = self.detector_registry[spec.detector]
                 params = self.detector_parameters(spec.detector)
@@ -292,8 +453,7 @@ class UnifiedPipelineRunner:
                     )
                     threshold = lookup_threshold(thresholds, key)
                     fap_fields = calibrated_detection_fields(score, threshold)
-                    detection_rows.append(
-                        {
+                    detection_row = {
                             "run_id": run_id,
                             "config_hash": self.config_hash,
                             "star_id": star_id,
@@ -319,16 +479,43 @@ class UnifiedPipelineRunner:
                             "runtime_seconds": result.runtime_seconds,
                             "diagnostics": diagnostics_json(result.diagnostics),
                         }
+                    detection_rows.append(detection_row)
+                if progress_store is not None:
+                    just_written = [
+                        row
+                        for row in detection_rows
+                        if row["injection_id"] == case.injection_id
+                        and row["treatment"] == spec.treatment
+                        and row["detector"] == spec.detector
+                    ]
+                    progress_store.upsert_rows("detection", just_written)
+                    progress_store.record_status(
+                        run_id=run_id,
+                        config_hash=self.config_hash,
+                        star_id=star_id,
+                        stage="detection",
+                        injection_id=case.injection_id,
+                        treatment=spec.treatment,
+                        detector=spec.detector,
+                        status="complete" if result.success else "failed",
+                        runtime_seconds=result.runtime_seconds,
+                        error=result.diagnostics.get("error", ""),
                     )
+                if pipeline_progress is not None:
+                    pipeline_progress.update(1)
+        if pipeline_progress is not None:
+            pipeline_progress.close()
 
         frames = RunnerResult(
-            characterization=pd.DataFrame(characterization_rows),
-            injection=pd.DataFrame(injection_rows),
-            preservation=pd.DataFrame(preservation_rows),
-            detection=pd.DataFrame(detection_rows),
+            characterization=pd.DataFrame(characterization_rows, columns=LONG_TABLE_SCHEMAS["characterization"]),
+            treatment=pd.DataFrame(treatment_rows, columns=LONG_TABLE_SCHEMAS["treatment"]),
+            injection=pd.DataFrame(injection_rows, columns=LONG_TABLE_SCHEMAS["injection"]),
+            preservation=pd.DataFrame(preservation_rows, columns=LONG_TABLE_SCHEMAS["preservation"]),
+            detection=pd.DataFrame(detection_rows, columns=LONG_TABLE_SCHEMAS["detection"]),
         )
         for name, frame in (
             ("characterization", frames.characterization),
+            ("treatment", frames.treatment),
             ("injection", frames.injection),
             ("preservation", frames.preservation),
             ("detection", frames.detection),
@@ -343,6 +530,9 @@ class UnifiedPipelineRunner:
         star_id: str,
         native: LightCurve,
         n_trials: int,
+        progress_store=None,
+        progress_callback: Callable[[dict], None] | None = None,
+        show_progress: bool = False,
     ) -> pd.DataFrame:
         """Run moving-block native-background null trials through the same grid."""
 
@@ -353,9 +543,36 @@ class UnifiedPipelineRunner:
         base_detector_caches = self.base_detector_caches(native_treated)
         rows: list[dict] = []
 
-        for trial in range(int(n_trials)):
+        iterator = range(int(n_trials))
+        if show_progress:
+            iterator = tqdm(iterator, desc="Null trials", leave=False)
+        for trial in iterator:
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "stage": "null_trial",
+                        "star_id": star_id,
+                        "trial_index": int(trial) + 1,
+                        "trial_total": int(n_trials),
+                    }
+                )
+            if show_progress:
+                iterator.set_postfix_str(f"{star_id} trial {int(trial) + 1}/{int(n_trials)}", refresh=False)
+            if self._null_trial_completed(progress_store, run_id=run_id, star_id=star_id, trial=int(trial)):
+                if progress_store is not None:
+                    progress_store.record_status(
+                        run_id=run_id,
+                        config_hash=self.config_hash,
+                        star_id=star_id,
+                        stage="null_trial",
+                        null_trial=int(trial),
+                        status="skipped_existing",
+                    )
+                continue
             seed = stable_seed(self.config.null_generation_seed, star_id, trial)
             trial_rng = np.random.default_rng(int(seed))
+            trial_rows: list[dict] = []
+            trial_started = perf_counter()
             for treatment_name, treatment_result in native_treated.items():
                 surrogate_flux = moving_block_surrogate(
                     treatment_result.lightcurve.flux,
@@ -382,7 +599,7 @@ class UnifiedPipelineRunner:
                         score_records = detector.score_records(result)
                         for score_record in score_records:
                             score_definition = str(score_record["score_definition"])
-                            rows.append(
+                            trial_rows.append(
                                 {
                                     "run_id": run_id,
                                     "config_hash": self.config_hash,
@@ -398,10 +615,10 @@ class UnifiedPipelineRunner:
                                     "best_period_days": finite_or_none(score_record.get("best_period_days")),
                                     "runtime_seconds": result.runtime_seconds,
                                 }
-                        )
+                            )
                     except Exception as exc:
                         for score_definition in detector.active_score_definitions(params):
-                            rows.append(
+                            trial_rows.append(
                                 {
                                     "run_id": run_id,
                                     "config_hash": self.config_hash,
@@ -419,6 +636,24 @@ class UnifiedPipelineRunner:
                                     "error": f"{type(exc).__name__}: {exc}",
                                 }
                             )
-        frame = pd.DataFrame(rows)
+            rows.extend(trial_rows)
+            if progress_store is not None:
+                progress_store.upsert_rows("null_score", trial_rows)
+                failed = [
+                    row
+                    for row in trial_rows
+                    if str(row.get("success", "")).lower() not in {"true", "1", "1.0"}
+                ]
+                progress_store.record_status(
+                    run_id=run_id,
+                    config_hash=self.config_hash,
+                    star_id=star_id,
+                    stage="null_trial",
+                    null_trial=int(trial),
+                    status="complete" if not failed else "partial_failure",
+                    runtime_seconds=float(perf_counter() - trial_started),
+                    error="; ".join(str(row.get("error", "")) for row in failed[:3]),
+                )
+        frame = pd.DataFrame(rows, columns=LONG_TABLE_SCHEMAS["null_score"])
         assert_long_schema(frame, "null_score")
         return frame

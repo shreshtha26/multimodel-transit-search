@@ -14,8 +14,10 @@ CONFIG_ROOT = PROJECT_ROOT / "configs"
 OUTPUT_ROOT = PROJECT_ROOT / "outputs/experiments/adaptive_transit"
 
 ACTIVE_TREATMENTS = ("raw", "arima", "kalman", "gp")
-ACTIVE_DETECTORS = ("bls", "tls", "trapezoid", "tps_like")
+ACTIVE_DETECTORS = ("bls", "tcf", "tps_like")
+CHALLENGER_DETECTORS = ("tls", "trapezoid")
 ACTIVE_SCIENTIFIC_BENCHMARKS = ("benchmark100", "benchmark1000")
+EXPLORATORY_PROFILES = ("demo50",)
 LEGACY_NONSCIENTIFIC_PROFILES = ("main50", "pilot10", "pilot5", "pilot1", "main", "pilot")
 
 
@@ -127,6 +129,22 @@ def benchmark_profile(name: str) -> AdaptiveTransitConfig:
                 "random_clean_q5_population_expansion",
             ),
         )
+    if profile == "demo50":
+        return AdaptiveTransitConfig(
+            profile=profile,
+            manifest_path=CONFIG_ROOT / "kepler_clean_background_manifest.csv",
+            output_dir=OUTPUT_ROOT / "demo50",
+            target_limit=50,
+            strict_target_count=True,
+            allowed_selection_groups=("catalog_clean_background",),
+            injection_period_grid=(5.0,),
+            injection_duration_hours_grid=(4.0,),
+            injection_depth_grid=(0.0002, 0.0005, 0.001),
+            epoch_phase_fraction_grid=(0.45,),
+            include_native_zero_injection=False,
+            n_periods=3000,
+            top_k=5,
+        )
     if profile == "smoke":
         return AdaptiveTransitConfig(
             profile=profile,
@@ -148,7 +166,7 @@ def benchmark_profile(name: str) -> AdaptiveTransitConfig:
             allowed_selection_groups=("random_clean_q5_unstratified",),
         )
     raise ValueError(
-        "profile must be benchmark100, benchmark1000, or smoke. "
+        "profile must be benchmark100, benchmark1000, demo50, or smoke. "
         "Legacy main50/pilot profiles are not active scientific benchmarks."
     )
 

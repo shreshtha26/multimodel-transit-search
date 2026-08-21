@@ -1,0 +1,97 @@
+/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/lightkurve/prf/__init__.py:7: UserWarning: Warning: the tpfmodel submodule is not available without oktopus installed, which requires a current version of autograd. See #1452 for details.
+  warnings.warn(
+
+[A
+Star: -/-[A
+
+[A[A
+
+Null trial: -/-[A[AStars:   0%|          | 0/5 [00:00<?, ?it/s] 
+Star: 1/5[A
+
+Null trial: -/-[A[A
+
+Null trial: data_fetch cache_hit[A[A/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals
+  warnings.warn("Maximum Likelihood optimization failed to "
+
+
+Null trial: 1/100               [A[A
+
+Null trial: 2/100[A[A
+
+Null trial: 3/100[A[A
+
+Null trial: 4/100[A[A
+
+Null trial: 5/100[A[A
+
+Null trial: 6/100[A[A
+
+Null trial: 7/100[A[A
+
+Null trial: 8/100[A[A
+
+Null trial: 9/100[A[A
+
+Null trial: 10/100[A[A
+
+Null trial: 11/100[A[A
+
+Null trial: 12/100[A[A
+
+Null trial: 13/100[A[A
+
+Null trial: 14/100[A[A
+
+Null trial: 15/100[A[A
+
+Null trial: 16/100[A[A
+
+Null trial: 17/100[A[A
+
+Null trial: 18/100[A[A
+
+Null trial: 19/100[A[A
+
+Null trial: 20/100[A[AStars:   0%|          | 0/5 [22:07<?, ?it/s] 
+
+
+                  [A[A
+         [ATraceback (most recent call last):
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/scripts/run_adaptive_transit_benchmark.py", line 1063, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/scripts/run_adaptive_transit_benchmark.py", line 1017, in main
+    runner.run_null_scores(
+    ~~~~~~~~~~~~~~~~~~~~~~^
+        run_id=run_id,
+        ^^^^^^^^^^^^^^
+    ...<5 lines>...
+        show_progress=False,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/src/adaptive_transit/runner.py", line 598, in run_null_scores
+    result = detector.search(surrogate, context)
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/src/adaptive_transit/detectors.py", line 390, in search
+    hardened = harden_tps_like_result(result, lightcurve.time, lightcurve.flux)
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/src/adaptive_transit/detection/tps_like_hardening.py", line 918, in harden_tps_like_result
+    candidates = standardize_candidate_table(
+        result.get("periodogram"),
+    ...<4 lines>...
+        duplicate_phase_duration_factor=config.duplicate_phase_duration_factor,
+    )
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/src/adaptive_transit/detection/tps_like_hardening.py", line 304, in standardize_candidate_table
+    candidate = _candidate_from_record(record, time)
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/src/adaptive_transit/detection/tps_like_hardening.py", line 127, in _candidate_from_record
+    cadence_days = _median_cadence_days(time)
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/src/adaptive_transit/detection/tps_like_hardening.py", line 118, in _median_cadence_days
+    finite = np.unique(finite[np.isfinite(finite)])
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/numpy/lib/_arraysetops_impl.py", line 296, in unique
+    ret = _unique1d(ar, return_index, return_inverse, return_counts,
+                    equal_nan=equal_nan, inverse_shape=ar.shape, axis=None,
+                    sorted=sorted)
+  File "/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/numpy/lib/_arraysetops_impl.py", line 385, in _unique1d
+    ar.sort()
+    ~~~~~~~^^
+KeyboardInterrupt

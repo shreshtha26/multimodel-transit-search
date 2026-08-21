@@ -24,7 +24,7 @@ from adaptive_transit.detection.false_alarm import moving_block_surrogate
 from adaptive_transit.detection.tcf import default_duration_grid, default_period_grid
 from adaptive_transit.noise_models.kalman import fit_kalman_local_level
 from adaptive_transit.preprocessing.normalization import preprocess_pdcsap_light_curve
-from scripts.run_multistar_challenger_benchmark import DEFAULT_PIPELINES, PIPELINE_DEFINITIONS, TQDM_BAR_FORMAT, apply_search_resolution, config_signature, default_settings, fit_gp, json_ready, lag_one_acf, load_light_curve_frame, load_manifest, load_or_fit_base_arima, normalize_target_id, robust_scale, run_bls_search, run_tcf_search, star_prefix
+from scripts.run_multistar_challenger_benchmark import DEFAULT_PIPELINES, PIPELINE_DEFINITIONS, TQDM_BAR_FORMAT, apply_search_resolution, config_signature, default_settings, detector_summary_duration_hours, detector_summary_epoch_days, detector_summary_period_days, detector_summary_score, fit_gp, json_ready, lag_one_acf, load_light_curve_frame, load_manifest, load_or_fit_base_arima, normalize_target_id, prepare_branch_detector_caches, run_detector_search, star_prefix
 BACKGROUND_FEATURE_PATH = PROJECT_ROOT / "outputs/experiments/multistar_background_timescale/metrics/multistar_background_timescale_features.csv"
 
 def parse_pipelines(value):
@@ -53,7 +53,7 @@ def apply_saved_benchmark_config(args):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Calibrate per-star FAP thresholds for the multi-star challenger benchmark.")
-    parser.add_argument("--profile", choices=("pilot", "main", "smoke"), default="pilot")
+    parser.add_argument("--profile", choices=("pilot", "main", "smoke"), default="smoke")
     parser.add_argument("--benchmark-dir", type=Path)
     parser.add_argument("--background-feature-path", type=Path, default=BACKGROUND_FEATURE_PATH)
     parser.add_argument("--n-null-trials-per-star", type=int, default=100)
@@ -66,6 +66,12 @@ def parse_args(argv=None):
     parser.add_argument("--progress-interval", type=int)
     parser.add_argument("--pipelines", type=parse_pipelines)
     parser.add_argument("--search-resolution", choices=("pilot", "medium", "high"))
+    parser.add_argument("--tls-use-threads", type=int)
+    parser.add_argument("--tls-oversampling-factor", type=int)
+    parser.add_argument("--tps-wavelet", type=str)
+    parser.add_argument("--tps-max-wavelet-level", type=int)
+    parser.add_argument("--tps-noise-window-cadences", type=int)
+    parser.add_argument("--tps-min-segment-cadences", type=int)
     parser.add_argument("--no-download", dest="allow_download", action="store_false")
     parser.add_argument("--no-resume", dest="resume", action="store_false")
     parser.add_argument("--rerun-failures", action="store_true")
@@ -88,6 +94,10 @@ def parse_args(argv=None):
     args.checkpoint_interval = int(parsed.checkpoint_interval) if parsed.checkpoint_interval is not None else int(args.checkpoint_interval)
     args.progress_interval = int(parsed.progress_interval) if parsed.progress_interval is not None else int(args.progress_interval)
     args.pipelines = parsed.pipelines if parsed.pipelines is not None else tuple(args.pipelines)
+    for key in ("tls_use_threads", "tls_oversampling_factor", "tps_wavelet", "tps_max_wavelet_level", "tps_noise_window_cadences", "tps_min_segment_cadences"):
+        value = getattr(parsed, key)
+        if value is not None:
+            setattr(args, key, value)
     args.allow_download = bool(parsed.allow_download)
     args.resume = bool(parsed.resume)
     args.rerun_failures = bool(parsed.rerun_failures)
@@ -157,14 +167,28 @@ def fit_branch_series(time, flux, star_dir, target_id, quarter, args):
         model_fields[f"{branch}_base_residual_acf1"] = lag_one_acf(values)
     return series, model_fields
 
-def run_pipeline_on_surrogate(pipeline, detector, time, surrogate, period_grid, duration_grid, args):
-    result = run_bls_search(time, surrogate, period_grid, duration_grid, args) if detector == "bls" else run_tcf_search(time, surrogate, period_grid, duration_grid, args)
+def run_pipeline_on_surrogate(pipeline, detector, time, surrogate, segment_id, period_grid, duration_grid, args, cache):
+    result = run_detector_search(detector, time, surrogate, period_grid, duration_grid, args, segment_id=segment_id, cache=cache)
     best = result["summary"]
+    row = {
+        "score": detector_summary_score(best, detector),
+        "period_days": detector_summary_period_days(best),
+        "duration_hours": detector_summary_duration_hours(best),
+        "epoch_days": detector_summary_epoch_days(best),
+    }
     if detector == "bls":
-        return {"score": float(best["sde"]), "power": float(best["power"]), "period_days": float(best["period_days"]), "duration_hours": float(best["duration_days"] * 24.0), "epoch_days": float(best["transit_time"])}
-    return {"score": float(best["score"]), "raw_pooled_score": float(best["raw_pooled_score"]), "period_days": float(best["period"]), "duration_hours": float(best["duration"] * 24.0), "epoch_days": float(best["epoch"]), "valid_transit_events": int(best["n_valid_transit_events"]), "positive_event_fraction": float(best["positive_event_fraction"])}
+        row.update({"power": float(best["power"])})
+    elif detector == "tcf":
+        row.update({"raw_pooled_score": float(best["raw_pooled_score"]), "valid_transit_events": int(best["n_valid_transit_events"]), "positive_event_fraction": float(best["positive_event_fraction"])})
+    elif detector == "tls":
+        row.update({"tls_snr": float(best["snr"]), "depth_raw": float(best["depth_raw"])})
+    elif detector == "trapezoid":
+        row.update({"ingress_fraction": float(best["ingress_fraction"]), "bls_seed_rank": int(best["seed_rank"]), "depth": float(best["depth"])})
+    elif detector == "tps_like":
+        row.update({"max_ses": float(best["max_ses"]), "observed_event_count": int(best["observed_event_count"]), "expected_event_count": int(best["expected_event_count"]), "observability_fraction": float(best["observability_fraction"])})
+    return row
 
-def run_one_null_trial(trial, seed, target_id, quarter, time, branch_series, period_grid, duration_grid, args):
+def run_one_null_trial(trial, seed, target_id, quarter, time, segment_id, branch_series, period_grid, duration_grid, base_detector_caches, args):
     rng = np.random.default_rng(int(seed))
     groups = branch_detector_groups(args["pipelines"])
     row = {"target_id": normalize_target_id(target_id), "quarter": int(quarter), "trial": int(trial), "trial_seed": int(seed)}
@@ -172,9 +196,10 @@ def run_one_null_trial(trial, seed, target_id, quarter, time, branch_series, per
         try:
             surrogate = moving_block_surrogate(branch_series[branch], block_size=args["null_block_size_cadences"], rng=rng)
             row[f"{branch}_null_std"] = float(np.nanstd(surrogate, ddof=1))
+            detector_cache = dict(base_detector_caches.get(branch, {}))
             for pipeline, detector in members:
                 try:
-                    result = run_pipeline_on_surrogate(pipeline, detector, time, surrogate, period_grid, duration_grid, args)
+                    result = run_pipeline_on_surrogate(pipeline, detector, time, surrogate, segment_id, period_grid, duration_grid, args, detector_cache)
                     row[f"{pipeline}_success"] = True
                     row[f"{pipeline}_score"] = float(result["score"])
                     row[f"{pipeline}_best_period_days"] = float(result["period_days"])
@@ -187,6 +212,18 @@ def run_one_null_trial(trial, seed, target_id, quarter, time, branch_series, per
                         row[f"{pipeline}_raw_pooled_score"] = float(result["raw_pooled_score"])
                         row[f"{pipeline}_valid_transit_events"] = int(result["valid_transit_events"])
                         row[f"{pipeline}_positive_event_fraction"] = float(result["positive_event_fraction"])
+                    if "tls_snr" in result:
+                        row[f"{pipeline}_tls_snr"] = float(result["tls_snr"])
+                        row[f"{pipeline}_depth_raw"] = float(result["depth_raw"])
+                    if "ingress_fraction" in result:
+                        row[f"{pipeline}_ingress_fraction"] = float(result["ingress_fraction"])
+                        row[f"{pipeline}_bls_seed_rank"] = int(result["bls_seed_rank"])
+                        row[f"{pipeline}_depth"] = float(result["depth"])
+                    if "max_ses" in result:
+                        row[f"{pipeline}_max_ses"] = float(result["max_ses"])
+                        row[f"{pipeline}_observed_event_count"] = int(result["observed_event_count"])
+                        row[f"{pipeline}_expected_event_count"] = int(result["expected_event_count"])
+                        row[f"{pipeline}_observability_fraction"] = float(result["observability_fraction"])
                 except Exception as exc:
                     row[f"{pipeline}_success"] = False
                     row[f"{pipeline}_score"] = float("nan")
@@ -263,9 +300,11 @@ def run_star_calibration(task):
         regular, preprocessing = preprocess_pdcsap_light_curve(light_curve_frame, quality_policy=args["quality_policy"], require_finite_flux_error=args["require_finite_flux_error"], normalization_fit_fraction=1.0 - args["test_fraction"])
         time = regular["time"].to_numpy(dtype=float)
         flux = regular["normalized_flux"].to_numpy(dtype=float)
+        segment_id = regular["segment_id"].to_numpy(dtype=int)
         period_grid = default_period_grid(time, min_period_days=args["min_period_days"], max_period_days=args["max_period_days"], n_periods=args["n_periods"])
         duration_grid = default_duration_grid(args["min_duration_hours"], args["max_duration_hours"], args["n_durations"])
         branch_series, model_fields = fit_branch_series(time, flux, star_dir, target_id, quarter, args)
+        base_detector_caches = prepare_branch_detector_caches(branch_series, segment_id, args["pipelines"], args)
         seeds = create_trial_seeds(args, target_id, quarter)
         null_path = calibration_dir / "null_trials.csv"
         rows, completed = load_completed_null_rows(null_path, seeds, args, resume_compatible=resume_compatible)
@@ -277,7 +316,7 @@ def run_star_calibration(task):
         for trial, seed in enumerate(seeds):
             if trial in completed:
                 continue
-            rows.append(run_one_null_trial(trial, seed, target_id, quarter, time, branch_series, period_grid, duration_grid, args))
+            rows.append(run_one_null_trial(trial, seed, target_id, quarter, time, segment_id, branch_series, period_grid, duration_grid, base_detector_caches, args))
             completed.add(trial)
             unreported += 1
             if len(completed) % checkpoint_interval == 0 or len(completed) == len(seeds):

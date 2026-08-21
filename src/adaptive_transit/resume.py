@@ -10,6 +10,7 @@ import pandas as pd
 
 PRIMARY_KEYS = {
     "characterization": ("run_id", "config_hash", "star_id"),
+    "treatment": ("run_id", "config_hash", "star_id", "treatment"),
     "injection": ("run_id", "config_hash", "star_id", "injection_id"),
     "preservation": ("run_id", "config_hash", "star_id", "injection_id", "treatment"),
     "detection": ("run_id", "config_hash", "star_id", "injection_id", "treatment", "detector", "score_definition"),

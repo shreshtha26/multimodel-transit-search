@@ -59,6 +59,43 @@ The longer-term goal is to benchmark statistical, probabilistic, machine-learnin
 
 > **Research status:** active prototype. The repository contains a single-target methodological benchmark and a 50-star Kepler Quarter 5 pilot. The candidate reranker is frozen as `clean_reranker_v1`, but neither the detector pipeline nor the reranker should yet be interpreted as a validated astrophysical transit-search system or catalog generator.
 
+## Active Scientific Benchmark
+
+The active benchmark architecture is the unified long-format adaptive-transit runner. It evaluates registered background treatments against registered detectors as treatment x detector pipelines:
+
+```text
+raw/arima/kalman/gp x bls/tcf/tps_like
+```
+
+TLS and trapezoid remain registered challenger detectors, but they are inactive by default and must be requested explicitly.
+
+An exploratory 50-star profile runs the same 12 core combinations with one representative BATMAN period, duration and phase across three configurable depths:
+
+```bash
+python scripts/run_adaptive_transit_benchmark.py --profile demo50
+```
+
+There are two active scientific scales:
+
+```text
+benchmark100  -> configs/kepler_q5_clean_100_star_manifest.csv
+benchmark1000 -> configs/kepler_q5_clean_1000_star_manifest.csv
+```
+
+The scientific common-FAP setting is 1000 moving-block null trials per star. Smaller null counts, including 100-null runs, are engineering tests only.
+
+```bash
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark100 --calibrate-fap --n-null-trials-per-star 1000
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark100 --thresholds-path outputs/experiments/adaptive_transit/benchmark100/fap_thresholds.csv
+```
+
+The 1000-star run uses the same runner:
+
+```bash
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark1000 --calibrate-fap --n-null-trials-per-star 1000
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark1000 --thresholds-path outputs/experiments/adaptive_transit/benchmark1000/fap_thresholds.csv
+```
+
 ## Research Questions
 
 The current work is organized around seven questions:
@@ -1183,7 +1220,7 @@ The multi-duration sensitivity script repeats that mechanism test for 2-hour, 4-
 python scripts/compare_bls_tcf.py
 ```
 
-### 50-star pilot
+### Legacy 50-star pilot
 
 ```bash
 python scripts/run_multistar_bls_tcf.py

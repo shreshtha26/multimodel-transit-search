@@ -1,0 +1,2 @@
+target_id,quarter,selection_group,sample_stratum,koi_flag,tce_flag,confirmed_planet_flag,eb_flag,provenance
+10223890,5,catalog_clean_background,quiet_low_scatter,False,False,False,False,NASA Exoplanet Archive DR25 stellar/KOI/TCE + Kepler confirmed names + MAST Kepler EB Revision 3

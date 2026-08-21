@@ -1,0 +1,3 @@
+run_id,config_hash,star_id,injection_id,injection_kind,period_days,epoch_days,duration_days,depth,epoch_phase_fraction,batman_used,seed,template_hash,success
+smoke_ce55ac60038b7702,ce55ac60038b7702,kic_1431791_q5,native_zero,native,,,,0.0,,False,,8e5b523a8ddcdd15,True
+smoke_ce55ac60038b7702,ce55ac60038b7702,kic_1431791_q5,batman_00000,batman,5.0,445.7399980393602,0.16666666666666666,0.001,0.45,True,123.0,83395741875cd9a5,True

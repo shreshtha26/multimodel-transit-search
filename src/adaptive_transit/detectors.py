@@ -11,6 +11,7 @@ import pandas as pd
 
 from adaptive_transit.core import LightCurve
 from adaptive_transit.detection.bls import run_bls
+from adaptive_transit.detection.tcf import run_tcf
 from adaptive_transit.detection.tls import run_tls
 from adaptive_transit.detection.tps_like import prepare_tps_like_noise_model, run_tps_like_search
 from adaptive_transit.detection.tps_like_hardening import harden_tps_like_result
@@ -145,6 +146,92 @@ class TLSDetector(TransitDetector):
                 "top_peaks": _top_peaks_json(
                     _ranked_periodogram_peaks(result["periodogram"], "power", int(params.get("top_k", 5))),
                     ("rank", "period_days", "power"),
+                ),
+            },
+        )
+
+
+TCF_INPUT_REPRESENTATION = {
+    "raw": "RAW: normalized native/pre-search flux representation on the regularized cadence grid",
+    "arima": "ARIMA: ARIMA residual/innovation representation from the fixed native-background ARIMA model",
+    "kalman": "KALMAN: Kalman residual representation from the fixed native-background state-space model",
+    "gp": "GP: GP residual representation from the fixed native-background Gaussian-process model",
+}
+
+TCF_INTERNAL_TRANSFORM = (
+    "The adapter passes this series directly to the existing TCF implementation. "
+    "That implementation performs its historical phase-binned ingress/egress "
+    "edge-comb scoring internally; the adapter does not add a second differencing "
+    "or edge transform."
+)
+
+
+class TCFDetector(TransitDetector):
+    name = "tcf"
+    score_definition = "tcf_event_consistent_score"
+    score_definitions = ("tcf_event_consistent_score",)
+
+    def search(self, lightcurve: LightCurve, context: DetectorContext) -> DetectionResult:
+        started = perf_counter()
+        params = context.parameters
+        treatment = str(lightcurve.metadata.get("treatment", "unknown"))
+        result = run_tcf(
+            lightcurve.time,
+            lightcurve.flux,
+            context.period_grid,
+            context.duration_grid,
+            edge_width_cadences=int(params.get("edge_width_cadences", 0)),
+            min_edge_observations=int(params.get("min_edge_observations", 4)),
+            min_transit_events=int(params.get("min_transit_events", 3)),
+            min_event_consistency_fraction=float(params.get("min_event_consistency_fraction", 0.60)),
+            top_k=int(params.get("top_k", 5)),
+            search_mode=str(params.get("tcf_search_mode", params.get("search_mode", "coarse_to_fine"))),
+            n_coarse_periods=int(params.get("tcf_n_coarse_periods", params.get("n_coarse_periods", 2000))),
+            n_refinement_regions=int(params.get("tcf_n_refinement_regions", params.get("n_refinement_regions", 20))),
+            refinement_half_width_points=int(
+                params.get("tcf_refinement_half_width_points", params.get("refinement_half_width_points", 30))
+            ),
+        )
+        summary = result["summary"]
+        return DetectionResult(
+            success=True,
+            best_period_days=float(summary["period"]),
+            best_epoch=float(summary["epoch"]),
+            best_duration_days=float(summary["duration"]),
+            best_depth=None,
+            raw_score=float(summary["score"]),
+            runtime_seconds=float(perf_counter() - started),
+            diagnostics={
+                "score_definition": self.score_definition,
+                "raw_pooled_score": float(summary["raw_pooled_score"]),
+                "edge_amplitude": float(summary["edge_amplitude"]),
+                "n_edge_observations": int(summary["n_edge_observations"]),
+                "n_valid_transit_events": int(summary["n_valid_transit_events"]),
+                "positive_event_fraction": float(summary["positive_event_fraction"]),
+                "median_event_score": float(summary["median_event_score"]),
+                "cadence_days": float(summary["cadence_days"]),
+                "innovation_scale": float(summary["innovation_scale"]),
+                "search_mode": str(summary["search_mode"]),
+                "requested_period_count": int(summary["requested_period_count"]),
+                "evaluated_period_count": int(summary["evaluated_period_count"]),
+                "treatment": treatment,
+                "tcf_input_representation": TCF_INPUT_REPRESENTATION.get(
+                    treatment,
+                    "treatment light-curve flux passed directly to legacy TCF edge-comb scorer",
+                ),
+                "tcf_internal_transform": TCF_INTERNAL_TRANSFORM,
+                "top_peaks": _top_peaks_json(
+                    result["top_peaks"],
+                    (
+                        "rank",
+                        "period_days",
+                        "score",
+                        "raw_pooled_score",
+                        "duration",
+                        "epoch",
+                        "n_valid_transit_events",
+                        "positive_event_fraction",
+                    ),
                 ),
             },
         )
@@ -327,9 +414,21 @@ class TPSLikeDetector(TransitDetector):
 
 DETECTORS: dict[str, TransitDetector] = {
     "bls": BLSDetector(),
+    "tcf": TCFDetector(),
     "tls": TLSDetector(),
     "trapezoid": TrapezoidDetector(),
     "tps_like": TPSLikeDetector(),
+}
+
+CORE_DETECTORS: dict[str, TransitDetector] = {
+    "bls": DETECTORS["bls"],
+    "tcf": DETECTORS["tcf"],
+    "tps_like": DETECTORS["tps_like"],
+}
+
+CHALLENGER_DETECTORS: dict[str, TransitDetector] = {
+    "tls": DETECTORS["tls"],
+    "trapezoid": DETECTORS["trapezoid"],
 }
 
 

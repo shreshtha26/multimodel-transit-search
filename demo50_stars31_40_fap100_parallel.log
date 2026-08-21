@@ -1,0 +1,210 @@
+/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/lightkurve/prf/__init__.py:7: UserWarning: Warning: the tpfmodel submodule is not available without oktopus installed, which requires a current version of autograd. See #1452 for details.
+  warnings.warn(
+running 10 pending stars with 2 worker processes
+/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/lightkurve/prf/__init__.py:7: UserWarning: Warning: the tpfmodel submodule is not available without oktopus installed, which requires a current version of autograd. See #1452 for details.
+  warnings.warn(
+Stars:   0%|          | 0/10 [00:00<?, ?star/s] 
+Null trials:   0%|          | 0/1000 [00:00<?, ?trial/s] [A/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/lightkurve/prf/__init__.py:7: UserWarning: Warning: the tpfmodel submodule is not available without oktopus installed, which requires a current version of autograd. See #1452 for details.
+  warnings.warn(
+/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/lightkurve/prf/__init__.py:7: UserWarning: Warning: the tpfmodel submodule is not available without oktopus installed, which requires a current version of autograd. See #1452 for details.
+  warnings.warn(
+
+Null trials:   0%|          | 0/1000 [00:04<?, ?trial/s] , kic_2715763_q5 data_fetch cache_hit[A
+Null trials:   0%|          | 0/1000 [00:04<?, ?trial/s] , kic_10223890_q5 data_fetch cache_hit[A/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals
+  warnings.warn("Maximum Likelihood optimization failed to "
+/Users/shreshthachakraborty/PycharmProjects/PythonProject/trident/.venv/lib/python3.14/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals
+  warnings.warn("Maximum Likelihood optimization failed to "
+
+Null trials:   0%|          | 1/1000 [00:05<1:32:13,  5.54s/trial] , kic_10223890_q5 data_fetch cache_hit[A
+Null trials:   0%|          | 1/1000 [00:05<1:32:13,  5.54s/trial] , kic_10223890_q5 null 1/100          [A
+Null trials:   0%|          | 2/1000 [00:05<1:32:07,  5.54s/trial] , kic_2715763_q5 null 1/100 [A
+Null trials:   0%|          | 3/1000 [01:23<8:24:12, 30.34s/trial] , kic_2715763_q5 null 1/100[A
+Null trials:   0%|          | 3/1000 [01:23<8:24:12, 30.34s/trial] , kic_10223890_q5 null 2/100[A
+Null trials:   0%|          | 4/1000 [01:25<5:40:59, 20.54s/trial] , kic_10223890_q5 null 2/100[A
+Null trials:   0%|          | 4/1000 [01:25<5:40:59, 20.54s/trial] , kic_2715763_q5 null 2/100 [A
+Null trials:   0%|          | 5/1000 [03:10<13:23:05, 48.43s/trial] , kic_2715763_q5 null 2/100[A
+Null trials:   0%|          | 5/1000 [03:10<13:23:05, 48.43s/trial] , kic_10223890_q5 null 3/100[A
+Null trials:   1%|          | 6/1000 [03:15<9:34:20, 34.67s/trial] , kic_10223890_q5 null 3/100 [A
+Null trials:   1%|          | 6/1000 [03:15<9:34:20, 34.67s/trial] , kic_2715763_q5 null 3/100 [A
+Null trials:   1%|          | 7/1000 [05:00<15:35:39, 56.54s/trial] , kic_2715763_q5 null 3/100[A
+Null trials:   1%|          | 7/1000 [05:00<15:35:39, 56.54s/trial] , kic_10223890_q5 null 4/100[A
+Null trials:   1%|          | 8/1000 [05:07<11:23:43, 41.35s/trial] , kic_10223890_q5 null 4/100[A
+Null trials:   1%|          | 8/1000 [05:07<11:23:43, 41.35s/trial] , kic_2715763_q5 null 4/100 [A
+Null trials:   1%|          | 9/1000 [06:49<16:29:01, 59.88s/trial] , kic_2715763_q5 null 4/100[A
+Null trials:   1%|          | 9/1000 [06:49<16:29:01, 59.88s/trial] , kic_10223890_q5 null 5/100[A
+Null trials:   1%|          | 10/1000 [06:59<12:14:58, 44.54s/trial] , kic_10223890_q5 null 5/100[A
+Null trials:   1%|          | 10/1000 [06:59<12:14:58, 44.54s/trial] , kic_2715763_q5 null 5/100 [A
+Null trials:   1%|          | 11/1000 [08:42<17:07:47, 62.35s/trial] , kic_2715763_q5 null 5/100[A
+Null trials:   1%|          | 11/1000 [08:42<17:07:47, 62.35s/trial] , kic_10223890_q5 null 6/100[A
+Null trials:   1%|          | 12/1000 [08:54<12:56:33, 47.16s/trial] , kic_10223890_q5 null 6/100[A
+Null trials:   1%|          | 12/1000 [08:54<12:56:33, 47.16s/trial] , kic_2715763_q5 null 6/100 [A
+Null trials:   1%|▏         | 13/1000 [10:34<17:19:33, 63.20s/trial] , kic_2715763_q5 null 6/100[A
+Null trials:   1%|▏         | 13/1000 [10:34<17:19:33, 63.20s/trial] , kic_10223890_q5 null 7/100[A
+Null trials:   1%|▏         | 14/1000 [10:45<13:00:44, 47.51s/trial] , kic_10223890_q5 null 7/100[A
+Null trials:   1%|▏         | 14/1000 [10:45<13:00:44, 47.51s/trial] , kic_2715763_q5 null 7/100 [A
+Null trials:   2%|▏         | 15/1000 [11:35<13:11:31, 48.21s/trial] , kic_2715763_q5 null 7/100[A
+Null trials:   2%|▏         | 15/1000 [11:35<13:11:31, 48.21s/trial] , kic_10223890_q5 null 8/100[A
+Null trials:   2%|▏         | 16/1000 [11:41<9:42:50, 35.54s/trial] , kic_10223890_q5 null 8/100 [A
+Null trials:   2%|▏         | 16/1000 [11:41<9:42:50, 35.54s/trial] , kic_2715763_q5 null 8/100 [A
+Null trials:   2%|▏         | 17/1000 [12:15<9:33:20, 35.00s/trial] , kic_2715763_q5 null 8/100[A
+Null trials:   2%|▏         | 17/1000 [12:15<9:33:20, 35.00s/trial] , kic_10223890_q5 null 9/100[A
+Null trials:   2%|▏         | 18/1000 [12:23<7:17:56, 26.76s/trial] , kic_10223890_q5 null 9/100[A
+Null trials:   2%|▏         | 18/1000 [12:23<7:17:56, 26.76s/trial] , kic_2715763_q5 null 9/100 [A
+Null trials:   2%|▏         | 19/1000 [12:57<7:54:13, 29.01s/trial] , kic_2715763_q5 null 9/100[A
+Null trials:   2%|▏         | 19/1000 [12:57<7:54:13, 29.01s/trial] , kic_10223890_q5 null 10/100[A
+Null trials:   2%|▏         | 20/1000 [13:05<6:13:32, 22.87s/trial] , kic_10223890_q5 null 10/100[A
+Null trials:   2%|▏         | 20/1000 [13:05<6:13:32, 22.87s/trial] , kic_2715763_q5 null 10/100 [A
+Null trials:   2%|▏         | 21/1000 [13:39<7:03:53, 25.98s/trial] , kic_2715763_q5 null 10/100[A
+Null trials:   2%|▏         | 21/1000 [13:39<7:03:53, 25.98s/trial] , kic_10223890_q5 null 11/100[A
+Null trials:   2%|▏         | 22/1000 [13:49<5:45:35, 21.20s/trial] , kic_10223890_q5 null 11/100[A
+Null trials:   2%|▏         | 22/1000 [13:49<5:45:35, 21.20s/trial] , kic_2715763_q5 null 11/100 [A
+Null trials:   2%|▏         | 23/1000 [14:21<6:39:06, 24.51s/trial] , kic_2715763_q5 null 11/100[A
+Null trials:   2%|▏         | 23/1000 [14:21<6:39:06, 24.51s/trial] , kic_10223890_q5 null 12/100[A
+Null trials:   2%|▏         | 24/1000 [14:32<5:35:28, 20.62s/trial] , kic_10223890_q5 null 12/100[A
+Null trials:   2%|▏         | 24/1000 [14:32<5:35:28, 20.62s/trial] , kic_2715763_q5 null 12/100 [A
+Null trials:   2%|▎         | 25/1000 [15:04<6:26:44, 23.80s/trial] , kic_2715763_q5 null 12/100[A
+Null trials:   2%|▎         | 25/1000 [15:04<6:26:44, 23.80s/trial] , kic_10223890_q5 null 13/100[A
+Null trials:   3%|▎         | 26/1000 [15:16<5:31:44, 20.44s/trial] , kic_10223890_q5 null 13/100[A
+Null trials:   3%|▎         | 26/1000 [15:16<5:31:44, 20.44s/trial] , kic_2715763_q5 null 13/100 [A
+Null trials:   3%|▎         | 27/1000 [15:46<6:18:57, 23.37s/trial] , kic_2715763_q5 null 13/100[A
+Null trials:   3%|▎         | 27/1000 [15:46<6:18:57, 23.37s/trial] , kic_10223890_q5 null 14/100[A
+Null trials:   3%|▎         | 28/1000 [16:00<5:31:05, 20.44s/trial] , kic_10223890_q5 null 14/100[A
+Null trials:   3%|▎         | 28/1000 [16:00<5:31:05, 20.44s/trial] , kic_2715763_q5 null 14/100 [A
+Null trials:   3%|▎         | 29/1000 [16:30<6:15:47, 23.22s/trial] , kic_2715763_q5 null 14/100[A
+Null trials:   3%|▎         | 29/1000 [16:30<6:15:47, 23.22s/trial] , kic_10223890_q5 null 15/100[A
+Null trials:   3%|▎         | 30/1000 [16:44<5:33:29, 20.63s/trial] , kic_10223890_q5 null 15/100[A
+Null trials:   3%|▎         | 30/1000 [16:44<5:33:29, 20.63s/trial] , kic_2715763_q5 null 15/100 [A
+Null trials:   3%|▎         | 31/1000 [17:14<6:14:42, 23.20s/trial] , kic_2715763_q5 null 15/100[A
+Null trials:   3%|▎         | 31/1000 [17:14<6:14:42, 23.20s/trial] , kic_10223890_q5 null 16/100[A
+Null trials:   3%|▎         | 32/1000 [17:30<5:40:03, 21.08s/trial] , kic_10223890_q5 null 16/100[A
+Null trials:   3%|▎         | 32/1000 [17:30<5:40:03, 21.08s/trial] , kic_2715763_q5 null 16/100 [A
+Null trials:   3%|▎         | 33/1000 [17:59<6:21:45, 23.69s/trial] , kic_2715763_q5 null 16/100[A
+Null trials:   3%|▎         | 33/1000 [17:59<6:21:45, 23.69s/trial] , kic_10223890_q5 null 17/100[A
+Null trials:   3%|▎         | 34/1000 [18:18<5:55:08, 22.06s/trial] , kic_10223890_q5 null 17/100[A
+Null trials:   3%|▎         | 34/1000 [18:18<5:55:08, 22.06s/trial] , kic_2715763_q5 null 17/100 [A
+Null trials:   4%|▎         | 35/1000 [18:47<6:29:58, 24.25s/trial] , kic_2715763_q5 null 17/100[A
+Null trials:   4%|▎         | 35/1000 [18:47<6:29:58, 24.25s/trial] , kic_10223890_q5 null 18/100[A
+Null trials:   4%|▎         | 36/1000 [19:06<6:05:19, 22.74s/trial] , kic_10223890_q5 null 18/100[A
+Null trials:   4%|▎         | 36/1000 [19:06<6:05:19, 22.74s/trial] , kic_2715763_q5 null 18/100 [A
+Null trials:   4%|▎         | 37/1000 [19:35<6:31:52, 24.42s/trial] , kic_2715763_q5 null 18/100[A
+Null trials:   4%|▎         | 37/1000 [19:35<6:31:52, 24.42s/trial] , kic_10223890_q5 null 19/100[A
+Null trials:   4%|▍         | 38/1000 [19:56<6:16:14, 23.47s/trial] , kic_10223890_q5 null 19/100[A
+Null trials:   4%|▍         | 38/1000 [19:56<6:16:14, 23.47s/trial] , kic_2715763_q5 null 19/100 [A
+Null trials:   4%|▍         | 39/1000 [20:24<6:36:42, 24.77s/trial] , kic_2715763_q5 null 19/100[A
+Null trials:   4%|▍         | 39/1000 [20:24<6:36:42, 24.77s/trial] , kic_10223890_q5 null 20/100[A
+Null trials:   4%|▍         | 40/1000 [20:46<6:24:15, 24.02s/trial] , kic_10223890_q5 null 20/100[A
+Null trials:   4%|▍         | 40/1000 [20:46<6:24:15, 24.02s/trial] , kic_2715763_q5 null 20/100 [A
+Null trials:   4%|▍         | 41/1000 [21:13<6:39:38, 25.00s/trial] , kic_2715763_q5 null 20/100[A
+Null trials:   4%|▍         | 41/1000 [21:13<6:39:38, 25.00s/trial] , kic_10223890_q5 null 21/100[A
+Null trials:   4%|▍         | 42/1000 [21:37<6:31:08, 24.50s/trial] , kic_10223890_q5 null 21/100[A
+Null trials:   4%|▍         | 42/1000 [21:37<6:31:08, 24.50s/trial] , kic_2715763_q5 null 21/100 [A
+Null trials:   4%|▍         | 43/1000 [22:03<6:39:36, 25.05s/trial] , kic_2715763_q5 null 21/100[A
+Null trials:   4%|▍         | 43/1000 [22:03<6:39:36, 25.05s/trial] , kic_10223890_q5 null 22/100[A
+Null trials:   4%|▍         | 44/1000 [22:28<6:37:44, 24.96s/trial] , kic_10223890_q5 null 22/100[A
+Null trials:   4%|▍         | 44/1000 [22:28<6:37:44, 24.96s/trial] , kic_2715763_q5 null 22/100 [A
+Null trials:   4%|▍         | 45/1000 [22:53<6:38:50, 25.06s/trial] , kic_2715763_q5 null 22/100[A
+Null trials:   4%|▍         | 45/1000 [22:53<6:38:50, 25.06s/trial] , kic_10223890_q5 null 23/100[A
+Null trials:   5%|▍         | 46/1000 [23:20<6:46:47, 25.58s/trial] , kic_10223890_q5 null 23/100[A
+Null trials:   5%|▍         | 46/1000 [23:20<6:46:47, 25.58s/trial] , kic_2715763_q5 null 23/100 [A
+Null trials:   5%|▍         | 47/1000 [23:43<6:35:34, 24.91s/trial] , kic_2715763_q5 null 23/100[A
+Null trials:   5%|▍         | 47/1000 [23:43<6:35:34, 24.91s/trial] , kic_10223890_q5 null 24/100[A
+Null trials:   5%|▍         | 48/1000 [24:10<6:46:45, 25.64s/trial] , kic_10223890_q5 null 24/100[A
+Null trials:   5%|▍         | 48/1000 [24:10<6:46:45, 25.64s/trial] , kic_2715763_q5 null 24/100 [A
+Null trials:   5%|▍         | 49/1000 [24:33<6:32:45, 24.78s/trial] , kic_2715763_q5 null 24/100[A
+Null trials:   5%|▍         | 49/1000 [24:33<6:32:45, 24.78s/trial] , kic_10223890_q5 null 25/100[A
+Null trials:   5%|▌         | 50/1000 [25:02<6:51:39, 26.00s/trial] , kic_10223890_q5 null 25/100[A
+Null trials:   5%|▌         | 50/1000 [25:02<6:51:39, 26.00s/trial] , kic_2715763_q5 null 25/100 [A
+Null trials:   5%|▌         | 51/1000 [25:23<6:28:34, 24.57s/trial] , kic_2715763_q5 null 25/100[A
+Null trials:   5%|▌         | 51/1000 [25:23<6:28:34, 24.57s/trial] , kic_10223890_q5 null 26/100[A
+Null trials:   5%|▌         | 52/1000 [25:54<6:55:29, 26.30s/trial] , kic_10223890_q5 null 26/100[A
+Null trials:   5%|▌         | 52/1000 [25:54<6:55:29, 26.30s/trial] , kic_2715763_q5 null 26/100 [A
+Null trials:   5%|▌         | 53/1000 [26:14<6:26:20, 24.48s/trial] , kic_2715763_q5 null 26/100[A
+Null trials:   5%|▌         | 53/1000 [26:14<6:26:20, 24.48s/trial] , kic_10223890_q5 null 27/100[A
+Null trials:   5%|▌         | 54/1000 [26:46<7:00:56, 26.70s/trial] , kic_10223890_q5 null 27/100[A
+Null trials:   5%|▌         | 54/1000 [26:46<7:00:56, 26.70s/trial] , kic_2715763_q5 null 27/100 [A
+Null trials:   6%|▌         | 55/1000 [27:05<6:27:47, 24.62s/trial] , kic_2715763_q5 null 27/100[A
+Null trials:   6%|▌         | 55/1000 [27:05<6:27:47, 24.62s/trial] , kic_10223890_q5 null 28/100[A
+Null trials:   6%|▌         | 56/1000 [27:39<7:11:24, 27.42s/trial] , kic_10223890_q5 null 28/100[A
+Null trials:   6%|▌         | 56/1000 [27:39<7:11:24, 27.42s/trial] , kic_2715763_q5 null 28/100 [A
+Null trials:   6%|▌         | 57/1000 [27:58<6:29:56, 24.81s/trial] , kic_2715763_q5 null 28/100[A
+Null trials:   6%|▌         | 57/1000 [27:58<6:29:56, 24.81s/trial] , kic_10223890_q5 null 29/100[A
+Null trials:   6%|▌         | 58/1000 [28:33<7:17:07, 27.84s/trial] , kic_10223890_q5 null 29/100[A
+Null trials:   6%|▌         | 58/1000 [28:33<7:17:07, 27.84s/trial] , kic_2715763_q5 null 29/100 [A
+Null trials:   6%|▌         | 59/1000 [28:51<6:28:51, 24.79s/trial] , kic_2715763_q5 null 29/100[A
+Null trials:   6%|▌         | 59/1000 [28:51<6:28:51, 24.79s/trial] , kic_10223890_q5 null 30/100[A
+Null trials:   6%|▌         | 60/1000 [29:28<7:25:27, 28.43s/trial] , kic_10223890_q5 null 30/100[A
+Null trials:   6%|▌         | 60/1000 [29:28<7:25:27, 28.43s/trial] , kic_2715763_q5 null 30/100 [A
+Null trials:   6%|▌         | 61/1000 [29:44<6:27:28, 24.76s/trial] , kic_2715763_q5 null 30/100[A
+Null trials:   6%|▌         | 61/1000 [29:44<6:27:28, 24.76s/trial] , kic_10223890_q5 null 31/100[A
+Null trials:   6%|▌         | 62/1000 [30:22<7:31:20, 28.87s/trial] , kic_10223890_q5 null 31/100[A
+Null trials:   6%|▌         | 62/1000 [30:22<7:31:20, 28.87s/trial] , kic_2715763_q5 null 31/100 [A
+Null trials:   6%|▋         | 63/1000 [30:37<6:26:44, 24.76s/trial] , kic_2715763_q5 null 31/100[A
+Null trials:   6%|▋         | 63/1000 [30:37<6:26:44, 24.76s/trial] , kic_10223890_q5 null 32/100[A
+Null trials:   6%|▋         | 64/1000 [31:18<7:40:00, 29.49s/trial] , kic_10223890_q5 null 32/100[A
+Null trials:   6%|▋         | 64/1000 [31:18<7:40:00, 29.49s/trial] , kic_2715763_q5 null 32/100 [A
+Null trials:   6%|▋         | 65/1000 [31:32<6:27:57, 24.90s/trial] , kic_2715763_q5 null 32/100[A
+Null trials:   6%|▋         | 65/1000 [31:32<6:27:57, 24.90s/trial] , kic_10223890_q5 null 33/100[A
+Null trials:   7%|▋         | 66/1000 [32:14<7:45:12, 29.88s/trial] , kic_10223890_q5 null 33/100[A
+Null trials:   7%|▋         | 66/1000 [32:14<7:45:12, 29.88s/trial] , kic_2715763_q5 null 33/100 [A
+Null trials:   7%|▋         | 67/1000 [32:26<6:24:18, 24.71s/trial] , kic_2715763_q5 null 33/100[A
+Null trials:   7%|▋         | 67/1000 [32:26<6:24:18, 24.71s/trial] , kic_10223890_q5 null 34/100[A
+Null trials:   7%|▋         | 68/1000 [33:09<7:49:12, 30.21s/trial] , kic_10223890_q5 null 34/100[A
+Null trials:   7%|▋         | 68/1000 [33:09<7:49:12, 30.21s/trial] , kic_2715763_q5 null 34/100 [A
+Null trials:   7%|▋         | 69/1000 [33:21<6:19:56, 24.49s/trial] , kic_2715763_q5 null 34/100[A
+Null trials:   7%|▋         | 69/1000 [33:21<6:19:56, 24.49s/trial] , kic_10223890_q5 null 35/100[A
+Null trials:   7%|▋         | 70/1000 [34:04<7:47:59, 30.19s/trial] , kic_10223890_q5 null 35/100[A
+Null trials:   7%|▋         | 70/1000 [34:04<7:47:59, 30.19s/trial] , kic_2715763_q5 null 35/100 [A
+Null trials:   7%|▋         | 71/1000 [34:15<6:16:40, 24.33s/trial] , kic_2715763_q5 null 35/100[A
+Null trials:   7%|▋         | 71/1000 [34:15<6:16:40, 24.33s/trial] , kic_10223890_q5 null 36/100[A
+Null trials:   7%|▋         | 72/1000 [35:00<7:52:33, 30.55s/trial] , kic_10223890_q5 null 36/100[A
+Null trials:   7%|▋         | 72/1000 [35:00<7:52:33, 30.55s/trial] , kic_2715763_q5 null 36/100 [A
+Null trials:   7%|▋         | 73/1000 [35:09<6:14:53, 24.27s/trial] , kic_2715763_q5 null 36/100[A
+Null trials:   7%|▋         | 73/1000 [35:09<6:14:53, 24.27s/trial] , kic_10223890_q5 null 37/100[A
+Null trials:   7%|▋         | 74/1000 [35:56<7:57:43, 30.95s/trial] , kic_10223890_q5 null 37/100[A
+Null trials:   7%|▋         | 74/1000 [35:56<7:57:43, 30.95s/trial] , kic_2715763_q5 null 37/100 [A
+Null trials:   8%|▊         | 75/1000 [36:04<6:13:48, 24.25s/trial] , kic_2715763_q5 null 37/100[A
+Null trials:   8%|▊         | 75/1000 [36:04<6:13:48, 24.25s/trial] , kic_10223890_q5 null 38/100[A
+Null trials:   8%|▊         | 76/1000 [36:52<8:02:24, 31.33s/trial] , kic_10223890_q5 null 38/100[A
+Null trials:   8%|▊         | 76/1000 [36:52<8:02:24, 31.33s/trial] , kic_2715763_q5 null 38/100 [A
+Null trials:   8%|▊         | 77/1000 [36:58<6:05:11, 23.74s/trial] , kic_2715763_q5 null 38/100[A
+Null trials:   8%|▊         | 77/1000 [36:58<6:05:11, 23.74s/trial] , kic_10223890_q5 null 39/100[A
+Null trials:   8%|▊         | 78/1000 [37:45<7:51:11, 30.66s/trial] , kic_10223890_q5 null 39/100[A
+Null trials:   8%|▊         | 78/1000 [37:45<7:51:11, 30.66s/trial] , kic_2715763_q5 null 39/100 [A
+Null trials:   8%|▊         | 79/1000 [37:49<5:48:01, 22.67s/trial] , kic_2715763_q5 null 39/100[A
+Null trials:   8%|▊         | 79/1000 [37:49<5:48:01, 22.67s/trial] , kic_10223890_q5 null 40/100[A
+Null trials:   8%|▊         | 80/1000 [38:37<7:43:16, 30.21s/trial] , kic_10223890_q5 null 40/100[A
+Null trials:   8%|▊         | 80/1000 [38:37<7:43:16, 30.21s/trial] , kic_2715763_q5 null 40/100 [A
+Null trials:   8%|▊         | 81/1000 [38:41<5:42:26, 22.36s/trial] , kic_2715763_q5 null 40/100[A
+Null trials:   8%|▊         | 81/1000 [38:41<5:42:26, 22.36s/trial] , kic_10223890_q5 null 41/100[A
+Null trials:   8%|▊         | 82/1000 [39:31<7:48:17, 30.61s/trial] , kic_10223890_q5 null 41/100[A
+Null trials:   8%|▊         | 82/1000 [39:31<7:48:17, 30.61s/trial] , kic_2715763_q5 null 41/100 [A
+Null trials:   8%|▊         | 83/1000 [39:33<5:38:59, 22.18s/trial] , kic_2715763_q5 null 41/100[A
+Null trials:   8%|▊         | 83/1000 [39:33<5:38:59, 22.18s/trial] , kic_10223890_q5 null 42/100[A
+Null trials:   8%|▊         | 84/1000 [40:27<8:01:19, 31.53s/trial] , kic_10223890_q5 null 42/100[A
+Null trials:   8%|▊         | 84/1000 [40:27<8:01:19, 31.53s/trial] , kic_2715763_q5 null 42/100 [A
+Null trials:   8%|▊         | 85/1000 [40:28<5:41:10, 22.37s/trial] , kic_2715763_q5 null 42/100[A
+Null trials:   8%|▊         | 85/1000 [40:28<5:41:10, 22.37s/trial] , kic_10223890_q5 null 43/100[A
+Null trials:   9%|▊         | 86/1000 [41:21<8:02:26, 31.67s/trial] , kic_10223890_q5 null 43/100[A
+Null trials:   9%|▊         | 86/1000 [41:21<8:02:26, 31.67s/trial] , kic_10223890_q5 null 44/100[A
+Null trials:   9%|▊         | 87/1000 [41:22<5:39:38, 22.32s/trial] , kic_10223890_q5 null 44/100[A
+Null trials:   9%|▊         | 87/1000 [41:22<5:39:38, 22.32s/trial] , kic_2715763_q5 null 43/100 [A
+Null trials:   9%|▉         | 88/1000 [42:16<8:05:26, 31.94s/trial] , kic_2715763_q5 null 43/100[A
+Null trials:   9%|▉         | 88/1000 [42:16<8:05:26, 31.94s/trial] , kic_10223890_q5 null 45/100[A
+Null trials:   9%|▉         | 89/1000 [42:18<5:46:18, 22.81s/trial] , kic_10223890_q5 null 45/100[A
+Null trials:   9%|▉         | 89/1000 [42:18<5:46:18, 22.81s/trial] , kic_2715763_q5 null 44/100 [A
+Null trials:   9%|▉         | 90/1000 [43:10<8:02:36, 31.82s/trial] , kic_2715763_q5 null 44/100[A
+Null trials:   9%|▉         | 90/1000 [43:10<8:02:36, 31.82s/trial] , kic_10223890_q5 null 46/100[A
+Null trials:   9%|▉         | 91/1000 [43:13<5:51:13, 23.18s/trial] , kic_10223890_q5 null 46/100[A
+Null trials:   9%|▉         | 91/1000 [43:13<5:51:13, 23.18s/trial] , kic_2715763_q5 null 45/100 [A
+Null trials:   9%|▉         | 92/1000 [44:04<7:54:14, 31.34s/trial] , kic_2715763_q5 null 45/100[A
+Null trials:   9%|▉         | 92/1000 [44:04<7:54:14, 31.34s/trial] , kic_10223890_q5 null 47/100[A
+Null trials:   9%|▉         | 93/1000 [44:07<5:47:33, 22.99s/trial] , kic_10223890_q5 null 47/100[A
+Null trials:   9%|▉         | 93/1000 [44:07<5:47:33, 22.99s/trial] , kic_2715763_q5 null 46/100 [A
+Null trials:   9%|▉         | 94/1000 [44:57<7:46:37, 30.90s/trial] , kic_2715763_q5 null 46/100[A
+Null trials:   9%|▉         | 94/1000 [44:57<7:46:37, 30.90s/trial] , kic_10223890_q5 null 48/100[A
+Null trials:  10%|▉         | 95/1000 [45:03<5:53:38, 23.45s/trial] , kic_10223890_q5 null 48/100[A
+Null trials:  10%|▉         | 95/1000 [45:03<5:53:38, 23.45s/trial] , kic_2715763_q5 null 47/100 [A
+Null trials:  10%|▉         | 96/1000 [45:55<8:01:41, 31.97s/trial] , kic_2715763_q5 null 47/100[A
+Null trials:  10%|▉         | 96/1000 [45:55<8:01:41, 31.97s/trial] , kic_10223890_q5 null 49/100[A
+Null trials:  10%|▉         | 97/1000 [46:03<6:13:09, 24.79s/trial] , kic_10223890_q5 null 49/100[A
+Null trials:  10%|▉         | 97/1000 [46:03<6:13:09, 24.79s/trial] , kic_2715763_q5 null 48/100 [A

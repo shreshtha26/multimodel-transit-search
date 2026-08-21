@@ -1,5 +1,33 @@
 # Multi-Star Challenger Benchmark
 
+## Active Scientific Benchmark
+
+Active scientific runs now use the unified long-format adaptive-transit runner:
+
+```text
+Core pipelines: raw/arima/kalman/gp x bls/tcf/tps_like
+```
+
+TLS and trapezoid remain available as challenger detectors, but they are not active by default.
+
+```bash
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark100 --calibrate-fap --n-null-trials-per-star 1000
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark100 --thresholds-path outputs/experiments/adaptive_transit/benchmark100/fap_thresholds.csv
+```
+
+The final population-scale run uses the same runner and differs by manifest and scale:
+
+```bash
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark1000 --calibrate-fap --n-null-trials-per-star 1000
+python scripts/run_adaptive_transit_benchmark.py --profile benchmark1000 --thresholds-path outputs/experiments/adaptive_transit/benchmark1000/fap_thresholds.csv
+```
+
+The scientific common-FAP setting is 1000 moving-block null trials per star. Smaller null counts, including 100-null runs, are engineering tests only and must not be used for final 1% FAP claims.
+
+The legacy wide-table challenger runner remains for historical reproduction, but `pilot`, `main`, and 50-star profiles are no longer active scientific benchmark profiles.
+
+## Legacy Wide-Table Runner
+
 This benchmark extends the single-target raw, ARIMA, Kalman, and GP branches across multiple Kepler Quarter 5 stellar backgrounds.
 
 The scientific purpose is to test whether cheap stellar-background properties predict which preprocessing/detector pipeline wins.

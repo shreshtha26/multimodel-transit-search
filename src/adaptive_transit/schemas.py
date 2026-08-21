@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from adaptive_transit.core import LightCurve
+from adaptive_transit.noise_models.stellar_variability import CANONICAL_CHARACTERIZATION_COLUMNS
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,7 @@ CHARACTERIZATION_COLUMNS = (
     "quarter",
     "characterization_version",
     "success",
+    *CANONICAL_CHARACTERIZATION_COLUMNS,
 )
 
 INJECTION_COLUMNS = (
@@ -87,6 +89,16 @@ INJECTION_COLUMNS = (
     "success",
 )
 
+TREATMENT_COLUMNS = (
+    "run_id",
+    "config_hash",
+    "star_id",
+    "treatment",
+    "success",
+    "runtime_seconds",
+    "diagnostics",
+)
+
 PRESERVATION_COLUMNS = (
     "run_id",
     "config_hash",
@@ -100,6 +112,7 @@ PRESERVATION_COLUMNS = (
     "snr_after",
     "snr_retention_fraction",
     "in_transit_observation_count",
+    "template_hash",
     "success",
 )
 
@@ -149,6 +162,7 @@ NULL_SCORE_COLUMNS = (
 
 LONG_TABLE_SCHEMAS = {
     "characterization": CHARACTERIZATION_COLUMNS,
+    "treatment": TREATMENT_COLUMNS,
     "injection": INJECTION_COLUMNS,
     "preservation": PRESERVATION_COLUMNS,
     "detection": DETECTION_COLUMNS,
